@@ -1,7 +1,7 @@
 # Welcome to the docs for Wishly
 
 
-site layout so far 
+run this to get auto reloading docs 
 ```
-sudo apt install get-this-shit-done x2
+uv run mkdocs serve --livereload
 ```

@@ -32,3 +32,4 @@ markdown_extensions:
 nav:
   - Home: index.md
   - API: api.md
+  - ntfy Integration: ntfy.md
