@@ -1,0 +1,4 @@
+
+base-url: "http://100.80.99.58"
+listen-http: ":80"
+upstream-base-url: "https://ntfy.sh"

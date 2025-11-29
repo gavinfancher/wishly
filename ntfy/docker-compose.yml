@@ -1,0 +1,15 @@
+services:
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: ntfy
+    command:
+      - serve
+      - --config=/etc/ntfy/config.yaml
+    environment:
+      - TZ=UTC
+    volumes:
+      - ./config:/etc/ntfy
+      - /var/cache/ntfy:/var/cache/ntfy
+    ports:
+      - 80:80
+    restart: unless-stopped

@@ -6,5 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "dagster>=1.12.1",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.0",
     "vobject>=0.9.9",
 ]
