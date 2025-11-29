@@ -1,14 +1,6 @@
-# Python-generated files
+# auth-gen python file
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
 
-# Virtual environments
+
+# virtual envs
 .venv
-
-
-# personal .vcf data for testing
-contacts.vcf
