@@ -1,0 +1,25 @@
+{#- Custom-occasion reminder email body (T4.1). Extends the shared base layout. -#}
+{% extends "base.html.j2" %}
+
+{% block headline %}
+{%- if days_before == 0 -%}
+{{ recipient_name }}, {{ title }} is today!
+{%- elif days_before == 1 -%}
+{{ recipient_name }}, {{ title }} is tomorrow
+{%- else -%}
+{{ recipient_name }}, {{ title }} is in {{ days_before }} days
+{%- endif -%}
+{% endblock %}
+
+{% block body %}
+{%- if days_before == 0 %}
+<p class="paragraph">
+  <span class="occasion">{{ title }}</span> is today ({{ occurrence_date }}).
+</p>
+{%- else %}
+<p class="paragraph">
+  A reminder that <span class="occasion">{{ title }}</span> is coming up on
+  {{ occurrence_date }}{% if days_before == 1 %} — that's tomorrow{% else %}, in {{ days_before }} days{% endif %}.
+</p>
+{%- endif %}
+{% endblock %}

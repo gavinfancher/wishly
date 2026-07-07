@@ -1,0 +1,139 @@
+# Full production stack (PLAN T7.2 / T7.3). Run on the Docker host:
+#
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+#
+# Build context is the repo root (..) so the API/Dagster images can copy backend/.
+# Only Postgres holds a host-published port-free named volume; no app port is
+# published to the host — inbound traffic arrives via the cloudflared tunnel.
+services:
+  postgres:
+    image: postgres:16
+    container_name: wishly-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - wishly_pgdata:/var/lib/postgresql/data
+      # Creates the dedicated wishly_dagster database on first init.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # One-shot schema migration. The api/dagster services wait for it to finish so
+  # they never start against an un-migrated database.
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    image: wishly-api:latest
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app_net
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    image: wishly-api:latest
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app_net
+    # No ports published — cloudflared reaches api:8000 over app_net.
+
+  dagster-webserver:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.dagster
+    image: wishly-dagster:latest
+    command:
+      - dagster-webserver
+      - "-h"
+      - "0.0.0.0"
+      - "-p"
+      - "3000"
+      - "-w"
+      - /opt/dagster/dagster_home/workspace.yaml
+    env_file:
+      - .env
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/wishly_dagster
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app_net
+    # Dagit UI is internal-only; tunnel a hostname to it later if remote access is wanted.
+
+  dagster-daemon:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.dagster
+    image: wishly-dagster:latest
+    command:
+      - dagster-daemon
+      - run
+      - "-w"
+      - /opt/dagster/dagster_home/workspace.yaml
+    env_file:
+      - .env
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/wishly_dagster
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.4.0
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "cloudflared", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - app_net
+
+volumes:
+  wishly_pgdata:
+    name: wishly_pgdata_prod
+
+networks:
+  app_net:
+    driver: bridge

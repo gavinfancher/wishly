@@ -1,0 +1,22 @@
+# Locally-managed tunnel ingress (PLAN T7.3).
+#
+# Production uses a *remotely-managed* tunnel driven by TUNNEL_TOKEN (the
+# docker-compose `cloudflared` service + the dashboard public-hostname route) —
+# see docs/runbooks/cloudflare-tunnel.md. This file is the file-based equivalent,
+# kept for offline/local use or if you switch to a credentials-file tunnel.
+#
+# Usage (locally-managed):
+#   cloudflared tunnel --config infra/cloudflared/config.yml run
+#
+# Replace <tunnel-uuid> with the UUID from `cloudflared tunnel create wishly-prod`;
+# credentials-file is the JSON that command writes.
+
+tunnel: <tunnel-uuid>
+credentials-file: /etc/cloudflared/creds.json
+
+ingress:
+  # api.wishly.dev → the FastAPI container on the shared Docker network.
+  - hostname: api.wishly.dev
+    service: http://api:8000
+  # Required catch-all: anything else returns 404 from the tunnel.
+  - service: http_status:404

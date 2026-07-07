@@ -1,0 +1,6 @@
+# Dagster workspace (PLAN T7.2): load the single code location from the installed
+# wishly package. Used by both the webserver and the daemon.
+load_from:
+  - python_module:
+      module_name: wishly.orchestration.definitions
+      attribute: defs

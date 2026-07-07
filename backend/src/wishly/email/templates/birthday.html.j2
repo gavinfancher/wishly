@@ -1,0 +1,30 @@
+{#- Birthday reminder email body (T4.1). Extends the shared base layout. -#}
+{% extends "base.html.j2" %}
+
+{% block headline %}
+{%- if days_before == 0 -%}
+{{ recipient_name }}, it's {{ title }} today!
+{%- elif days_before == 1 -%}
+{{ recipient_name }}, {{ title }} is tomorrow
+{%- else -%}
+{{ recipient_name }}, {{ title }} is in {{ days_before }} days
+{%- endif -%}
+{% endblock %}
+
+{% block body %}
+{%- if days_before == 0 %}
+<p class="paragraph">
+  Today is <span class="occasion">{{ title }}</span> ({{ occurrence_date }}). A
+  quick message or call would make their day.
+</p>
+{%- else %}
+<p class="paragraph">
+  A friendly heads-up: <span class="occasion">{{ title }}</span> is coming up on
+  {{ occurrence_date }}{% if days_before == 1 %} — that's tomorrow{% else %}, {{ days_before }} days from now{% endif %}.
+</p>
+<p class="paragraph">
+  This is your nudge to plan something thoughtful — a gift, a card, or a plan to
+  celebrate.
+</p>
+{%- endif %}
+{% endblock %}

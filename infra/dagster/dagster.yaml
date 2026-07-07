@@ -1,0 +1,25 @@
+# Dagster instance config (PLAN T5.1 / T7.2). Lives at $DAGSTER_HOME/dagster.yaml.
+#
+# The webserver and the daemon run as separate containers, so run/event/schedule
+# state must live in shared storage rather than per-container SQLite. We point all
+# three storages at the same Postgres database as the app (different tables; no
+# collision with the Alembic-managed schema — Dagster owns its own tables).
+#
+# DAGSTER_PG_URL is set in docker-compose.yml to the same DSN as DATABASE_URL
+# (plain postgresql:// — psycopg2-binary ships in the image via dagster-postgres).
+
+storage:
+  postgres:
+    postgres_url:
+      env: DAGSTER_PG_URL
+
+# Queue runs through the daemon so the hourly schedule cannot stack overlapping
+# runs unboundedly.
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 5
+
+telemetry:
+  enabled: false

@@ -1,0 +1,30 @@
+# Build context is the repo root (infra/docker-compose.yml uses context: ..).
+# Only backend/ is needed by the API/Dagster images — exclude everything noisy.
+frontend/
+docs/
+# Exclude infra/ except the Dagster instance config the image bakes in.
+infra/*
+!infra/dagster
+infra/dagster/*
+!infra/dagster/dagster.yaml
+!infra/dagster/workspace.yaml
+.git/
+.github/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/node_modules/
+**/dist/
+.DS_Store
+**/.DS_Store
+
+# Secrets must never enter an image layer.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Tests are not needed at runtime.
+backend/tests/

@@ -1,0 +1,29 @@
+{#- Anniversary reminder email body (T4.1). Extends the shared base layout. -#}
+{% extends "base.html.j2" %}
+
+{% block headline %}
+{%- if days_before == 0 -%}
+{{ recipient_name }}, {{ title }} is today!
+{%- elif days_before == 1 -%}
+{{ recipient_name }}, {{ title }} is tomorrow
+{%- else -%}
+{{ recipient_name }}, {{ title }} is in {{ days_before }} days
+{%- endif -%}
+{% endblock %}
+
+{% block body %}
+{%- if days_before == 0 %}
+<p class="paragraph">
+  Today marks <span class="occasion">{{ title }}</span> ({{ occurrence_date }}).
+  Here's to the occasion!
+</p>
+{%- else %}
+<p class="paragraph">
+  Mark your calendar: <span class="occasion">{{ title }}</span> is on
+  {{ occurrence_date }}{% if days_before == 1 %} — that's tomorrow{% else %}, {{ days_before }} days away{% endif %}.
+</p>
+<p class="paragraph">
+  A little planning now means you can celebrate it properly when the day arrives.
+</p>
+{%- endif %}
+{% endblock %}
