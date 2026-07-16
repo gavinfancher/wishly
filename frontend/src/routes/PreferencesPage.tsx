@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import ConfirmDialog from '../components/ConfirmDialog.tsx'
+import DeliveryForm from '../components/DeliveryForm.tsx'
 import { useWishlyAuth } from '../lib/auth-context.ts'
-import { useEvents, useMe, useUpdateEvent, useUpdateMe } from '../lib/hooks.ts'
-
-const HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour)
+import { useEvents, useMe, useUpdateEvent } from '../lib/hooks.ts'
 
 /** Minimal standalone shell — this page is also reached from email links. */
 function PreferencesShell({ children }: { children: ReactNode }) {
@@ -61,16 +61,10 @@ export default function PreferencesPage() {
 function PreferencesForm({ linkedUserId }: { linkedUserId: string | null }) {
   const { data: profile, isLoading: profileLoading } = useMe()
   const { data: events, isLoading: eventsLoading } = useEvents()
-  const updateMe = useUpdateMe()
   const updateEvent = useUpdateEvent()
 
-  const [timezone, setTimezone] = useState<string | null>(null)
-  const [sendHour, setSendHour] = useState<number | null>(null)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const activeTimezone = timezone ?? profile?.timezone ?? 'UTC'
-  const activeSendHour = sendHour ?? profile?.send_hour ?? 8
+  const [confirmPauseAll, setConfirmPauseAll] = useState(false)
+  const [pausingAll, setPausingAll] = useState(false)
 
   if (profileLoading || eventsLoading) {
     return <p className="events-status">Loading preferences…</p>
@@ -91,31 +85,24 @@ function PreferencesForm({ linkedUserId }: { linkedUserId: string | null }) {
     )
   }
 
-  async function handleDeliverySubmit(event: FormEvent) {
-    event.preventDefault()
-    setError(null)
-    setSaved(false)
-    try {
-      await updateMe.mutateAsync({ timezone: activeTimezone, send_hour: activeSendHour })
-      setSaved(true)
-    } catch {
-      setError('Could not save delivery preferences.')
-    }
-  }
+  const activeCount = events?.filter((e) => e.is_active).length ?? 0
 
   async function toggleEventActive(eventId: string, isActive: boolean) {
     await updateEvent.mutateAsync({ id: eventId, body: { is_active: !isActive } })
   }
 
-  async function pauseAll() {
-    if (!events?.length) return
-    const active = events.filter((e) => e.is_active)
+  async function handlePauseAllConfirmed() {
+    const active = (events ?? []).filter((e) => e.is_active)
     if (active.length === 0) return
-    const confirmed = window.confirm(`Pause reminders for all ${active.length} active event(s)?`)
-    if (!confirmed) return
-    await Promise.all(
-      active.map((event) => updateEvent.mutateAsync({ id: event.id, body: { is_active: false } }))
-    )
+    setPausingAll(true)
+    try {
+      await Promise.all(
+        active.map((event) => updateEvent.mutateAsync({ id: event.id, body: { is_active: false } }))
+      )
+      setConfirmPauseAll(false)
+    } finally {
+      setPausingAll(false)
+    }
   }
 
   return (
@@ -123,41 +110,22 @@ function PreferencesForm({ linkedUserId }: { linkedUserId: string | null }) {
       <h1>Reminder preferences</h1>
       <p className="text-muted">Control when emails arrive and which occasions are active.</p>
 
-      <section className="preferences-section">
+      <section className="panel">
         <h2>Delivery time</h2>
-        <form className="preferences-form" onSubmit={(e) => void handleDeliverySubmit(e)}>
-          <label>
-            Timezone
-            <input
-              type="text"
-              value={activeTimezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Send hour (local)
-            <select value={activeSendHour} onChange={(e) => setSendHour(Number(e.target.value))}>
-              {HOUR_OPTIONS.map((hour) => (
-                <option key={hour} value={hour}>
-                  {hour.toString().padStart(2, '0')}:00
-                </option>
-              ))}
-            </select>
-          </label>
-          {error && <p className="form-error">{error}</p>}
-          {saved && <p className="form-success">Preferences saved.</p>}
-          <button type="submit" className="btn-primary" disabled={updateMe.isPending}>
-            {updateMe.isPending ? 'Saving…' : 'Save delivery time'}
-          </button>
-        </form>
+        {profile && (
+          <DeliveryForm initialTimezone={profile.timezone} initialSendHour={profile.send_hour} />
+        )}
       </section>
 
-      <section className="preferences-section">
+      <section className="panel">
         <div className="preferences-section-header">
           <h2>Your occasions</h2>
-          {events && events.some((e) => e.is_active) && (
-            <button type="button" className="btn-secondary" onClick={() => void pauseAll()}>
+          {activeCount > 0 && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setConfirmPauseAll(true)}
+            >
               Pause all
             </button>
           )}
@@ -190,6 +158,17 @@ function PreferencesForm({ linkedUserId }: { linkedUserId: string | null }) {
       <Link to="/app" className="preferences-back">
         ← Back to your dates
       </Link>
+
+      {confirmPauseAll && (
+        <ConfirmDialog
+          title={`Pause all ${activeCount} active occasion${activeCount === 1 ? '' : 's'}?`}
+          body="No reminder emails will be sent until you resume them. Nothing is deleted."
+          confirmLabel="Pause all"
+          isBusy={pausingAll}
+          onConfirm={() => void handlePauseAllConfirmed()}
+          onCancel={() => setConfirmPauseAll(false)}
+        />
+      )}
     </div>
   )
 }

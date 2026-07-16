@@ -5,7 +5,9 @@ type EventRowProps = {
   event: Event
   onEdit: (event: Event) => void
   onDelete: (event: Event) => void
+  onToggleActive: (event: Event) => void
   isDeleting: boolean
+  isToggling: boolean
 }
 
 const TYPE_LABELS: Record<Event['event_type'], string> = {
@@ -22,7 +24,14 @@ function reminderSummary(reminders: number[]): string | null {
 }
 
 /** One occasion in the agenda list: date leaf, details, countdown, actions. */
-export default function EventRow({ event, onEdit, onDelete, isDeleting }: EventRowProps) {
+export default function EventRow({
+  event,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  isDeleting,
+  isToggling,
+}: EventRowProps) {
   const days = daysUntil(event.event_month, event.event_day)
   const years = yearsAtNext(event.event_year, event.event_month, event.event_day)
   const summary = reminderSummary(event.reminders)
@@ -64,6 +73,14 @@ export default function EventRow({ event, onEdit, onDelete, isDeleting }: EventR
         <div className="row-actions">
           <button type="button" className="btn-quiet" onClick={() => onEdit(event)}>
             Edit
+          </button>
+          <button
+            type="button"
+            className="btn-quiet"
+            onClick={() => onToggleActive(event)}
+            disabled={isToggling}
+          >
+            {isToggling ? '…' : event.is_active ? 'Pause' : 'Resume'}
           </button>
           <button
             type="button"

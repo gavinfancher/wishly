@@ -108,3 +108,17 @@ export type EventCreate = {
 }
 
 export type EventUpdate = Partial<EventCreate>
+
+export type NotificationStatus = 'sent' | 'failed' | 'suppressed'
+
+/** One row of the send log (notification_log), enriched with event details. */
+export type Notification = {
+  id: string
+  event_id: string
+  event_title: string
+  event_type: EventType
+  days_before: number
+  occurrence_date: string
+  status: NotificationStatus
+  sent_at: string
+}

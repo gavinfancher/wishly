@@ -11,6 +11,7 @@ import {
   type Event,
   type EventCreate,
   type EventUpdate,
+  type Notification,
   type User,
   type UserUpdate,
 } from './api.ts'
@@ -41,6 +42,26 @@ export function useUpdateMe() {
     onSuccess: (user) => {
       queryClient.setQueryData(['me'], user)
     },
+  })
+}
+
+/** Send a test reminder email to the account owner's inbox. */
+export function useSendTestEmail() {
+  const getToken = useGetToken()
+
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ status: string }>('/me/test-email', getToken, { method: 'POST' }),
+  })
+}
+
+/** The send log: reminders Wishly has already emailed, newest first. */
+export function useNotifications() {
+  const getToken = useGetToken()
+
+  return useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => apiFetch<Notification[]>('/notifications', getToken),
   })
 }
 

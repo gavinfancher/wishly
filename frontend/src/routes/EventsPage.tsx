@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useWishlyUser } from '../lib/auth-context.ts'
+import ConfirmDialog from '../components/ConfirmDialog.tsx'
 import EventRow from '../components/EventRow.tsx'
 import EventForm, { type EventFormValues } from '../components/EventForm.tsx'
-import type { Event } from '../lib/api.ts'
+import type { Event, EventType } from '../lib/api.ts'
 import { daysUntil } from '../lib/dates.ts'
 import {
   useCreateEvent,
@@ -14,9 +15,34 @@ import {
   useUpdateEvent,
 } from '../lib/hooks.ts'
 
+type TypeFilter = 'all' | EventType
+type SortOrder = 'soonest' | 'title' | 'newest'
+
+const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'birthday', label: 'Birthdays' },
+  { value: 'anniversary', label: 'Anniversaries' },
+  { value: 'custom', label: 'Custom' },
+]
+
+function sortEvents(events: Event[], order: SortOrder): Event[] {
+  const sorted = [...events]
+  switch (order) {
+    case 'title':
+      return sorted.sort((a, b) => a.title.localeCompare(b.title))
+    case 'newest':
+      return sorted.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    case 'soonest':
+      return sorted.sort(
+        (a, b) => daysUntil(a.event_month, a.event_day) - daysUntil(b.event_month, b.event_day)
+      )
+  }
+}
+
 /**
  * The agenda: every occasion sorted by how soon it comes around, with
- * create / edit / delete and reminder management (T6.4).
+ * search / filter / sort, create / edit / delete, inline pause, and
+ * reminder management (T6.4).
  */
 export default function EventsPage() {
   const { firstName } = useWishlyUser()
@@ -29,14 +55,47 @@ export default function EventsPage() {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Event | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Event | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('soonest')
 
   const isSaving = createEvent.isPending || updateEvent.isPending || replaceReminders.isPending
+  const hasEvents = (events?.length ?? 0) > 0
 
-  const byNextOccurrence = (a: Event, b: Event) =>
-    daysUntil(a.event_month, a.event_day) - daysUntil(b.event_month, b.event_day)
-  const upcoming = (events ?? []).filter((e) => e.is_active).sort(byNextOccurrence)
-  const paused = (events ?? []).filter((e) => !e.is_active).sort(byNextOccurrence)
+  const { upcoming, paused, hiddenByFilters } = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    const visible = (events ?? []).filter(
+      (e) =>
+        (typeFilter === 'all' || e.event_type === typeFilter) &&
+        (query === '' || e.title.toLowerCase().includes(query))
+    )
+    return {
+      upcoming: sortEvents(
+        visible.filter((e) => e.is_active),
+        sortOrder
+      ),
+      paused: sortEvents(
+        visible.filter((e) => !e.is_active),
+        sortOrder
+      ),
+      hiddenByFilters: (events?.length ?? 0) - visible.length,
+    }
+  }, [events, search, typeFilter, sortOrder])
+
+  useEffect(() => {
+    if (!modalOpen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !isSaving) {
+        setModalOpen(false)
+        setEditing(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [modalOpen, isSaving])
 
   function openCreate() {
     setEditing(null)
@@ -79,17 +138,32 @@ export default function EventsPage() {
     closeModal()
   }
 
-  async function handleDelete(event: Event) {
-    const confirmed = window.confirm(`Delete "${event.title}"? This cannot be undone.`)
-    if (!confirmed) return
-
-    setDeletingId(event.id)
+  async function handleDeleteConfirmed() {
+    if (!confirmDelete) return
     try {
-      await deleteEvent.mutateAsync(event.id)
+      await deleteEvent.mutateAsync(confirmDelete.id)
     } finally {
-      setDeletingId(null)
+      setConfirmDelete(null)
     }
   }
+
+  async function handleToggleActive(event: Event) {
+    setTogglingId(event.id)
+    try {
+      await updateEvent.mutateAsync({ id: event.id, body: { is_active: !event.is_active } })
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const rowProps = (event: Event) => ({
+    event,
+    onEdit: openEdit,
+    onDelete: setConfirmDelete,
+    onToggleActive: (e: Event) => void handleToggleActive(e),
+    isDeleting: deleteEvent.isPending && confirmDelete?.id === event.id,
+    isToggling: togglingId === event.id,
+  })
 
   return (
     <div className="events-page">
@@ -109,6 +183,42 @@ export default function EventsPage() {
         </button>
       </header>
 
+      {hasEvents && (
+        <div className="toolbar">
+          <input
+            type="search"
+            className="toolbar-search"
+            placeholder="Search occasions…"
+            aria-label="Search occasions"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="filter-chips" role="group" aria-label="Filter by type">
+            {TYPE_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                className={`chip ${typeFilter === filter.value ? 'chip-active' : ''}`}
+                aria-pressed={typeFilter === filter.value}
+                onClick={() => setTypeFilter(filter.value)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <select
+            className="toolbar-sort"
+            aria-label="Sort order"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+          >
+            <option value="soonest">Soonest first</option>
+            <option value="title">A to Z</option>
+            <option value="newest">Recently added</option>
+          </select>
+        </div>
+      )}
+
       {isLoading && <p className="events-status">Loading your dates…</p>}
 
       {isError && (
@@ -120,7 +230,7 @@ export default function EventsPage() {
         </div>
       )}
 
-      {!isLoading && !isError && events?.length === 0 && (
+      {!isLoading && !isError && !hasEvents && (
         <div className="events-empty">
           <h2>Nothing circled yet</h2>
           <p>Add a birthday, an anniversary, or any date you can’t afford to forget.</p>
@@ -130,16 +240,30 @@ export default function EventsPage() {
         </div>
       )}
 
+      {hasEvents && upcoming.length === 0 && paused.length === 0 && (
+        <div className="events-empty">
+          <h2>No matches</h2>
+          <p>
+            {hiddenByFilters} occasion{hiddenByFilters === 1 ? ' is' : 's are'} hidden by your
+            search or filters.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setSearch('')
+              setTypeFilter('all')
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+
       {upcoming.length > 0 && (
         <ul className="events-list">
           {upcoming.map((event) => (
-            <EventRow
-              key={event.id}
-              event={event}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-              isDeleting={deletingId === event.id}
-            />
+            <EventRow key={event.id} {...rowProps(event)} />
           ))}
         </ul>
       )}
@@ -149,13 +273,7 @@ export default function EventsPage() {
           <h2 className="events-section-label">Paused</h2>
           <ul className="events-list">
             {paused.map((event) => (
-              <EventRow
-                key={event.id}
-                event={event}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-                isDeleting={deletingId === event.id}
-              />
+              <EventRow key={event.id} {...rowProps(event)} />
             ))}
           </ul>
         </>
@@ -178,6 +296,18 @@ export default function EventsPage() {
             />
           </div>
         </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete “${confirmDelete.title}”?`}
+          body="The occasion and its reminder schedule will be removed. This cannot be undone."
+          confirmLabel="Delete occasion"
+          danger
+          isBusy={deleteEvent.isPending}
+          onConfirm={() => void handleDeleteConfirmed()}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   )

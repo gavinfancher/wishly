@@ -3,15 +3,10 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useUpdateMe } from '../lib/hooks.ts'
+import { timezoneOptions } from '../lib/timezones.ts'
 import { markOnboardingDone } from '../lib/onboarding.ts'
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour)
-
-function timezoneOptions(current: string): string[] {
-  const zones =
-    typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
-  return zones.includes(current) ? zones : [current, ...zones]
-}
 
 /**
  * First-run capture of timezone and preferred send hour (T6.3).

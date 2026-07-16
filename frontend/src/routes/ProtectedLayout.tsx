@@ -30,7 +30,8 @@ export default function ProtectedLayout() {
           <NavLink to="/app" end>
             Occasions
           </NavLink>
-          <NavLink to="/preferences">Preferences</NavLink>
+          <NavLink to="/app/history">History</NavLink>
+          <NavLink to="/app/account">Account</NavLink>
           <AuthUserButton />
         </nav>
       </header>

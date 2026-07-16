@@ -6,7 +6,7 @@
  * State lives in memory and resets on reload.
  */
 
-import type { Event, EventCreate, EventUpdate, User, UserUpdate } from './api.ts'
+import type { Event, EventCreate, EventUpdate, Notification, User, UserUpdate } from './api.ts'
 import { ApiError } from './api.ts'
 
 export const MOCK_API = import.meta.env.VITE_MOCK_API === 'true'
@@ -113,6 +113,52 @@ let events: Event[] = [
 
 let nextId = events.length + 1
 
+/** ISO date `days` days ago (date-only for occurrences, full ISO for sent_at). */
+function daysAgo(days: number, hour = 8): Date {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  d.setHours(hour, 2, 0, 0)
+  return d
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function seedNotification(
+  seed: {
+    eventIndex: number
+    days_before: number
+    sentDaysAgo: number
+    status?: Notification['status']
+  },
+  index: number
+): Notification {
+  const event = events[seed.eventIndex]
+  const sentAt = daysAgo(seed.sentDaysAgo)
+  const occurrence = daysAgo(seed.sentDaysAgo - seed.days_before)
+  return {
+    id: `ntf_mock_${index}`,
+    event_id: event.id,
+    event_title: event.title,
+    event_type: event.event_type,
+    days_before: seed.days_before,
+    occurrence_date: isoDate(occurrence),
+    status: seed.status ?? 'sent',
+    sent_at: sentAt.toISOString(),
+  }
+}
+
+const notifications: Notification[] = [
+  { eventIndex: 0, days_before: 7, sentDaysAgo: 5 },
+  { eventIndex: 1, days_before: 30, sentDaysAgo: 24 },
+  { eventIndex: 2, days_before: 14, sentDaysAgo: 47 },
+  { eventIndex: 3, days_before: 30, sentDaysAgo: 61 },
+  { eventIndex: 3, days_before: 7, sentDaysAgo: 84, status: 'failed' as const },
+  { eventIndex: 4, days_before: 60, sentDaysAgo: 92 },
+  { eventIndex: 5, days_before: 7, sentDaysAgo: 130 },
+].map(seedNotification)
+
 const delay = () => new Promise((resolve) => setTimeout(resolve, 180))
 
 function clone<T>(value: T): T {
@@ -141,6 +187,15 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
     const patch = body as UserUpdate
     user = { ...user, ...patch, updated_at: now() }
     return respond(user)
+  }
+
+  if (path === '/me/test-email' && method === 'POST') {
+    return respond({ status: 'queued' })
+  }
+
+  if (path === '/notifications' && method === 'GET') {
+    const sorted = [...notifications].sort((a, b) => b.sent_at.localeCompare(a.sent_at))
+    return respond(sorted)
   }
 
   if (path === '/events' && method === 'GET') {

@@ -172,6 +172,34 @@ a {
   cursor: default;
 }
 
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.55rem 1.15rem;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--pen);
+  color: var(--pen);
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--pen);
+  color: #fff;
+}
+
+.btn-danger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .btn-quiet {
   background: none;
   border: none;
@@ -543,6 +571,7 @@ a {
 .app-shell,
 .prefs-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -755,6 +784,31 @@ a {
   gap: 0.2rem;
 }
 
+/* Sticky header once the layout is a single column (phones + small tablets). */
+@media (max-width: 760px) {
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+/* Comfortable touch targets when there's no mouse. */
+@media (pointer: coarse) {
+  .btn-quiet {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .btn-icon {
+    padding: 0.4rem 0.55rem;
+  }
+}
+
 @media (max-width: 560px) {
   .events-header {
     flex-direction: column;
@@ -770,6 +824,51 @@ a {
     width: 100%;
     justify-content: space-between;
   }
+
+  .app-nav {
+    gap: 0.9rem;
+  }
+}
+
+/* ---------- Toolbar (search / filter / sort) ---------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.toolbar-search {
+  flex: 1;
+  min-width: 180px;
+}
+
+input[type='search'] {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+}
+
+input[type='search']:focus {
+  outline: 2px solid var(--pen);
+  outline-offset: -1px;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.toolbar-sort {
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  background: var(--card);
 }
 
 /* ---------- Modal + forms ---------- */
@@ -795,6 +894,21 @@ a {
   padding: 2rem;
 }
 
+.modal-panel-sm {
+  max-width: 420px;
+}
+
+.dialog-title {
+  font-size: 1.2rem;
+  letter-spacing: -0.015em;
+}
+
+.dialog-body {
+  margin: 0.6rem 0 0.5rem;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
 .event-form h2 {
   font-size: 1.35rem;
   margin-bottom: 1.5rem;
@@ -811,13 +925,15 @@ a {
   margin-bottom: 1.1rem;
 }
 
+/* 1rem (16px) minimum on all controls — anything smaller makes iOS Safari
+   zoom the page when a field is focused. */
 input[type='text'],
 input[type='number'],
 input[type='email'],
 select,
 textarea {
   font-family: var(--font-sans);
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 400;
   color: var(--ink);
   background: var(--paper);
@@ -1078,7 +1194,8 @@ textarea {
   color: var(--ink-soft);
 }
 
-.preferences-section {
+.preferences-section,
+.panel {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -1086,9 +1203,86 @@ textarea {
   margin-bottom: 1.25rem;
 }
 
-.preferences-section h2 {
+.preferences-section h2,
+.panel h2 {
   font-size: 1.05rem;
   margin-bottom: 1rem;
+}
+
+.panel-sub {
+  margin: -0.6rem 0 1rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* ---------- Account page ---------- */
+
+.account-page h1 {
+  font-size: 1.7rem;
+  letter-spacing: -0.025em;
+  margin: 1rem 0 0.35rem;
+}
+
+.account-page > .text-muted {
+  display: block;
+  margin-bottom: 2rem;
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.profile-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--pen-tint);
+  color: var(--pen);
+  font-size: 1.3rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.profile-details .text-muted {
+  font-size: 0.88rem;
+}
+
+.panel-danger {
+  border-color: color-mix(in srgb, var(--pen) 35%, var(--line));
+}
+
+.panel-danger h2 {
+  color: var(--pen-deep);
+}
+
+.danger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.danger-row .text-muted {
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.panel-danger .field-hint {
+  display: block;
+  margin-top: 0.9rem;
 }
 
 .preferences-section-header {
@@ -1151,10 +1345,92 @@ textarea {
   color: var(--ink);
 }
 
+.test-email-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.test-email-row .form-success,
+.test-email-row .form-error {
+  margin: 0;
+}
+
+/* ---------- History page ---------- */
+
+.history-page .events-header {
+  margin-bottom: 1rem;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 1.15rem;
+}
+
+.history-main {
+  min-width: 0;
+}
+
+.history-side {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.history-when {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.history-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
+.history-status-sent {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+
+.history-status-failed {
+  color: var(--pen-deep);
+  background: var(--pen-tint);
+  border-color: transparent;
+}
+
 /* ---------- Auth + setup ---------- */
 
 .auth-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1179,4 +1455,78 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.1rem 0.4rem;
+}
+
+/* ============================================================
+   Small screens — keep last so these win over the base rules.
+   ============================================================ */
+
+@media (max-width: 560px) {
+  /* Search takes its own row; chips scroll sideways instead of wrapping. */
+  .toolbar-search {
+    flex-basis: 100%;
+  }
+
+  .filter-chips {
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-chips .chip {
+    white-space: nowrap;
+  }
+
+  .history-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .history-side {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .danger-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .preferences-section-header {
+    flex-wrap: wrap;
+  }
+
+  /* Event form: month gets its own row, day + year share the next one. */
+  .date-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .date-row label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .form-actions button {
+    flex: 1;
+  }
+
+  /* Modals become bottom sheets. */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-panel,
+  .modal-panel-sm {
+    max-width: none;
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  }
 }
