@@ -22,7 +22,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18.4
         env:
           POSTGRES_USER: wishly
           POSTGRES_PASSWORD: wishly
@@ -44,7 +44,7 @@ jobs:
       RESEND_WEBHOOK_SIGNING_SECRET: whsec_ci
       EMAIL_FROM: reminders@wishly.dev
       APP_BASE_URL: https://wishly.dev
-      ALLOWED_ORIGINS: https://wishly.dev
+      ALLOWED_ORIGINS: https://wishly.dev,https://app.wishly.dev
       ENVIRONMENT: dev
 
     steps:
@@ -80,6 +80,15 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+
+    # A production build refuses to start without these (see vite.config.ts):
+    # the dev-only escape hatches must be off and a real Clerk key must be set.
+    env:
+      VITE_DEV_NO_AUTH: "false"
+      VITE_MOCK_API: "false"
+      VITE_CLERK_PUBLISHABLE_KEY: pk_test_ci_build_only
+      VITE_API_BASE_URL: https://api.wishly.dev
+      VITE_APP_BASE_URL: https://app.wishly.dev
 
     steps:
       - uses: actions/checkout@v4

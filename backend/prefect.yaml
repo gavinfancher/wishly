@@ -1,0 +1,25 @@
+# Prefect deployment for the hourly send pipeline.
+#
+# Deploy (after `prefect cloud login`):
+#   uv run prefect deploy --all
+#
+# The worker that executes runs is started with:
+#   uv run prefect worker start --pool wishly-pool
+name: wishly
+prefect-version: 3.0.0
+
+# The flow code ships inside the image, so no pull step is needed at runtime.
+pull: null
+
+deployments:
+  - name: hourly-send
+    entrypoint: src/wishly/orchestration/flows.py:send_reminders
+    description: >-
+      Finds reminders due this hour and sends each exactly once. Per-user
+      send_hour gating happens inside the flow, so the tick is a plain hourly cron.
+    work_pool:
+      name: wishly-pool
+    schedules:
+      - cron: "0 * * * *"
+        timezone: "UTC"
+        active: true

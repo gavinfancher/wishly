@@ -91,6 +91,9 @@ Add the following for the **Production** environment:
 |---|---|
 | `VITE_CLERK_PUBLISHABLE_KEY` | Your Clerk publishable key (starts with `pk_live_...`) |
 | `VITE_API_BASE_URL` | `https://api.wishly.dev` |
+| `VITE_APP_BASE_URL` | `https://app.wishly.dev` |
+| `VITE_DEV_NO_AUTH` | `false` |
+| `VITE_MOCK_API` | `false` |
 
 These are build-time variables. Vite embeds them into the compiled output (`import.meta.env.VITE_*`).
 They are not secrets, but Cloudflare lets you mark them as encrypted if preferred.
@@ -125,11 +128,20 @@ Visit the preview URL (`https://wishly.pages.dev`) and confirm:
 
 ---
 
-## Step 6 — Add the custom domain (wishly.dev)
+> The production build **fails fast** if `VITE_DEV_NO_AUTH` or `VITE_MOCK_API` is `true`, or if
+> `VITE_CLERK_PUBLISHABLE_KEY` is missing/placeholder (see `frontend/vite.config.ts`). Those flags
+> would otherwise ship an app that bypasses Clerk or serves fixture data, and would look fine.
+
+## Step 6 — Add the custom domains (wishly.dev + app.wishly.dev)
 
 1. In the Pages project dashboard, click the **Custom domains** tab
 2. Click **Set up a domain**
 3. Enter `wishly.dev` and click **Continue**
+4. Repeat for `app.wishly.dev` — the signed-in dashboard is served by the **same** Pages
+   project and the same build; `VITE_APP_BASE_URL` is what makes the marketing page link to it.
+   Both hosts must also be registered on the Clerk instance, or a user who signs in on
+   `wishly.dev` arrives at `app.wishly.dev` signed out (the session cookie is set on the apex
+   domain and both hosts have to be allowed to read it).
 
 Because `wishly.dev` is already in your Cloudflare account, Cloudflare automatically creates a
 CNAME record pointing `wishly.dev` to `wishly.pages.dev`:
@@ -172,7 +184,10 @@ under **Settings → Environment variables** (or in the initial setup flow).
 | Variable | Value | Notes |
 |---|---|---|
 | `VITE_CLERK_PUBLISHABLE_KEY` | `pk_live_...` | From Clerk dashboard → API Keys |
-| `VITE_API_BASE_URL` | `https://api.wishly.dev` | Must use the tunnel URL (T7.3) |
+| `VITE_API_BASE_URL` | `https://api.wishly.dev` |
+| `VITE_APP_BASE_URL` | `https://app.wishly.dev` |
+| `VITE_DEV_NO_AUTH` | `false` |
+| `VITE_MOCK_API` | `false` | Must use the tunnel URL (T7.3) |
 | `NODE_VERSION` | `20` | Only needed if not using `frontend/.nvmrc` |
 
 These variables are embedded at build time. Changing them requires a redeploy.

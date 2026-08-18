@@ -1,20 +1,18 @@
 [project]
 name = "wishly"
 version = "0.1.0"
-description = "Wishly backend — birthday/anniversary reminder emails (FastAPI + Dagster over Postgres)."
+description = "Wishly backend — birthday/anniversary reminder emails (FastAPI + Prefect over Postgres)."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
     "clerk-backend-api>=6.0.1",
-    "dagster>=1.13.9",
-    "dagster-postgres>=0.29.9",
-    "dagster-webserver>=1.13.9",
     "fastapi>=0.136.3",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
     "premailer>=3.10.0",
+    "prefect>=3.0.0",
     "psycopg[binary]>=3.3.4",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
@@ -85,8 +83,8 @@ module = [
     "svix.*",
     "clerk_backend_api",
     "clerk_backend_api.*",
-    "dagster",
-    "dagster.*",
+    "prefect",
+    "prefect.*",
 ]
 ignore_missing_imports = true
 

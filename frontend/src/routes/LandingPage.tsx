@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { useWishlyAuth } from '../lib/auth-context.ts'
 import { monthAbbr } from '../lib/dates.ts'
+import { DASHBOARD_URL, isExternal } from '../lib/urls.ts'
 
 /**
  * Public marketing page at `/`.
@@ -66,7 +67,7 @@ const STEPS = [
 
 export default function LandingPage() {
   const { isLoaded, isSignedIn } = useWishlyAuth()
-  const showOpenApp = isLoaded && isSignedIn
+  const signedIn = isLoaded && isSignedIn
 
   return (
     <div className="landing">
@@ -75,18 +76,14 @@ export default function LandingPage() {
           wishly<span className="wordmark-dot">.</span>
         </Link>
         <nav className="landing-nav">
-          <a href="#how">How it works</a>
-          {showOpenApp ? (
-            <Link to="/app" className="btn-primary">
-              Open app
-            </Link>
+          {signedIn && isExternal(DASHBOARD_URL) ? (
+            <a href={DASHBOARD_URL} className="btn-secondary">
+              Login
+            </a>
           ) : (
-            <>
-              <Link to="/sign-in">Sign in</Link>
-              <Link to="/sign-up" className="btn-primary">
-                Get started
-              </Link>
-            </>
+            <Link to={signedIn ? DASHBOARD_URL : '/sign-in'} className="btn-secondary">
+              Login
+            </Link>
           )}
         </nav>
       </header>
@@ -107,12 +104,9 @@ export default function LandingPage() {
               one — with enough lead time to actually do something about it.
             </p>
             <div className="hero-actions">
-              <Link to={showOpenApp ? '/app' : '/sign-up'} className="btn-primary btn-large">
-                {showOpenApp ? 'Open your dates' : 'Start tracking dates'}
+              <Link to="/sign-up" className="btn-primary btn-large">
+                Get started
               </Link>
-              <a href="#how" className="btn-ghost">
-                How it works
-              </a>
             </div>
           </div>
           <HeroEmailMock />
@@ -134,9 +128,6 @@ export default function LandingPage() {
         <section className="closer">
           <h2>Remembering is the whole gift.</h2>
           <p>Put the dates in once. Wishly does the rest, every year.</p>
-          <Link to={showOpenApp ? '/app' : '/sign-up'} className="btn-primary btn-large">
-            {showOpenApp ? 'Open your dates' : 'Get started — it’s free'}
-          </Link>
         </section>
       </main>
 

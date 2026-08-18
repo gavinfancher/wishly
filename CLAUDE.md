@@ -5,11 +5,11 @@ they can prepare. Full build plan: **`docs/PLAN.md`** (read the relevant task be
 
 ## Architecture (one line)
 React+Vite SPA (Cloudflare Pages) → FastAPI at `api.wishly.dev` (Cloudflare Tunnel) → Postgres;
-**Dagster** runs the hourly send pipeline via **Resend**; **Clerk** is auth. FastAPI and Dagster
+**Prefect Cloud** runs the hourly send pipeline via **Resend**; **Clerk** is auth. FastAPI and Prefect
 are two entrypoints over one shared Python package and meet only at Postgres.
 
 ## Stack (locked)
-- Backend: Python **3.12**, FastAPI, SQLAlchemy 2.0 (async API / sync Dagster), Alembic, Dagster.
+- Backend: Python **3.12**, FastAPI, SQLAlchemy 2.0 (async API / sync worker), Alembic, Prefect.
 - Frontend: React + Vite + TypeScript, `@clerk/clerk-react`. **JS is frontend-only; all logic is Python.**
 - Email: Resend + Jinja2 + premailer (pure Python; MJML optional at dev time).
 
@@ -28,7 +28,8 @@ are two entrypoints over one shared Python package and meet only at Postgres.
 - Backend lint/types/tests: `uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run pytest`
 - Migrate: `uv run alembic upgrade head`
 - API dev: `uv run uvicorn wishly.api.main:app --reload`
-- Dagster dev: `uv run dagster dev`
+- Run the send flow once: `uv run python -m wishly.orchestration.flows`
+- Prefect worker: `uv run prefect worker start --pool wishly-pool`
 - Frontend: `npm run lint && npm run typecheck && npm run build`
 - Local DB: `docker compose -f infra/docker-compose.dev.yml up -d`
 

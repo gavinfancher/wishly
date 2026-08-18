@@ -15,7 +15,7 @@ authorised system. DMARC tells ISPs what to do when authentication fails. Withou
 - Even if mail is delivered, it will be flagged as spam or rejected
 - Bounce feedback loop (required for the `suppressions` table) does not work
 
-Complete this runbook before wiring up `RESEND_API_KEY` in the backend or running the Dagster
+Complete this runbook before wiring up `RESEND_API_KEY` in the backend or running the Prefect
 send pipeline.
 
 ---

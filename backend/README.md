@@ -1,6 +1,6 @@
 # Wishly backend
 
-Shared Python package powering the FastAPI API and the Dagster send pipeline over
+Shared Python package powering the FastAPI API and the Prefect send pipeline over
 one PostgreSQL database. See [`docs/PLAN.md`](../docs/PLAN.md) for the full build plan
 and [`CLAUDE.md`](../CLAUDE.md) for conventions.
 

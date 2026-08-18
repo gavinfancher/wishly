@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Dagster image (PLAN T7.1) — one image, two entrypoints. docker-compose.yml runs
-# it twice with different commands:
-#   webserver: dagster-webserver -h 0.0.0.0 -p 3000 -w $DAGSTER_HOME/workspace.yaml
-#   daemon:    dagster-daemon run -w $DAGSTER_HOME/workspace.yaml
+# Prefect worker image (PLAN T7.1). Polls Prefect Cloud for scheduled runs of
+# the send flow and executes them in this container — the scheduler and UI are
+# Cloud's, so nothing orchestration-related is self-hosted.
 # Build context is the repo root (same as Dockerfile.api).
 
 # ---- builder: resolve and install deps into a self-contained .venv -----------
@@ -32,18 +31,12 @@ RUN groupadd --system app && useradd --system --gid app --create-home app
 
 ENV PATH="/app/backend/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    DAGSTER_HOME=/opt/dagster/dagster_home
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app/backend
 COPY --from=builder --chown=app:app /app/backend /app/backend
 
-# Instance + workspace config live in DAGSTER_HOME (shared Postgres storage).
-COPY --chown=app:app infra/dagster/dagster.yaml infra/dagster/workspace.yaml ${DAGSTER_HOME}/
-RUN chown -R app:app /opt/dagster
-
 USER app
-EXPOSE 3000
 
-# Default to the webserver; the daemon service overrides `command` in compose.
-CMD ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
+# The work pool name is supplied by compose; PREFECT_API_URL/KEY authenticate to Cloud.
+CMD ["prefect", "worker", "start", "--pool", "wishly-pool"]

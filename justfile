@@ -38,10 +38,24 @@ seed:
 api-dev:
     cd {{backend}} && uv run uvicorn wishly.api.main:app --reload
 
-# Run the Dagster dev UI + daemon (orchestration code arrives in a later task).
-dagster-dev:
-    cd {{backend}} && uv run dagster dev
+# Run the send flow once against the local database (no Prefect Cloud needed).
+flow-run:
+    cd {{backend}} && uv run python -m wishly.orchestration.flows
+
+# Start a Prefect worker that executes scheduled runs from Prefect Cloud.
+worker:
+    cd {{backend}} && uv run prefect worker start --pool ${PREFECT_WORK_POOL:-wishly-pool}
+
+# Publish the deployment (and its hourly schedule) to Prefect Cloud.
+deploy-flow:
+    cd {{backend}} && uv run prefect deploy --all
 
 # Run the Vite frontend dev server (needs frontend/.env — see frontend/.env.example).
 web-dev:
     cd frontend && npm run dev
+
+# Second origin standing in for app.wishly.dev — see docs/runbooks/local-dev.md.
+# Same build, port 5174; localhost cookies are port-agnostic so the Clerk
+# session carries across, exactly as it will across the real subdomains.
+web-app-dev:
+    cd frontend && npm run dev -- --port 5174

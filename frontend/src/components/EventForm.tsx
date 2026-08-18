@@ -175,7 +175,9 @@ export default function EventForm({ initial, onSubmit, onCancel, isSubmitting }:
         </label>
 
         <label>
-          Year <span className="optional">(optional)</span>
+          <span>
+            Year <span className="optional">(optional)</span>
+          </span>
           <input
             type="number"
             min={1}
@@ -190,7 +192,9 @@ export default function EventForm({ initial, onSubmit, onCancel, isSubmitting }:
       {errors.date && <p className="form-error">{errors.date}</p>}
 
       <label>
-        Personal note <span className="optional">(optional)</span>
+        <span>
+          Personal note <span className="optional">(optional)</span>
+        </span>
         <textarea
           rows={3}
           value={values.message}

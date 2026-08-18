@@ -4,7 +4,7 @@ Two runtimes share one database:
 
 * **FastAPI** uses an *async* engine (``asyncpg``) and yields an
   :class:`~sqlalchemy.ext.asyncio.AsyncSession` per request via :func:`get_session`.
-* **Dagster** uses a *sync* engine (``psycopg`` v3) and a plain
+* **The worker** uses a *sync* engine (``psycopg`` v3) and a plain
   :class:`~sqlalchemy.orm.Session`.
 
 Engines are created lazily and cached so that merely importing this module does
@@ -50,7 +50,7 @@ def get_async_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 @lru_cache(maxsize=1)
 def get_sync_engine() -> Engine:
-    """Return the process-wide sync engine (psycopg) for Dagster/CLIs."""
+    """Return the process-wide sync engine (psycopg) for the worker/CLIs."""
     return create_engine(
         settings.sync_database_url,
         pool_pre_ping=True,
@@ -90,7 +90,7 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
 
 
 def sync_session() -> Generator[Session]:
-    """Context-managed sync session for Dagster ops and scripts.
+    """Context-managed sync session for worker tasks and scripts.
 
     Commits on success, rolls back on exception, always closes.
 

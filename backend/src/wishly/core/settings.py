@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Database (API uses asyncpg; Dagster/Alembic use sync psycopg) -------
+    # --- Database (API uses asyncpg; worker/Alembic use sync psycopg) --------
     database_url: str = Field(
         ...,
         description="PostgreSQL DSN, e.g. postgresql://wishly:wishly@localhost:5432/wishly",
@@ -83,7 +83,7 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        """The DSN rewritten to use the psycopg (v3) driver (for Dagster/Alembic)."""
+        """The DSN rewritten to use the psycopg (v3) driver (for the worker/Alembic)."""
         return _with_driver(self.database_url, "postgresql+psycopg")
 
     @property

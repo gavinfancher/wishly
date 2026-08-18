@@ -1,18 +1,25 @@
 {#-
   Base email layout shared by every event-type template (T4.1).
 
-  Styled to match the web design system: paper ground (#fafaf8), white card,
-  ink text (#1b1b1f), and one accent — the calendar pen red (#c93b2b). Dates
-  and countdowns render in monospace, like the app's countdown pills.
+  Mirrors the app's console UI: the same light palette (paper #fafaf8, white
+  card, ink #1b1b1f, one accent — the calendar pen red #c93b2b), the same 10px
+  panel radius, the same hairline-separated bands (head / body / footer), and
+  the two signature marks — the calendar leaf and the countdown pill — drawn
+  exactly as the event rows draw them.
 
-  Email-safe HTML: a single centred table, inline-friendly markup, and a
-  ``<style>`` block that premailer (T4.2) inlines onto the elements at render
-  time. Child templates override the blocks below; ``manage_url`` is rendered
-  in the footer of EVERY email so an unsubscribe/preferences link is always
-  present.
+  Deliberately light even though the app renders dark on a dark OS: mail clients
+  handle dark backgrounds inconsistently and many force their own, so the light
+  palette is the one that survives everywhere.
+
+  Email-safe HTML: tables for the head band (Outlook ignores flex), inline-
+  friendly markup, and a ``<style>`` block that premailer (T4.2) inlines onto
+  the elements at render time. Child templates override the blocks below;
+  ``manage_url`` is rendered in the footer of EVERY email so an unsubscribe /
+  preferences link is always present.
 
   Context placeholders (see T4.1): recipient_name, title, days_before,
-  days_phrase, occurrence_date, message, manage_url.
+  days_phrase, countdown_label, occurrence_date, leaf_month, leaf_day, message,
+  manage_url.
 -#}
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -43,7 +50,7 @@
         box-sizing: border-box;
       }
       .brand-row {
-        padding: 8px 8px 18px 8px;
+        padding: 8px 4px 16px 4px;
       }
       .brand {
         margin: 0;
@@ -55,43 +62,75 @@
       .brand-dot {
         color: #c93b2b;
       }
+      /* Panel: 10px radius and hairline bands, matching .form-panel in the app. */
       .container {
         width: 100%;
         background-color: #ffffff;
-        border-radius: 18px;
+        border-radius: 10px;
         overflow: hidden;
         border: 1px solid #e8e7e2;
       }
-      .content {
-        padding: 32px;
+      .head {
+        padding: 18px 20px;
+        border-bottom: 1px solid #e8e7e2;
       }
-      .pill {
-        display: inline-block;
-        margin: 0 0 18px 0;
+      .content {
+        padding: 20px;
+      }
+      /* Calendar leaf — the app's signature mark (58x62, 10px radius). */
+      .leaf {
+        width: 58px;
+        height: 62px;
+        background-color: #ffffff;
+        border: 1px solid #e8e7e2;
+        border-radius: 10px;
+        text-align: center;
+      }
+      .leaf-month {
+        display: block;
         font-family: Menlo, Consolas, "Courier New", monospace;
-        font-size: 13px;
-        font-weight: 700;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
         color: #c93b2b;
-        background-color: #faeae6;
-        border-radius: 999px;
-        padding: 5px 14px;
+      }
+      .leaf-day {
+        display: block;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.4px;
+        line-height: 1.1;
+        color: #1b1b1f;
       }
       .headline {
-        margin: 0 0 8px 0;
-        font-size: 24px;
+        margin: 0;
+        font-size: 20px;
         line-height: 1.25;
-        font-weight: 800;
-        letter-spacing: -0.4px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
         color: #1b1b1f;
       }
       .date-line {
-        margin: 0 0 18px 0;
+        margin: 4px 0 0 0;
         font-family: Menlo, Consolas, "Courier New", monospace;
-        font-size: 13px;
+        font-size: 12px;
         color: #6d6d75;
       }
+      /* Countdown pill — .row-count-soon from the event list. */
+      .pill {
+        display: inline-block;
+        font-family: Menlo, Consolas, "Courier New", monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: #c93b2b;
+        background-color: #faeae6;
+        border-radius: 999px;
+        padding: 4px 11px;
+        white-space: nowrap;
+      }
       .paragraph {
-        margin: 0 0 16px 0;
+        margin: 0 0 14px 0;
         font-size: 15px;
         line-height: 1.6;
         color: #6d6d75;
@@ -101,11 +140,11 @@
         color: #c93b2b;
       }
       .note {
-        margin: 20px 0 0 0;
-        padding: 14px 18px;
+        margin: 16px 0 0 0;
+        padding: 14px 16px;
         background-color: #fafaf8;
         border-left: 3px solid #c93b2b;
-        border-radius: 0 10px 10px 0;
+        border-radius: 0 7px 7px 0;
         font-size: 14px;
         line-height: 1.6;
         font-style: italic;
@@ -122,7 +161,7 @@
         color: #c93b2b;
       }
       .footer {
-        padding: 20px 8px 8px 8px;
+        padding: 18px 4px 8px 4px;
         font-size: 12px;
         line-height: 1.6;
         color: #9b9ba3;
@@ -140,10 +179,33 @@
           <p class="brand">wishly<span class="brand-dot">.</span></p>
         </div>
         <div class="container">
+          {# Head band: leaf + title + date on the left, countdown on the right —
+             the same reading order as a row in the app's occasions list. #}
+          <div class="head">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td width="58" valign="top">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="leaf">
+                    <tr>
+                      <td align="center" valign="middle">
+                        <span class="leaf-month">{{ leaf_month }}</span>
+                        <span class="leaf-day">{{ leaf_day }}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td valign="top" style="padding-left: 14px;">
+                  <h1 class="headline">{% block headline %}{{ title }}{% endblock %}</h1>
+                  <p class="date-line">{{ occurrence_date }}</p>
+                </td>
+                <td valign="top" align="right">
+                  <span class="pill">{{ countdown_label }}</span>
+                </td>
+              </tr>
+            </table>
+          </div>
+
           <div class="content">
-            <span class="pill">{{ days_phrase }}</span>
-            <h1 class="headline">{% block headline %}{{ title }}{% endblock %}</h1>
-            <p class="date-line">{{ occurrence_date }}</p>
             {% block body %}{% endblock %}
             {% if message %}
             <div class="note">

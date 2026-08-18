@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { useWishlyUser } from '../lib/auth-context.ts'
 import ConfirmDialog from '../components/ConfirmDialog.tsx'
 import EventRow from '../components/EventRow.tsx'
 import EventForm, { type EventFormValues } from '../components/EventForm.tsx'
@@ -45,7 +44,6 @@ function sortEvents(events: Event[], order: SortOrder): Event[] {
  * reminder management (T6.4).
  */
 export default function EventsPage() {
-  const { firstName } = useWishlyUser()
   const { data: profile } = useMe()
   const { data: events, isLoading, isError, refetch } = useEvents()
   const createEvent = useCreateEvent()
@@ -169,7 +167,6 @@ export default function EventsPage() {
     <div className="events-page">
       <header className="events-header">
         <div>
-          <h1>Coming up{firstName ? ` for ${firstName}` : ''}</h1>
           {profile && (
             <p className="events-subtitle">
               Reminders land around{' '}
@@ -178,9 +175,6 @@ export default function EventsPage() {
             </p>
           )}
         </div>
-        <button type="button" className="btn-primary" onClick={openCreate}>
-          Add a date
-        </button>
       </header>
 
       {hasEvents && (
@@ -216,6 +210,9 @@ export default function EventsPage() {
             <option value="title">A to Z</option>
             <option value="newest">Recently added</option>
           </select>
+          <button type="button" className="btn-primary btn-compact" onClick={openCreate}>
+            Add a date
+          </button>
         </div>
       )}
 

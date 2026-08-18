@@ -21,8 +21,14 @@
   --font-sans: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
   --font-mono: 'Spline Sans Mono', ui-monospace, 'SF Mono', monospace;
 
-  --radius: 12px;
+  --radius: 10px;
+  --radius-sm: 7px;
   --radius-lg: 18px;
+  --ring: rgb(201 59 43 / 0.18);
+  /* Chrome (sidebar, topbar) sits between the page ground and a panel, so the
+     three depths read apart without shadows doing the work. */
+  --surface: #f2f1ee;
+  --sidebar-w: 232px;
   --shadow-soft: 0 1px 2px rgb(27 27 31 / 0.05), 0 8px 24px rgb(27 27 31 / 0.06);
   --shadow-pop: 0 2px 6px rgb(27 27 31 / 0.08), 0 20px 48px rgb(27 27 31 / 0.14);
 
@@ -44,6 +50,8 @@
     --ok: #5cb87f;
     --wash: rgb(236 236 238 / 0.07);
     --overlay: rgb(0 0 0 / 0.55);
+    --ring: rgb(224 90 72 / 0.26);
+    --surface: #17171c;
 
     --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
     --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 20px 48px rgb(0 0 0 / 0.55);
@@ -536,7 +544,7 @@ a {
   color: var(--ink-faint);
 }
 
-.landing-footer span:first-child {
+.landing-footer > span:first-child {
   font-weight: 800;
   color: var(--ink);
 }
@@ -568,7 +576,6 @@ a {
    App shell
    ============================================================ */
 
-.app-shell,
 .prefs-shell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -576,39 +583,136 @@ a {
   flex-direction: column;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  max-width: 760px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 1.25rem 1.5rem;
+/* ---------- App shell ----------
+   Console layout: a fixed sidebar for where you are, a topbar naming the
+   section, and one scrolling content column. Only the content scrolls. */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: 100vh;
+  height: 100dvh;
 }
 
-.app-nav {
+.sidebar {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: 1rem 0.75rem;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
 }
 
-.app-nav a {
-  font-size: 0.92rem;
+.sidebar-brand {
+  padding: 0.35rem 0.5rem;
+  text-decoration: none;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--ink-soft);
   text-decoration: none;
-  padding-bottom: 2px;
-  border-bottom: 2px solid transparent;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
-.app-nav a:hover {
+.nav-item:hover {
+  background: var(--wash);
   color: var(--ink);
 }
 
-.app-nav a.active {
-  color: var(--ink);
-  border-bottom-color: var(--pen);
+.nav-item.active {
+  background: var(--pen-tint);
+  color: var(--pen);
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0 0.15rem;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 60px;
+  padding: 0 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.view {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+@media (max-width: 780px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+  }
+
+  .sidebar-foot {
+    margin-top: 0;
+    margin-left: auto;
+  }
 }
 
 .dev-user-badge {
@@ -622,32 +726,19 @@ a {
   padding: 0.25rem 0.65rem;
 }
 
-.app-main {
-  flex: 1;
-  width: 100%;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 1.5rem 1.5rem 4rem;
-}
-
 /* ---------- Events page ---------- */
 
+/* Toolbar, not a masthead — the topbar already names the section. */
 .events-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin: 1rem 0 2rem;
-}
-
-.events-header h1 {
-  font-size: 1.7rem;
-  letter-spacing: -0.025em;
 }
 
 .events-subtitle {
-  margin-top: 0.35rem;
-  font-size: 0.9rem;
+  margin: 0;
+  font-size: 0.85rem;
   color: var(--ink-soft);
 }
 
@@ -832,12 +923,23 @@ a {
 
 /* ---------- Toolbar (search / filter / sort) ---------- */
 
+/* One row, one control height, one right edge. Every child is sized off
+   --control-h so the search, chips, sort and action button line up top and
+   bottom instead of each finding its own height from its padding. */
 .toolbar {
+  --control-h: 34px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.6rem;
   margin-bottom: 1.25rem;
+}
+
+.toolbar-search,
+.toolbar-sort,
+.toolbar .chip,
+.toolbar .btn-primary {
+  height: var(--control-h);
 }
 
 .toolbar-search {
@@ -851,8 +953,8 @@ input[type='search'] {
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem;
 }
 
 input[type='search']:focus {
@@ -866,8 +968,7 @@ input[type='search']:focus {
 }
 
 .toolbar-sort {
-  border-radius: 999px;
-  padding: 0.45rem 0.9rem;
+  padding: 0.45rem 0.65rem;
   background: var(--card);
 }
 
@@ -926,7 +1027,8 @@ input[type='search']:focus {
 }
 
 /* 1rem (16px) minimum on all controls — anything smaller makes iOS Safari
-   zoom the page when a field is focused. */
+   zoom the page when a field is focused. Pointer devices get the denser
+   console sizing below, where that constraint doesn't apply. */
 input[type='text'],
 input[type='number'],
 input[type='email'],
@@ -938,19 +1040,38 @@ textarea {
   color: var(--ink);
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.55rem 0.7rem;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 2px solid var(--pen);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--pen);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 textarea {
   resize: vertical;
+}
+
+/* Desktop density: 14px controls, so a field's value sits below its panel
+   title in the hierarchy instead of shouting over it. Guarded by a pointer
+   query so touch keyboards never trigger the iOS zoom. */
+@media (min-width: 640px) and (pointer: fine) {
+  input[type='text'],
+  input[type='number'],
+  input[type='email'],
+  input[type='search'],
+  select,
+  textarea {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.65rem;
+  }
 }
 
 .optional {
@@ -978,10 +1099,25 @@ textarea {
   margin: 0.25rem 0 0.75rem;
 }
 
+/* Bottom-aligned so the three inputs sit on one line even when a label
+   wraps — the label is the variable-height part, not the control. */
 .date-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.2fr;
+  grid-template-columns: 1.7fr 0.9fr 1.5fr;
   gap: 0.75rem;
+  align-items: end;
+}
+
+
+/* A year isn't worth stepping through one at a time. */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  appearance: textfield;
 }
 
 /* Segmented type picker */
@@ -1068,14 +1204,16 @@ textarea {
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
   border: 1px solid var(--line);
   background: var(--card);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--ink-soft);
-  border-radius: 999px;
-  padding: 0.3rem 0.8rem;
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.7rem;
   cursor: pointer;
   transition:
     background 120ms ease,
@@ -1095,33 +1233,24 @@ textarea {
 
 .reminder-custom {
   display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.reminder-custom-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.reminder-custom-row {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 
 .reminder-custom input {
-  width: 8.5rem;
-}
-
-.reminder-list {
-  list-style: none;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.reminder-list li {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.2rem 0.3rem 0.2rem 0.7rem;
+  width: 6rem;
 }
 
 .checkbox-row {
@@ -1145,36 +1274,81 @@ textarea {
 
 /* ---------- Onboarding ---------- */
 
-.onboarding {
-  display: flex;
-  justify-content: center;
-  padding-top: 3rem;
-}
+/* ---------- Form panel ----------
+   Three hairline-separated bands: what this is, the controls, the one action.
+   Denser than the marketing page on purpose — this is a console, not a pitch.
+   Distinct from `.panel` (a plain padded section) because the bands and the
+   pinned action row are the whole point. */
 
-.onboarding-card {
+.form-panel {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft);
-  padding: 2.5rem;
-  width: 100%;
-  max-width: 460px;
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
-.onboarding-card h1 {
-  font-size: 1.45rem;
-  letter-spacing: -0.02em;
+.form-panel-head {
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1px solid var(--line);
 }
 
-.onboarding-sub {
-  margin: 0.6rem 0 1.75rem;
-  font-size: 0.92rem;
+.form-panel-head h1 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.form-panel-sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
   color: var(--ink-soft);
 }
 
-.onboarding-form button[type='submit'] {
+.form-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.05rem;
+  padding: 1.15rem;
+}
+
+.form-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.8rem 1.15rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Label above, control, hint below — three sizes so the eye ranks them. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* Square-ish and small: app chrome, not a marketing pill. */
+.btn-compact {
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.95rem;
+  font-size: 0.88rem;
+}
+
+.onboarding {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0 4rem;
+}
+
+.onboarding .form-panel {
   width: 100%;
-  margin-top: 0.5rem;
+  max-width: 420px;
 }
 
 /* ---------- Preferences ---------- */

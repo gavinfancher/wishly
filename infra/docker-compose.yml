@@ -7,14 +7,16 @@
 # published to the host — inbound traffic arrives via the cloudflared tunnel.
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18.4
     container_name: wishly-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - wishly_pgdata:/var/lib/postgresql/data
+      # Postgres 18 keeps PGDATA in a versioned subdirectory; mounting the parent
+      # is what the official image recommends so pg_upgrade --link stays possible.
+      - wishly_pgdata:/var/lib/postgresql
       # Creates the dedicated wishly_dagster database on first init.
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
@@ -56,59 +58,91 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
     networks:
       - app_net
     # No ports published — cloudflared reaches api:8000 over app_net.
 
-  dagster-webserver:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.dagster
-    image: wishly-dagster:latest
-    command:
-      - dagster-webserver
-      - "-h"
-      - "0.0.0.0"
-      - "-p"
-      - "3000"
-      - "-w"
-      - /opt/dagster/dagster_home/workspace.yaml
-    env_file:
-      - .env
+  # Prefect Server: scheduler + UI, self-hosted next to the database.
+  #
+  # Prefect Cloud's free plan only offers *managed* work pools, which execute
+  # flows on Prefect's infrastructure — that cannot reach this Postgres, which
+  # publishes no ports and sits behind the tunnel. Self-hosting keeps the data
+  # private and stays free. Point PREFECT_API_URL at Cloud instead if you move to
+  # a plan with hybrid (self-hosted worker) pools; nothing else changes.
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: wishly-prefect-server
+    command: ["prefect", "server", "start", "--host", "0.0.0.0", "--port", "4200"]
     environment:
-      DAGSTER_HOME: /opt/dagster/dagster_home
-      DAGSTER_PG_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/wishly_dagster
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+      PREFECT_HOME: /data
+      PREFECT_API_URL: http://prefect-server:4200/api
+    volumes:
+      - wishly_prefect:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request;urllib.request.urlopen('http://localhost:4200/api/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
     networks:
       - app_net
-    # Dagit UI is internal-only; tunnel a hostname to it later if remote access is wanted.
+    # UI is internal-only; add a tunnel hostname if you want it remotely.
 
-  dagster-daemon:
+  # One-shot: publish the flow deployment + its hourly schedule to the server.
+  prefect-deploy:
     build:
       context: ..
-      dockerfile: infra/Dockerfile.dagster
-    image: wishly-dagster:latest
+      dockerfile: infra/Dockerfile.worker
+    image: wishly-worker:latest
+    # Create the pool first: `prefect deploy` warns (and runs go unclaimed) if the
+    # deployment references a pool that does not exist yet. Both are idempotent.
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - dagster-daemon
-      - run
-      - "-w"
-      - /opt/dagster/dagster_home/workspace.yaml
+      - 'prefect work-pool create "$${PREFECT_WORK_POOL}" --type process || true; prefect deploy --all'
     env_file:
       - .env
     environment:
-      DAGSTER_HOME: /opt/dagster/dagster_home
-      DAGSTER_PG_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/wishly_dagster
+      PREFECT_API_URL: ${PREFECT_API_URL}
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app_net
+
+  # Prefect worker: polls the server for scheduled runs of the send flow and
+  # executes them in this container, where Postgres is reachable over app_net.
+  prefect-worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.worker
+    image: wishly-worker:latest
+    # --type creates the pool on first start, so the stack is self-configuring.
+    command:
+      ["prefect", "worker", "start", "--pool", "${PREFECT_WORK_POOL}", "--type", "process"]
+    env_file:
+      - .env
+    environment:
+      PREFECT_API_URL: ${PREFECT_API_URL}
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      prefect-server:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - app_net
@@ -119,7 +153,8 @@ services:
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "cloudflared", "--version"]
       interval: 30s
@@ -131,6 +166,8 @@ services:
       - app_net
 
 volumes:
+  wishly_prefect:
+    name: wishly_prefect
   wishly_pgdata:
     name: wishly_pgdata_prod
 

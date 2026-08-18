@@ -3,7 +3,7 @@
 Exposes a single :class:`ResendClient` with :meth:`~ResendClient.send_email`,
 which builds the Resend payload, sends, and returns the provider message id.
 Any failure is normalised to a typed :class:`EmailSendError` so callers (the
-Dagster send op) never have to know Resend's exception taxonomy.
+Prefect send task) never have to know Resend's exception taxonomy.
 
 Configuration (``RESEND_API_KEY``, ``EMAIL_FROM``) is read from
 :data:`wishly.core.settings.settings`; nothing is hard-coded. The SDK is
@@ -23,7 +23,7 @@ class EmailSendError(RuntimeError):
     """Raised when sending an email via Resend fails.
 
     ``transient`` marks errors worth retrying (rate limits / upstream 5xx);
-    the Dagster op's retry policy can use it to avoid retrying, say, a hard
+    the Prefect task's retry policy can use it to avoid retrying, say, a hard
     validation error forever.
     """
 

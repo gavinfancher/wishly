@@ -36,15 +36,17 @@ export default function OnboardingPage() {
 
   return (
     <div className="onboarding">
-      <div className="onboarding-card">
-        <h1>When should reminders land?</h1>
-        <p className="onboarding-sub">
-          One email per reminder, in your inbox at the hour you pick. You can change this any time.
-        </p>
+      <form onSubmit={(e) => void handleSubmit(e)} className="form-panel">
+        <div className="form-panel-head">
+          <h1>When should reminders land?</h1>
+          <p className="form-panel-sub">
+            One email per reminder, at the hour you pick. Change it any time.
+          </p>
+        </div>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="onboarding-form">
-          <label>
-            Timezone
+        <div className="form-panel-body">
+          <label className="field">
+            <span className="field-label">Timezone</span>
             <select value={timezone} onChange={(e) => setTimezone(e.target.value)} required>
               {timezoneOptions(timezone).map((zone) => (
                 <option key={zone} value={zone}>
@@ -55,8 +57,8 @@ export default function OnboardingPage() {
             <span className="field-hint">Detected from your browser — adjust if it’s wrong.</span>
           </label>
 
-          <label>
-            Delivery hour (local time)
+          <label className="field">
+            <span className="field-label">Delivery hour (local time)</span>
             <select value={sendHour} onChange={(e) => setSendHour(Number(e.target.value))}>
               {HOUR_OPTIONS.map((hour) => (
                 <option key={hour} value={hour}>
@@ -67,12 +69,14 @@ export default function OnboardingPage() {
           </label>
 
           {error && <p className="form-error">{error}</p>}
+        </div>
 
-          <button type="submit" className="btn-primary" disabled={updateMe.isPending}>
+        <div className="form-panel-actions">
+          <button type="submit" className="btn-primary btn-compact" disabled={updateMe.isPending}>
             {updateMe.isPending ? 'Saving…' : 'Save and continue'}
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   )
 }

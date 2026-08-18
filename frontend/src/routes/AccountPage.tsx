@@ -58,7 +58,6 @@ export default function AccountPage() {
 
   return (
     <div className="account-page">
-      <h1>Account</h1>
       <p className="text-muted">Your profile, delivery preferences, and data.</p>
 
       <section className="panel">

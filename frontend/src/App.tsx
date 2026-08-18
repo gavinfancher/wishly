@@ -20,6 +20,10 @@ export default function App() {
       <Route path="/sign-in/*" element={<SignInPage />} />
       <Route path="/sign-up/*" element={<SignUpPage />} />
 
+      {/* Aliases for the URLs people type */}
+      <Route path="/login" element={<Navigate to="/sign-in" replace />} />
+      <Route path="/signup" element={<Navigate to="/sign-up" replace />} />
+
       {/* Public preferences page (linked from emails); auth optional */}
       <Route path="/preferences" element={<PreferencesPage />} />
 

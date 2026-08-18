@@ -2,7 +2,7 @@
 # Usage: docker compose -f infra/docker-compose.dev.yml up -d
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18.4
     container_name: wishly-postgres-dev
     environment:
       POSTGRES_USER: wishly
@@ -11,7 +11,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - wishly_pgdata:/var/lib/postgresql/data
+      # Postgres 18 keeps PGDATA in a versioned subdirectory; mounting the parent
+      # is what the official image recommends so pg_upgrade --link stays possible.
+      - wishly_pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U wishly -d wishly"]
       interval: 5s

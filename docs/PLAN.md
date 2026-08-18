@@ -30,9 +30,9 @@ people they care about, and emails the user **reminders ahead of time** so they 
 | Frontend | React + Vite + TypeScript SPA, deployed to **Cloudflare Pages** (`wishly.dev`) |
 | Frontend auth | `@clerk/clerk-react` |
 | API | **FastAPI** + uvicorn, containerized, exposed at `api.wishly.dev` via **Cloudflare Tunnel** |
-| Orchestration | **Dagster** (webserver + daemon) for the scheduled send pipeline |
-| Database | **PostgreSQL 16** |
-| ORM / migrations | **SQLAlchemy 2.0** (async for API, sync for Dagster) + **Alembic** |
+| Orchestration | **Prefect** (self-hosted server + worker in the compose stack) |
+| Database | **PostgreSQL 18.4** |
+| ORM / migrations | **SQLAlchemy 2.0** (async for API, sync for the worker) + **Alembic** |
 | Auth | **Clerk** — JWT verification on the API; webhook sync of users into Postgres |
 | Email delivery | **Resend** (Python SDK) |
 | Email templating | **Jinja2** + **premailer** (CSS inlining), pure Python. MJML optional at dev time only. |
@@ -62,7 +62,7 @@ people they care about, and emails the user **reminders ahead of time** so they 
    │   cloudflared ──► api:8000  (FastAPI / uvicorn)                      │
    │                      │  verify Clerk JWT · CRUD · webhooks           │
    │                      ▼                                               │
-   │                 postgres:5432 ◄──── dagster-daemon + webserver       │
+   │                 postgres:5432 ◄──── prefect worker                   │
    │                      ▲                   │ hourly schedule           │
    │                      └───────────────────┘ render + send            │
    │                                           └──► Resend API ──► 📧     │
@@ -72,13 +72,13 @@ people they care about, and emails the user **reminders ahead of time** so they 
    Resend ──webhook──► /webhooks/resend   (bounce/complaint → suppress)
 ```
 
-**Core principle:** FastAPI and Dagster are two entrypoints over **one shared Python package**
+**Core principle:** FastAPI and Prefect are two entrypoints over **one shared Python package**
 (same models, render code, Resend client). They never call each other; they meet at Postgres.
 
 **Auth split:**
 - *Request time* — the SPA sends the Clerk session JWT; FastAPI verifies it. Email/name come
   from a custom JWT claim (no extra round-trip).
-- *Send time* — Dagster has no JWT and cannot reach Clerk per send. It reads `users` from
+- *Send time* — the worker has no JWT and cannot reach Clerk per send. It reads `users` from
   Postgres, which is kept current by Clerk **webhooks** (with provision-on-first-request as a
   fallback for a missed/raced webhook).
 
@@ -102,7 +102,7 @@ wishly/
 │       ├── routes/
 │       └── components/
 ├── backend/
-│   ├── pyproject.toml        # uv-managed; fastapi + dagster + shared deps
+│   ├── pyproject.toml        # uv-managed; fastapi + prefect + shared deps
 │   ├── alembic.ini
 │   ├── alembic/
 │   │   └── versions/
@@ -116,12 +116,12 @@ wishly/
 │       │   ├── schemas.py    # Pydantic request/response models
 │       │   ├── routes/       # me.py, events.py, reminders.py, preferences.py
 │       │   └── webhooks/     # clerk.py, resend.py
-│       └── orchestration/    # Dagster: definitions.py, resources.py, ops.py, schedules.py
+│       └── orchestration/    # Prefect: flows.py, tasks.py, due.py, session.py
 └── infra/
     ├── docker-compose.yml    # full stack
     ├── docker-compose.dev.yml# postgres-only for local dev
     ├── Dockerfile.api
-    ├── Dockerfile.dagster
+    ├── Dockerfile.worker
     ├── .env.example
     └── cloudflared/
         └── config.yml        # tunnel ingress
@@ -240,7 +240,7 @@ insert grants the right to send. This makes double-sends structurally impossible
 
 ## 7. The send algorithm (reference for Epic 5)
 
-Dagster runs **hourly**. For each run at `now_utc`:
+The flow runs **hourly**. For each run at `now_utc`:
 
 1. For every non-deleted user, convert `now_utc` to the user's `timezone`. Keep only users
    whose **local hour == `send_hour`** (their send window for this run).
@@ -260,7 +260,7 @@ Dagster runs **hourly**. For each run at `now_utc`:
 
 **Edge cases that must be handled (with tests):**
 - **Feb 29 events** in non-leap years: observe on **Feb 28**. Encode in the `target` match.
-- **Resend failure:** mark `failed`, let Dagster retry the op; the claim row already exists so
+- **Resend failure:** mark `failed`, let Prefect retry the task; the claim row already exists so
   retries don't duplicate — the retry updates the same row.
 - **DST transitions:** rely on `zoneinfo`; never do manual offset math.
 
@@ -283,9 +283,9 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 **T0.2 — Local Postgres + env scaffolding**
 - *Depends on:* —
-- *Scope:* `infra/docker-compose.dev.yml` with a `postgres:16` service (named volume, healthcheck).
+- *Scope:* `infra/docker-compose.dev.yml` with a `postgres:18.4` service (named volume, healthcheck).
   Create `infra/.env.example` and `backend/.env.example` with the vars from §11. Add a `justfile`
-  or `Makefile` with `db-up`, `db-down`, `api-dev`, `dagster-dev`, `migrate`, `lint`, `test`.
+  or `Makefile` with `db-up`, `db-down`, `api-dev`, `flow-run`, `worker`, `migrate`, `lint`, `test`.
 - *Files:* `infra/docker-compose.dev.yml`, `infra/.env.example`, `backend/.env.example`, `justfile`.
 - *Acceptance:* `just db-up` brings up Postgres; `psql` against `DATABASE_URL` connects.
 
@@ -320,7 +320,7 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 **T1.2 — Engine & session factories**
 - *Depends on:* T1.1, T0.3
 - *Scope:* `db/session.py` exposing an **async** engine/sessionmaker (asyncpg) for the API and a
-  **sync** engine/sessionmaker (psycopg) for Dagster. A FastAPI `get_session` dependency.
+  **sync** engine/sessionmaker (psycopg) for the worker. A FastAPI `get_session` dependency.
 - *Files:* `backend/src/wishly/db/session.py`.
 - *Acceptance:* both engines connect to local Postgres; async + sync round-trip tests pass.
 
@@ -431,14 +431,14 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 - *Files:* `docs/runbooks/resend-domain.md`.
 - *Acceptance:* a reviewer can follow it end-to-end without external lookups.
 
-### Epic 5 — Dagster send pipeline
+### Epic 5 — Prefect send pipeline
 
-**T5.1 — Dagster project + resources**
+**T5.1 — Prefect project + session helper**
 - *Depends on:* T1.2, T4.3
 - *Scope:* `orchestration/definitions.py`, `resources.py` — a DB resource (sync session) and a
-  Resend resource. Add `dagster`, `dagster-webserver`, `dagster-postgres` via uv. `DAGSTER_HOME` set.
+  Resend client. Add `prefect` via uv; Prefect Cloud hosts the scheduler, so nothing is self-hosted.
 - *Files:* `backend/src/wishly/orchestration/{definitions,resources}.py`.
-- *Acceptance:* `uv run dagster dev` loads the code location with no errors.
+- *Acceptance:* `uv run python -m wishly.orchestration.flows` runs the flow end to end with no errors.
 
 **T5.2 — `find_due_notifications` op**
 - *Depends on:* T5.1
@@ -462,7 +462,7 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 - *Scope:* assemble ops into a job; an **hourly** `ScheduleDefinition`; op retry policy for transient
   Resend errors; a run-failure hook that logs/alerts.
 - *Files:* `backend/src/wishly/orchestration/{schedules,definitions}.py`.
-- *Acceptance:* schedule appears and is enable-able in Dagster UI; a forced failure triggers the
+- *Acceptance:* the deployment and its hourly schedule appear in Prefect Cloud; a forced failure triggers the
   alert hook; retries don't duplicate sends.
 
 ### Epic 6 — Frontend
@@ -504,14 +504,14 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 **T7.1 — Dockerfiles**
 - *Depends on:* T2.2, T5.4
-- *Scope:* `Dockerfile.api` (uvicorn) and `Dockerfile.dagster` (webserver + daemon), both uv-based,
+- *Scope:* `Dockerfile.api` (uvicorn) and `Dockerfile.worker` (prefect worker), both uv-based,
   multi-stage, non-root.
-- *Files:* `infra/Dockerfile.api`, `infra/Dockerfile.dagster`.
+- *Files:* `infra/Dockerfile.api`, `infra/Dockerfile.worker`.
 - *Acceptance:* both images build; the API container serves `/health`.
 
 **T7.2 — Full compose**
 - *Depends on:* T7.1
-- *Scope:* `infra/docker-compose.yml` with `postgres`, `api`, `dagster-webserver`, `dagster-daemon`,
+- *Scope:* `infra/docker-compose.yml` with `postgres`, `api`, `prefect-worker`,
   `cloudflared`. Healthchecks, restart policies, named volume for Postgres, env via `.env`.
 - *Files:* `infra/docker-compose.yml`.
 - *Acceptance:* `docker compose up` brings the stack healthy; API reachable on the internal network.
@@ -548,7 +548,7 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 **T8.2 — Observability**
 - *Depends on:* T2.2, T5.4
-- *Scope:* structured request logging + request IDs in the API; Dagster run logging; a `/health` and
+- *Scope:* structured request logging + request IDs in the API; Prefect run logging; a `/health` and
   `/ready` (DB ping) endpoint. Optional: Cloudflare Workers observability notes for the edge.
 - *Files:* API middleware, `docs/runbooks/observability.md`.
 - *Acceptance:* logs are structured/queryable; `/ready` fails when Postgres is down.
@@ -598,19 +598,28 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `DATABASE_URL` | API, Dagster, Alembic | API uses asyncpg driver; Dagster/Alembic sync (psycopg) |
+| `DATABASE_URL` | API, worker, Alembic | API uses asyncpg driver; worker/Alembic sync (psycopg) |
 | `CLERK_SECRET_KEY` | API | Backend SDK / token verification |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | API | Svix verification for `/webhooks/clerk` |
-| `RESEND_API_KEY` | API, Dagster | Email send |
+| `CLERK_FRONTEND_API` | API | **Required.** Token issuer / JWKS origin; without it every request 401s |
+| `RESEND_API_KEY` | API, worker | Email send |
 | `RESEND_WEBHOOK_SIGNING_SECRET` | API | Verify `/webhooks/resend` |
-| `EMAIL_FROM` | API, Dagster | e.g. `reminders@wishly.dev` (domain must be verified) |
-| `APP_BASE_URL` | API, Dagster | `https://wishly.dev` — builds `manage_url` in emails |
-| `ALLOWED_ORIGINS` | API | CORS allowlist, e.g. `https://wishly.dev` |
-| `ENVIRONMENT` | API, Dagster | `dev` / `prod` |
-| `DAGSTER_HOME` | Dagster | container path |
+| `EMAIL_FROM` | API, worker | e.g. `reminders@wishly.dev` (domain must be verified) |
+| `APP_BASE_URL` | API, worker | `https://wishly.dev` — builds `manage_url` in emails |
+| `ALLOWED_ORIGINS` | API | CORS allowlist, e.g. `https://wishly.dev,https://app.wishly.dev` |
+| `ENVIRONMENT` | API, worker | `dev` / `prod` |
+| `PREFECT_API_URL` | worker | `http://prefect-server:4200/api` (self-hosted) or a Cloud workspace URL |
+| `PREFECT_API_KEY` | worker | Only needed when pointing at Prefect Cloud |
+| `PREFECT_WORK_POOL` | worker | work pool the worker polls (e.g. `wishly-pool`) |
+| `S3_BUCKET` | backup | destination bucket for hourly dumps |
+| `S3_PREFIX` | backup | key prefix (default `wishly/postgres`) |
+| `S3_ENDPOINT_URL` | backup | set for S3-compatible stores (R2/MinIO); empty for AWS |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | backup | bucket credentials |
+| `AWS_DEFAULT_REGION` | backup | `us-east-1`; use `auto` for R2 |
 | `TUNNEL_TOKEN` | cloudflared | Cloudflare Tunnel credential |
 | `VITE_CLERK_PUBLISHABLE_KEY` | frontend | build-time |
 | `VITE_API_BASE_URL` | frontend | `https://api.wishly.dev` |
+| `VITE_APP_BASE_URL` | frontend | `https://app.wishly.dev` — dashboard origin; empty ⇒ same origin |
 
 ---
 

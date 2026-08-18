@@ -1,6 +1,6 @@
-"""Dagster ops for the hourly send pipeline (T5.2 + T5.3).
+"""Prefect tasks for the hourly send pipeline (T5.2 + T5.3).
 
-Two ops, wired together in :mod:`wishly.orchestration.definitions`:
+Two tasks, wired together in :mod:`wishly.orchestration.flows`:
 
 #. :func:`find_due_notifications` — implements PLAN §7 steps 1-3: select the
    users in their send window (local hour == ``send_hour``), then, for each
@@ -16,18 +16,12 @@ Two ops, wired together in :mod:`wishly.orchestration.definitions`:
 The claim-before-send protocol is what makes double-sends structurally
 impossible, so retries (T5.4) update the existing row instead of duplicating.
 
-.. note::
-   This module intentionally does **not** use ``from __future__ import
-   annotations``. Dagster 1.13 validates op signatures by the *identity* of the
-   ``context`` parameter's annotation, which PEP 563 would turn into a bare
-   string and reject (see ``_validate_context_type_hint``). Keep annotations
-   evaluated here.
 """
 
 import datetime
 from dataclasses import dataclass
 
-from dagster import Backoff, Jitter, OpExecutionContext, RetryPolicy, op
+from prefect import get_run_logger, task
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -36,23 +30,21 @@ from wishly.db.models import Event, NotificationLog, Suppression, User
 from wishly.email.render import build_manage_url, render_email
 from wishly.email.resend_client import ResendClient
 from wishly.orchestration.due import is_in_send_window, local_today, occurrence_on
-from wishly.orchestration.resources import DatabaseResource, ResendResource
+from wishly.orchestration.session import session_scope
 
 # Transient Resend failures (rate limits, upstream 5xx, network) are worth a few
 # quick retries; the claim row already exists, so a retry updates it in place.
-SEND_RETRY_POLICY = RetryPolicy(
-    max_retries=3,
-    delay=2,
-    backoff=Backoff.EXPONENTIAL,
-    jitter=Jitter.PLUS_MINUS,
-)
+# Exponential backoff, jittered so concurrent retries do not align.
+SEND_RETRIES = 3
+SEND_RETRY_DELAYS = [2.0, 4.0, 8.0]
+SEND_RETRY_JITTER = 0.5
 
 
 @dataclass(frozen=True)
 class DueNotification:
     """A single reminder that is due to be sent on this run.
 
-    Carries only scalar fields (safe to pass between ops / serialize); the
+    Carries only scalar fields (safe to pass between tasks / serialize); the
     recipient is *not* yet resolved here so suppression + resolution happen
     together at send time against fresh DB state.
     """
@@ -83,7 +75,7 @@ class DueNotification:
 def compute_due_notifications(
     session: Session, now_utc: datetime.datetime
 ) -> list[DueNotification]:
-    """Pure-ish core of :func:`find_due_notifications` (no Dagster context).
+    """Pure-ish core of :func:`find_due_notifications` (no Prefect context).
 
     Queries non-deleted users whose local hour matches ``send_hour``, then walks
     their active events and reminders applying :func:`occurrence_on`. Split out
@@ -137,16 +129,14 @@ def compute_due_notifications(
     return due
 
 
-@op
-def find_due_notifications(
-    context: OpExecutionContext,
-    database: DatabaseResource,
-) -> list[DueNotification]:
-    """Op: return the reminders due as of ``now`` (PLAN §7 steps 1-3)."""
+@task
+def find_due_notifications() -> list[DueNotification]:
+    """Task: return the reminders due as of ``now`` (PLAN §7 steps 1-3)."""
+    logger = get_run_logger()
     now_utc = datetime.datetime.now(tz=datetime.UTC)
-    with database.session() as session:
+    with session_scope() as session:
         due = compute_due_notifications(session, now_utc)
-    context.log.info("found %d due notification(s)", len(due))
+    logger.info("found %d due notification(s)", len(due))
     return due
 
 
@@ -244,7 +234,7 @@ def process_one(
             text=rendered.text,
         )
     except Exception as exc:
-        # Record the failure on the claimed row and re-raise so Dagster retries.
+        # Record the failure on the claimed row and re-raise so Prefect retries.
         # The claim persists, so the retry updates this same row (no duplicate).
         _mark(session, claim_id, status="failed", error=str(exc))
         session.commit()
@@ -255,30 +245,29 @@ def process_one(
     return "sent"
 
 
-@op(retry_policy=SEND_RETRY_POLICY)
-def send_due_notifications(
-    context: OpExecutionContext,
-    database: DatabaseResource,
-    resend: ResendResource,
-    due: list[DueNotification],
-) -> dict[str, int]:
-    """Op: claim + send + record every due notification (PLAN §7 steps 4-6).
+@task(
+    retries=SEND_RETRIES,
+    retry_delay_seconds=SEND_RETRY_DELAYS,
+    retry_jitter_factor=SEND_RETRY_JITTER,
+)
+def send_due_notifications(due: list[DueNotification]) -> dict[str, int]:
+    """Task: claim + send + record every due notification (PLAN §7 steps 4-6).
 
-    Returns a tally of outcomes by status. On the first hard send error this op
-    raises (after recording ``failed``), letting :data:`SEND_RETRY_POLICY` retry
-    the whole op; already-processed items are skipped as ``duplicate`` on the
-    retry, so retries never double-send.
+    Returns a tally of outcomes by status. On the first hard send error this task
+    raises (after recording ``failed``), letting Prefect retry it; already-processed
+    items are skipped as ``duplicate`` on the retry, so retries never double-send.
     """
-    client = resend.get_client()
+    logger = get_run_logger()
+    client = ResendClient()
     tally: dict[str, int] = {"sent": 0, "skipped": 0, "duplicate": 0}
 
     # One session for the op; ``process_one`` commits each item independently so
     # a later failure cannot roll back an already-sent sibling.
-    with database.session() as session:
+    with session_scope() as session:
         for item in due:
             outcome = process_one(session, client, item)
             tally[outcome] = tally.get(outcome, 0) + 1
-            context.log.info(
+            logger.info(
                 "notification %s/%s/%s -> %s",
                 item.event_id,
                 item.days_before,
@@ -286,12 +275,12 @@ def send_due_notifications(
                 outcome,
             )
 
-    context.log.info("send tally: %s", tally)
+    logger.info("send tally: %s", tally)
     return tally
 
 
 __all__ = [
-    "SEND_RETRY_POLICY",
+    "SEND_RETRIES",
     "DueNotification",
     "compute_due_notifications",
     "find_due_notifications",

@@ -1,1 +1,1 @@
-"""Dagster orchestration: definitions, resources, ops, schedules."""
+"""Prefect orchestration: flows, tasks, and the due-date rules behind them."""

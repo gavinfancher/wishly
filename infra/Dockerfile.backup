@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.7
+#
+# Backup image: pg_dump (matching the server major version) plus the AWS CLI, so
+# a dump can be taken and shipped off-host in one step. The stock postgres image
+# has no aws CLI and the aws-cli image has no pg_dump, hence this small join.
+FROM postgres:18.4
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends awscli ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backup/backup.sh backup/restore.sh /scripts/
+RUN chmod +x /scripts/backup.sh /scripts/restore.sh
+
+ENTRYPOINT ["/scripts/backup.sh"]

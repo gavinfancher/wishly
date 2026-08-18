@@ -1,6 +1,6 @@
 """Pure send-window / due-date logic for the send pipeline (PLAN §7 steps 1-3).
 
-Kept free of Dagster and the database so the riskiest logic in the app —
+Kept free of Prefect and the database so the riskiest logic in the app —
 timezone windowing, ``send_hour`` gating, year-boundary reminders, and the
 Feb 29 -> Feb 28 rule — is unit-testable in isolation.
 

@@ -61,7 +61,6 @@ export default function HistoryPage() {
     <div className="history-page">
       <header className="events-header">
         <div>
-          <h1>Sent reminders</h1>
           <p className="events-subtitle">Every email Wishly has sent on your behalf.</p>
         </div>
       </header>

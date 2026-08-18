@@ -99,6 +99,15 @@ def _days_phrase(days_before: int) -> str:
     return f"in {days_before} days"
 
 
+def _countdown_label(days_before: int) -> str:
+    """Badge text mirroring the app's countdown pill (``Today`` / ``In 7 days``)."""
+    if days_before == 0:
+        return "Today"
+    if days_before == 1:
+        return "Tomorrow"
+    return f"In {days_before} days"
+
+
 def _format_occurrence(occurrence_date: datetime.date) -> str:
     """Render the occurrence date as e.g. ``Monday, June 15``.
 
@@ -175,6 +184,10 @@ def render_email(
         "days_before": days_before,
         "occurrence_date": _format_occurrence(occurrence_date),
         "days_phrase": _days_phrase(days_before),
+        # Calendar-leaf face — the app's signature mark, mirrored in the email.
+        "leaf_month": f"{occurrence_date:%b}".upper(),
+        "leaf_day": occurrence_date.day,
+        "countdown_label": _countdown_label(days_before),
         "message": message,
         # manage_url is ALWAYS present — injected here regardless of caller.
         "manage_url": manage_url,
