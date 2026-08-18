@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18.4
+    container_name: pg-backup-practice
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-practice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-practice}
+      POSTGRES_DB: ${POSTGRES_DB:-practice}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg-backup-practice-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-practice} -d ${POSTGRES_DB:-practice}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg-backup-practice-data:
