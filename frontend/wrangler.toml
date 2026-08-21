@@ -1,0 +1,28 @@
+# wishly-prod: the Wishly SPA on Cloudflare Workers static assets.
+#
+# Unlike homecloud's gavinf-prod there is no worker.js — that exists only to
+# route four hostnames onto one Worker. Wishly serves a single SPA, so asset
+# serving with SPA fallback covers it and there is no request-time code at all.
+#
+# The API is NOT here: it runs behind the Cloudflare Tunnel (api-dev.wishly.dev
+# while testing, api.wishly.dev later). This Worker is static files only.
+name = "wishly-prod"
+account_id = "2750df8a500fb8335c195bad8cccc14a"
+compatibility_date = "2026-06-13"
+
+# The *.workers.dev hostname is NOT covered by the Cloudflare Access policy on
+# wishly.dev, so leaving it enabled publishes the SPA outside the protection.
+workers_dev = false
+
+[assets]
+directory = "./dist"
+# Deep links like /app/history must serve index.html rather than 404 — the
+# router resolves them client-side.
+not_found_handling = "single-page-application"
+
+# Apex only. www.wishly.dev 301s here via a zone redirect rule instead of being a
+# second Worker origin — two origins meant two Clerk sessions (and two "new
+# device" emails) for what the user experiences as one sign-in.
+routes = [
+  { pattern = "wishly.dev", custom_domain = true },
+]

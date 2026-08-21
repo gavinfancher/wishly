@@ -27,6 +27,7 @@ let user: User = {
   last_name: null,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   send_hour: 8,
+  onboarded_at: now(),
   created_at: now(),
   updated_at: now(),
 }

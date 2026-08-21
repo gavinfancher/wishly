@@ -1,68 +1,57 @@
-# SUPERSEDED — single-host stack, kept only until the two-VM split is verified
-# on real hardware. Production now uses:
+# vm-wishly — the application tier (DEPLOYMENT-PLAN T1/T2/T3).
 #
-#   infra/vm-db/docker-compose.yml       postgres + backups
-#   infra/vm-wishly/docker-compose.yml   api, prefect, cloudflared
+#   docker compose -f infra/vm-wishly/docker-compose.yml up -d --build
 #
-# See docs/DEPLOYMENT-PLAN.md T1 and docs/runbooks/production-deploy.md. Delete
-# this file once both VMs have been stood up successfully.
+# Everything except the database. This VM holds **no durable state**: Prefect's
+# server state lives in Postgres on vm-db, so the VM can be destroyed and rebuilt
+# from this file plus Infisical at any time.
 #
-# Full production stack (PLAN T7.2 / T7.3). Run on the Docker host:
-#
-#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-#
-# Build context is the repo root (..) so the API/Dagster images can copy backend/.
-# Only Postgres holds a host-published port-free named volume; no app port is
-# published to the host — inbound traffic arrives via the cloudflared tunnel.
+# Build context is the repo root (../..) so the images can copy backend/.
+# No app port is published — inbound traffic arrives through the tunnel.
 services:
-  postgres:
-    image: postgres:18.4
-    container_name: wishly-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      # Postgres 18 keeps PGDATA in a versioned subdirectory; mounting the parent
-      # is what the official image recommends so pg_upgrade --link stays possible.
-      - wishly_pgdata:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - app_net
-
-  # One-shot schema migration. The api/dagster services wait for it to finish so
-  # they never start against an un-migrated database.
+  # One-shot schema migration. api/worker wait for it to finish, so they never
+  # start against an un-migrated database.
+  #
+  # T3: `depends_on: postgres condition: service_healthy` cannot span hosts, so
+  # the compose-level ordering guard is gone. This waits for the DB itself —
+  # without it, a reboot of this VM while vm-db is still coming up runs Alembic
+  # against an unreachable database and the stack comes up wrong.
   migrate:
     build:
-      context: ..
+      context: ../..
       dockerfile: infra/Dockerfile.api
     image: wishly-api:latest
-    command: ["alembic", "upgrade", "head"]
     env_file:
       - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        python -c "
+        import os, socket, time, urllib.parse as P
+        u = P.urlparse(os.environ['DATABASE_URL'])
+        for _ in range(60):
+            try:
+                socket.create_connection((u.hostname, u.port or 5432), timeout=2).close()
+                break
+            except OSError:
+                time.sleep(2)
+        else:
+            raise SystemExit('database unreachable after 120s')
+        print('database is accepting connections')
+        "
+        exec alembic upgrade head
     restart: "no"
     networks:
       - app_net
 
   api:
     build:
-      context: ..
+      context: ../..
       dockerfile: infra/Dockerfile.api
     image: wishly-api:latest
     env_file:
       - .env
     depends_on:
-      postgres:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     healthcheck:
@@ -78,22 +67,38 @@ services:
       - app_net
     # No ports published — cloudflared reaches api:8000 over app_net.
 
-  # Prefect Server: scheduler + UI, self-hosted next to the database.
+  # Prefect Server: scheduler + UI.
   #
-  # Prefect Cloud's free plan only offers *managed* work pools, which execute
-  # flows on Prefect's infrastructure — that cannot reach this Postgres, which
-  # publishes no ports and sits behind the tunnel. Self-hosting keeps the data
-  # private and stays free. Point PREFECT_API_URL at Cloud instead if you move to
-  # a plan with hybrid (self-hosted worker) pools; nothing else changes.
+  # T2: state lives in the `prefect` database on vm-db, not a local SQLite
+  # volume. That is what makes this VM stateless, and it puts run history inside
+  # the backup vm-db already takes. Prefect requires the asyncpg driver here.
   prefect-server:
     image: prefecthq/prefect:3-latest
     container_name: wishly-prefect-server
-    command: ["prefect", "server", "start", "--host", "0.0.0.0", "--port", "4200"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        python -c "
+        import os, socket, time, urllib.parse as P
+        u = P.urlparse(os.environ['PREFECT_API_DATABASE_CONNECTION_URL'])
+        for _ in range(60):
+            try:
+                socket.create_connection((u.hostname, u.port or 5432), timeout=2).close()
+                break
+            except OSError:
+                time.sleep(2)
+        else:
+            raise SystemExit('database unreachable after 120s')
+        "
+        exec prefect server start --host 0.0.0.0 --port 4200
     environment:
       PREFECT_HOME: /data
       PREFECT_API_URL: http://prefect-server:4200/api
-    volumes:
-      - wishly_prefect:/data
+      PREFECT_API_DATABASE_CONNECTION_URL: ${PREFECT_API_DATABASE_CONNECTION_URL}
+    ports:
+      # UI bound to the VPN address only. The self-hosted OSS UI has no
+      # authentication of its own, so it must never be published publicly.
+      - "${PREFECT_UI_BIND_ADDRESS}:4200:4200"
     healthcheck:
       test:
         - CMD-SHELL
@@ -101,11 +106,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 20s
+      start_period: 30s
     restart: unless-stopped
     networks:
       - app_net
-    # UI is internal-only; add a tunnel hostname if you want it remotely.
 
   # One-shot: publish the flow deployment + its hourly schedule to the server.
   prefect-deploy:
@@ -129,14 +133,14 @@ services:
     networks:
       - app_net
 
-  # Prefect worker: polls the server for scheduled runs of the send flow and
-  # executes them in this container, where Postgres is reachable over app_net.
+  # Prefect worker: polls the server for scheduled runs and executes the flow in
+  # *this* container. Flow code ships inside the image (prefect.yaml sets
+  # `pull: null`), so a change under orchestration/ needs a rebuild here.
   prefect-worker:
     build:
-      context: ..
+      context: ../..
       dockerfile: infra/Dockerfile.worker
     image: wishly-worker:latest
-    # --type creates the pool on first start, so the stack is self-configuring.
     command:
       ["prefect", "worker", "start", "--pool", "${PREFECT_WORK_POOL}", "--type", "process"]
     env_file:
@@ -144,8 +148,6 @@ services:
     environment:
       PREFECT_API_URL: ${PREFECT_API_URL}
     depends_on:
-      postgres:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
       prefect-server:
@@ -171,12 +173,6 @@ services:
     restart: unless-stopped
     networks:
       - app_net
-
-volumes:
-  wishly_prefect:
-    name: wishly_prefect
-  wishly_pgdata:
-    name: wishly_pgdata_prod
 
 networks:
   app_net:

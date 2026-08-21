@@ -348,9 +348,15 @@ a {
 
 .pen-circle path {
   stroke: var(--pen);
-  stroke-width: 5;
+  /* User units, not px: the SVG scales, so this lands ~4-5px on screen. */
+  stroke-width: 7;
   stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
+  /* NOTE: do not add `vector-effect: non-scaling-stroke` here. It makes the
+     browser resolve the dash pattern in *screen pixels* while the path (and
+     its pathLength=700 normalization) are in viewBox units. The two spaces
+     disagree, the dash runs out before the path does, and the circle stops
+     short of closing at larger render sizes. Constant on-screen stroke width
+     is not worth an animation that never completes. */
   stroke-dasharray: 700;
   stroke-dashoffset: 700;
   animation: pen-draw 900ms cubic-bezier(0.55, 0, 0.3, 1) 500ms forwards;
@@ -1226,9 +1232,17 @@ input[type='number'] {
 }
 
 .chip-active {
-  background: var(--pen-tint);
+  /* Filled, not tinted-outline. The outline version used --pen — the same accent
+     as the Danger zone — so a row of selected lead times read as four warnings.
+     A solid fill reads unambiguously as "on". */
+  background: var(--pen);
   border-color: var(--pen);
-  color: var(--pen-deep);
+  color: #fff;
+}
+
+.chip-active:hover {
+  background: var(--pen-deep);
+  border-color: var(--pen-deep);
 }
 
 .reminder-custom {
@@ -1247,6 +1261,11 @@ input[type='number'] {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.reminder-custom-row input,
+.reminder-custom-row button {
+  height: var(--control-h);
 }
 
 .reminder-custom input {
@@ -1703,4 +1722,48 @@ input[type='number'] {
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
   }
+}
+
+/* Service unavailable — shown when the API cannot be reached at all. */
+
+.service-down {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.service-down-card {
+  max-width: 27rem;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 2.25rem 2rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.service-down-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--wash);
+  color: var(--ink-soft);
+  margin-bottom: 1rem;
+}
+
+.service-down-card h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.service-down-card p {
+  margin: 0 0 1.5rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.55;
 }

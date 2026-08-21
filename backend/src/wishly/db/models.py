@@ -67,6 +67,10 @@ class User(Base):
     last_name: Mapped[str | None] = mapped_column(Text)
     timezone: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'UTC'"))
     send_hour: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("8"))
+    # Stamped when the user finishes onboarding. Nullable *because* absence is the
+    # signal: ``timezone`` and ``send_hour`` both carry server defaults, so they
+    # cannot distinguish "never onboarded" from "deliberately chose UTC at 08:00".
+    onboarded_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime.datetime] = _created_at()
     updated_at: Mapped[datetime.datetime] = _updated_at()

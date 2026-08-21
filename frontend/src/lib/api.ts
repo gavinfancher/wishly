@@ -44,7 +44,16 @@ export async function apiFetch<T>(
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, { ...init, headers })
+  let response: Response
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, { ...init, headers })
+  } catch {
+    // fetch() rejects (rather than resolving with a status) when the request never
+    // reached a server at all: the tunnel is down, the host is offline, DNS fails.
+    // That is a different situation from an API that answered with an error, and
+    // the UI says so instead of blaming the user's profile — see isOffline below.
+    throw new ApiError(0, null, 'Wishly is unreachable')
+  }
 
   if (response.status === 204) {
     return undefined as T
@@ -68,11 +77,15 @@ export type User = {
   last_name: string | null
   timezone: string
   send_hour: number
+  /** ISO timestamp, or null if onboarding has not been completed. */
+  onboarded_at: string | null
   created_at: string
   updated_at: string
 }
 
 export type UserUpdate = {
+  /** Set once by the onboarding flow; the server stamps ``onboarded_at``. */
+  onboarded?: boolean
   timezone?: string
   send_hour?: number
 }
@@ -121,4 +134,14 @@ export type Notification = {
   occurrence_date: string
   status: NotificationStatus
   sent_at: string
+}
+
+/**
+ * Whether a thrown error means the API could not be reached at all.
+ *
+ * Status 0 is reserved for that case (see the fetch catch above); every real HTTP
+ * response carries its own status, so this never confuses a 4xx/5xx with an outage.
+ */
+export function isOffline(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 0
 }

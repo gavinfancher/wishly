@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from enum import StrEnum
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -65,6 +66,9 @@ class UserOut(BaseModel):
     last_name: str | None = None
     timezone: str
     send_hour: int
+    # ``None`` until onboarding is completed; the client gates the onboarding
+    # redirect on this rather than on browser storage.
+    onboarded_at: dt.datetime | None = None
     created_at: dt.datetime
     updated_at: dt.datetime
 
@@ -76,6 +80,8 @@ class UserUpdate(BaseModel):
 
     timezone: str | None = None
     send_hour: int | None = Field(default=None, ge=0, le=23)
+    # Set true by the onboarding flow to stamp ``onboarded_at`` server-side.
+    onboarded: bool | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -84,8 +90,8 @@ class UserUpdate(BaseModel):
 
     @model_validator(mode="after")
     def _at_least_one(self) -> UserUpdate:
-        if self.timezone is None and self.send_hour is None:
-            raise ValueError("Provide at least one of 'timezone' or 'send_hour'.")
+        if self.timezone is None and self.send_hour is None and self.onboarded is None:
+            raise ValueError("Provide at least one of 'timezone', 'send_hour', or 'onboarded'.")
         return self
 
 
@@ -157,6 +163,22 @@ class EventOut(BaseModel):
     created_at: dt.datetime
     updated_at: dt.datetime
     reminders: list[int] = Field(default_factory=list)
+
+    @field_validator("reminders", mode="before")
+    @classmethod
+    def _reminder_days(cls, value: Any) -> Any:
+        """Accept the ORM ``reminders`` relationship as well as a list of ints.
+
+        ``model_validate(event)`` reads ``event.reminders``, which is a list of
+        ``EventReminder`` rows — not the ``list[int]`` this field declares. Coercing
+        here (rather than overwriting the attribute after validation) means every
+        call site is correct by construction: validation happens before any
+        post-assignment could run, so the old two-step raised before it could fix
+        itself, and only for events that actually had reminders.
+        """
+        if isinstance(value, list) and value and not isinstance(value[0], int):
+            return sorted(r.days_before for r in value)
+        return value
 
 
 # --------------------------------------------------------------------------- #

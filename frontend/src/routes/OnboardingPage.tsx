@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 
 import { useUpdateMe } from '../lib/hooks.ts'
 import { timezoneOptions } from '../lib/timezones.ts'
-import { markOnboardingDone } from '../lib/onboarding.ts'
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour)
 
@@ -26,8 +25,9 @@ export default function OnboardingPage() {
     setError(null)
 
     try {
-      const user = await updateMe.mutateAsync({ timezone, send_hour: sendHour })
-      markOnboardingDone(user.id)
+      // `onboarded` stamps users.onboarded_at server-side, so completion follows
+      // the account rather than this browser's localStorage.
+      await updateMe.mutateAsync({ timezone, send_hour: sendHour, onboarded: true })
       navigate('/app', { replace: true })
     } catch {
       setError('Could not save your preferences. Please try again.')

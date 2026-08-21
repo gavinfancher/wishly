@@ -1,0 +1,25 @@
+# Local full-stack testing on a workstation. Overlay on docker-compose.yml:
+#
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml \
+#     --env-file infra/.env up -d
+#
+# Only difference from the base stack: a dedicated Postgres volume, so local
+# testing never touches `wishly_pgdata_prod` (which holds an older PG16 cluster).
+services:
+  # Published to the workstation only. In production these stay unpublished and
+  # the tunnel reaches api:8000 over the compose network.
+  api:
+    ports:
+      - "127.0.0.1:8000:8000"
+  prefect-server:
+    ports:
+      - "127.0.0.1:4200:4200"
+  # Published for local inspection (pgcli/psql) and so the test suite, which
+  # connects to localhost:5432, can run. Never published in production.
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+volumes:
+  wishly_pgdata:
+    name: wishly_pgdata_local

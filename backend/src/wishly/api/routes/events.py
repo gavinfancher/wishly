@@ -41,9 +41,9 @@ async def _get_owned_event(session: AsyncSession, event_id: uuid.UUID, user_id: 
 
 def _to_out(event: Event) -> EventOut:
     """Serialise an event (with its reminder lead times) to the response model."""
-    out = EventOut.model_validate(event)
-    out.reminders = crud.reminder_days(event)
-    return out
+    # EventOut coerces the ORM ``reminders`` relationship to its days_before
+    # values (see schemas.EventOut._reminder_days), so no post-fixup is needed.
+    return EventOut.model_validate(event)
 
 
 @router.get("", response_model=list[EventOut])

@@ -16,4 +16,3 @@ deployment strategy:
 - cloudflare for cdn
 - react/vite front end
     - i want a static front end that just makes encrypted api calls thru cloudflare tunnel
--
