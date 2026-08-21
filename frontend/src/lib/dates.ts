@@ -73,3 +73,30 @@ const MONTH_ABBR = [
 export function monthAbbr(month: number): string {
   return MONTH_ABBR[month - 1] ?? String(month)
 }
+
+/**
+ * Days until the *next reminder email*, not the occasion itself.
+ *
+ * A reminder with lead time `d` fires `d` days before the occasion, so the soonest
+ * upcoming one is the largest lead time that has not already passed. With the
+ * occasion 225 days out and leads [60, 30, 7, 1, 0], the next email is in 165 days.
+ *
+ * Returns null when nothing is scheduled — no reminders, or every lead time is
+ * still further out than the occasion (which cannot happen for a future date, but
+ * keeps the caller honest).
+ */
+export function daysUntilNextReminder(
+  daysUntilOccasion: number,
+  reminders: number[]
+): number | null {
+  const applicable = reminders.filter((d) => d <= daysUntilOccasion)
+  if (applicable.length === 0) return null
+  return daysUntilOccasion - Math.max(...applicable)
+}
+
+/** "today" / "tomorrow" / "in 165 days", for use inside a sentence. */
+export function nextReminderLabel(days: number): string {
+  if (days === 0) return 'today'
+  if (days === 1) return 'tomorrow'
+  return `in ${days} days`
+}

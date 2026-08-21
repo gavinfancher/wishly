@@ -62,7 +62,7 @@ export default function DeliveryForm({
           ))}
         </select>
       </label>
-      <label>
+      <label className="field-narrow">
         Send hour (local)
         <select
           value={sendHour}

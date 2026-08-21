@@ -82,15 +82,15 @@ export default function ProtectedLayout() {
         <nav className="sidebar-nav">
           <NavLink to="/app" end className="nav-item">
             <IconCalendar />
-            Occasions
+            <span className="nav-label">Occasions</span>
           </NavLink>
           <NavLink to="/app/history" className="nav-item">
             <IconSent />
-            History
+            <span className="nav-label">History</span>
           </NavLink>
           <NavLink to="/app/account" className="nav-item">
             <IconPerson />
-            Account
+            <span className="nav-label">Account</span>
           </NavLink>
         </nav>
 

@@ -29,6 +29,7 @@
      three depths read apart without shadows doing the work. */
   --surface: #f2f1ee;
   --sidebar-w: 232px;
+  --leaf-w: 58px;
   --shadow-soft: 0 1px 2px rgb(27 27 31 / 0.05), 0 8px 24px rgb(27 27 31 / 0.06);
   --shadow-pop: 0 2px 6px rgb(27 27 31 / 0.08), 0 20px 48px rgb(27 27 31 / 0.14);
 
@@ -449,7 +450,7 @@ a {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 58px;
+  width: var(--leaf-w);
   height: 62px;
   background: var(--card);
   border: 1px solid var(--line);
@@ -748,8 +749,18 @@ a {
   color: var(--ink-soft);
 }
 
+/* Mono set at the same px as the surrounding grotesk reads noticeably larger and
+   airier: Spline Sans Mono has a big x-height and wide side bearings, so "08:00"
+   floats in a gap. Optical sizing (em, so it tracks the parent) plus a touch of
+   negative tracking makes the run sit in the sentence instead of interrupting it. */
 .events-subtitle .mono {
-  font-size: 0.85rem;
+  font-size: 0.92em;
+  letter-spacing: -0.01em;
+}
+
+/* The header sat flush against the toolbar; give the line room to read as a caption. */
+.events-header {
+  margin-bottom: 0.85rem;
 }
 
 .events-status {
@@ -800,6 +811,7 @@ a {
 }
 
 .event-row {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 1rem;
@@ -831,26 +843,34 @@ a {
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+  /* h3 line-height is 1.15 globally — tight enough that the meta line crowded the
+     descenders. A touch more leading separates title from detail. */
+  line-height: 1.3;
 }
 
 .row-meta {
-  margin-top: 0.2rem;
+  margin-top: 0.15rem;
   font-size: 0.83rem;
+  line-height: 1.45;
   color: var(--ink-soft);
 }
 
+/* The user's own note is subordinate to the meta line, so it reads smaller rather
+   than larger — it was 0.85rem against the meta's 0.83rem, which made the italic
+   look oversized and pushed the row taller than it needed to be. */
 .row-note {
-  margin-top: 0.45rem;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ink-faint);
   font-style: italic;
 }
 
 .row-side {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
+  align-items: center;
+  align-self: center;
+  gap: 0.6rem;
   flex-shrink: 0;
 }
 
@@ -876,9 +896,113 @@ a {
   color: var(--ink-faint);
 }
 
-.row-actions {
+/* The title's button is the row's primary action, stretched over the whole row so
+   any click opens the editor. The accessible name stays the title alone. */
+.row-open {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+}
+
+.event-row:hover .row-open {
+  color: var(--pen);
+}
+
+.row-open:focus-visible::after {
+  outline: 2px solid var(--pen);
+  outline-offset: 2px;
+}
+
+.row-open:focus-visible {
+  outline: none;
+}
+
+/* Sits above the stretched overlay so the menu stays clickable. */
+.row-menu {
+  position: relative;
+  z-index: 1;
+}
+
+.row-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.row-menu-trigger:hover,
+.row-menu-trigger[aria-expanded='true'] {
+  background: var(--wash);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.row-menu-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 9rem;
+  padding: 0.3rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
   display: flex;
-  gap: 0.2rem;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.row-menu-item {
+  appearance: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.row-menu-item:hover:not(:disabled) {
+  background: var(--wash);
+}
+
+.row-menu-item:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+.row-menu-item-danger {
+  color: var(--pen-deep);
+}
+
+.row-menu-item-danger:hover:not(:disabled) {
+  background: var(--pen-tint);
 }
 
 /* Sticky header once the layout is a single column (phones + small tablets). */
@@ -1209,13 +1333,23 @@ input[type='number'] {
   margin-bottom: 0.75rem;
 }
 
+/* Durations, not labels — these stay mono so the numbers align. */
+.reminder-presets .chip {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+/* `.chip` is a generic pill used for two different things, so it carries no
+   opinion about typeface: the type filters are words ("Birthdays") and belong in
+   the sans like every other control, while the reminder presets are durations and
+   opt into mono below — "Grotesk for voice, mono for dates". */
 .chip {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
   background: var(--card);
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--ink-soft);
   border-radius: var(--radius-sm);
@@ -1485,9 +1619,19 @@ input[type='number'] {
   gap: 1rem;
 }
 
+/* Form controls stretch to their flex parent, which on a wide card meant a
+   full-width select for a value as short as "08:00" — the chevron ended up
+   stranded against the card edge. Cap the column at a readable field measure
+   instead of letting it track the container. */
 .preferences-form {
   display: flex;
   flex-direction: column;
+  max-width: 26rem;
+}
+
+/* A 24-item hour list needs far less room than an IANA timezone name. */
+.preferences-form .field-narrow {
+  max-width: 11rem;
 }
 
 .preferences-form .btn-primary {
@@ -1780,4 +1924,54 @@ input[type='number'] {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 0.12rem 0.4rem;
+}
+
+/* ── Narrow screens ─────────────────────────────────────────────────────────
+   At 393px the top nav is wordmark + three labelled items + the account button,
+   which does not fit: `.sidebar` has `overflow-x: auto`, so it silently scrolled
+   and clipped "Account" rather than overflowing the page. Icons alone fit with
+   room to spare, and the topbar already names the current section. */
+@media (max-width: 560px) {
+  .nav-label {
+    /* Visually hidden, still read aloud — the icon alone is not an accessible name. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .sidebar {
+    overflow-x: visible;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .nav-item {
+    justify-content: center;
+  }
+
+  /* The countdown wrapped onto its own full-width line with the menu stranded at
+     the far right. Pull the menu out of flow into the card corner and indent the
+     pill to line up with the text column instead of the leaf. */
+  .row-menu {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+  }
+
+  /* Reserve the corner the menu now occupies — a long title ("Passport renewal
+     deadline") otherwise runs underneath it. */
+  .row-main {
+    padding-right: 1.9rem;
+  }
+
+  .row-side {
+    width: 100%;
+    padding-left: calc(var(--leaf-w) + 1rem);
+    justify-content: flex-start;
+    align-self: auto;
+    margin-top: 0.15rem;
+  }
 }
