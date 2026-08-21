@@ -18,8 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from wishly.api import config
+from wishly.api.middleware import RequestLoggingMiddleware
 from wishly.api.routes import events as events_routes
 from wishly.api.routes import me as me_routes
+from wishly.api.routes import notifications as notification_routes
 from wishly.api.routes import reminders as reminders_routes
 from wishly.api.webhooks import clerk as clerk_webhook
 from wishly.api.webhooks import resend as resend_webhook
@@ -34,7 +37,15 @@ logger = get_logger("wishly.api")
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Configure logging on startup and dispose the DB engine on shutdown."""
     configure_logging()
-    logger.info("api startup", extra={"environment": settings.environment})
+    logger.info(
+        "api startup",
+        extra={
+            "environment": settings.environment,
+            "allowed_origins": settings.allowed_origins,
+            "auth_dev_bypass": config.dev_auth_bypass(),
+            "clerk_frontend_api": config.clerk_frontend_api(),
+        },
+    )
     try:
         yield
     finally:
@@ -52,6 +63,8 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    app.add_middleware(RequestLoggingMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
@@ -83,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(me_routes.router)
     app.include_router(events_routes.router)
     app.include_router(reminders_routes.router)
+    app.include_router(notification_routes.router)
     app.include_router(clerk_webhook.router)
     app.include_router(resend_webhook.router)
 

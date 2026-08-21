@@ -18,7 +18,10 @@ from wishly.api import crud
 from wishly.api.deps import CurrentUser, DBSession
 from wishly.api.errors import not_found, unprocessable
 from wishly.api.schemas import EventCreate, EventOut, EventUpdate, check_month_day
+from wishly.core.logging import get_logger
 from wishly.db.models import Event
+
+logger = get_logger("wishly.api.events")
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -129,3 +132,7 @@ async def delete_event(event_id: uuid.UUID, principal: CurrentUser, session: DBS
     event = await _get_owned_event(session, event_id, principal.sub)
     await session.delete(event)
     await session.flush()
+    logger.info(
+        "event deleted",
+        extra={"user_id": principal.sub, "event_id": str(event_id)},
+    )

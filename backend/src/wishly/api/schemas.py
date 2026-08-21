@@ -211,3 +211,26 @@ class RemindersOut(BaseModel):
 
     event_id: uuid.UUID
     days_before: list[int]
+
+
+class NotificationOut(BaseModel):
+    """One row of the send log, flattened with the event it belongs to.
+
+    ``status`` mirrors ``notification_log.status`` verbatim
+    (``pending``/``sent``/``failed``/``skipped``) rather than translating it — the
+    ledger is the source of truth for what happened, and a lossy rename in the API
+    layer would make the UI disagree with the table you'd query when debugging.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    event_id: uuid.UUID
+    event_title: str
+    event_type: str
+    days_before: int
+    occurrence_date: dt.date
+    status: str
+    # Null for rows that never reached a successful send (pending/failed/skipped).
+    sent_at: dt.datetime | None = None
+    created_at: dt.datetime

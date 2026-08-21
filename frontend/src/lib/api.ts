@@ -122,7 +122,12 @@ export type EventCreate = {
 
 export type EventUpdate = Partial<EventCreate>
 
-export type NotificationStatus = 'sent' | 'failed' | 'suppressed'
+/**
+ * Mirrors notification_log.status exactly. The API returns the ledger's own value
+ * rather than translating it, so the UI and the table you'd query when debugging
+ * never disagree. ('skipped' is what a suppressed recipient records.)
+ */
+export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped'
 
 /** One row of the send log (notification_log), enriched with event details. */
 export type Notification = {
@@ -133,7 +138,9 @@ export type Notification = {
   days_before: number
   occurrence_date: string
   status: NotificationStatus
-  sent_at: string
+  /** Null unless the send actually succeeded. */
+  sent_at: string | null
+  created_at: string
 }
 
 /**

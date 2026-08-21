@@ -53,6 +53,16 @@ async def update_me(body: UserUpdate, principal: CurrentUser, session: DBSession
     # Refresh so server-side ``onupdate`` columns (``updated_at``) are loaded before
     # Pydantic reads attributes — otherwise async SQLAlchemy raises MissingGreenlet.
     await session.refresh(user)
+
+    logger.info(
+        "preferences updated",
+        extra={
+            "user_id": user.id,
+            "timezone": user.timezone,
+            "send_hour": user.send_hour,
+            "onboarding_completed": bool(body.onboarded),
+        },
+    )
     return UserOut.model_validate(user)
 
 

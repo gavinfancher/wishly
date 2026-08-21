@@ -18,7 +18,10 @@ from sqlalchemy.orm import selectinload
 from wishly.api.deps import CurrentUser, DBSession
 from wishly.api.errors import not_found
 from wishly.api.schemas import RemindersOut, RemindersReplace
+from wishly.core.logging import get_logger
 from wishly.db.models import Event, EventReminder
+
+logger = get_logger("wishly.api.reminders")
 
 router = APIRouter(prefix="/events", tags=["reminders"])
 
@@ -70,6 +73,16 @@ async def replace_reminders(
     for day in body.days_before:
         session.add(EventReminder(event_id=event_id, days_before=day))
     await session.flush()
+
+    logger.info(
+        "reminders replaced",
+        extra={
+            "user_id": principal.sub,
+            "event_id": str(event_id),
+            "days_before": sorted(body.days_before),
+            "count": len(body.days_before),
+        },
+    )
 
     # Re-read through the relationship to keep any cached Event object fresh.
     event = (

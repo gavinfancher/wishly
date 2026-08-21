@@ -4,9 +4,10 @@ import type { Notification, NotificationStatus } from '../lib/api.ts'
 import { useNotifications } from '../lib/hooks.ts'
 
 const STATUS_LABELS: Record<NotificationStatus, string> = {
+  pending: 'Pending',
   sent: 'Sent',
   failed: 'Failed',
-  suppressed: 'Suppressed',
+  skipped: 'Skipped',
 }
 
 function leadLabel(daysBefore: number): string {
@@ -40,7 +41,9 @@ function monthKey(iso: string): string {
 function groupByMonth(notifications: Notification[]): [string, Notification[]][] {
   const groups = new Map<string, Notification[]>()
   for (const n of notifications) {
-    const key = monthKey(n.sent_at)
+    // sent_at is null unless the send succeeded; created_at is when the
+    // pipeline attempted it, which is the right bucket either way.
+    const key = monthKey(n.sent_at ?? n.created_at)
     const bucket = groups.get(key)
     if (bucket) bucket.push(n)
     else groups.set(key, [n])
@@ -99,7 +102,7 @@ export default function HistoryPage() {
                   <span className={`history-status history-status-${n.status}`}>
                     {STATUS_LABELS[n.status]}
                   </span>
-                  <span className="history-when mono">{sentAtLabel(n.sent_at)}</span>
+                  <span className="history-when mono">{sentAtLabel(n.sent_at ?? n.created_at)}</span>
                 </div>
               </li>
             ))}

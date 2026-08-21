@@ -147,6 +147,7 @@ function seedNotification(
     occurrence_date: isoDate(occurrence),
     status: seed.status ?? 'sent',
     sent_at: sentAt.toISOString(),
+    created_at: sentAt.toISOString(),
   }
 }
 
@@ -195,7 +196,9 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
   }
 
   if (path === '/notifications' && method === 'GET') {
-    const sorted = [...notifications].sort((a, b) => b.sent_at.localeCompare(a.sent_at))
+    const sorted = [...notifications].sort((a, b) =>
+      (b.sent_at ?? b.created_at).localeCompare(a.sent_at ?? a.created_at)
+    )
     return respond(sorted)
   }
 
