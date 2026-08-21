@@ -25,13 +25,24 @@ are two entrypoints over one shared Python package and meet only at Postgres.
 7. Each task leaves `main` green (lint + types + tests pass). If it can't, split it.
 
 ## Commands
-- Backend lint/types/tests: `uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run pytest`
+Run backend commands from `backend/` (its own uv project).
+
+- Lint + types: `uv run ruff check . && uv run ruff format --check . && uv run mypy src`
+- Tests: `uv run pytest` — requires the **wishly_test** database. The fixtures
+  truncate every table and refuse to start unless `DATABASE_URL` names a database
+  ending in `_test`; pointing them at a real database once destroyed live data.
 - Migrate: `uv run alembic upgrade head`
-- API dev: `uv run uvicorn wishly.api.main:app --reload`
+- API dev (no containers): `uv run uvicorn wishly.api.main:app --reload`
 - Run the send flow once: `uv run python -m wishly.orchestration.flows`
-- Prefect worker: `uv run prefect worker start --pool wishly-pool`
-- Frontend: `npm run lint && npm run typecheck && npm run build`
-- Local DB: `docker compose -f infra/compose.local.yaml up -d`
+- Frontend: `npm run lint && npm run typecheck && npm run build` (from `frontend/`)
+- Frontend dev server: `npm run dev` (from `frontend/`)
+
+Full local stack (API, Postgres, Prefect server + worker, cloudflared tunnel):
+```
+docker compose -f infra/compose.yaml -f infra/compose.local.yaml --env-file infra/.env up -d
+```
+`compose.local.yaml` is an **overlay**, not a stack — both `-f` flags are required.
+`infra/.env` is rendered by the Infisical agent; see docs/runbooks/secrets.md.
 
 ## Conventions
 - Backend code under `backend/src/wishly/`; tests beside or under `backend/tests/`.

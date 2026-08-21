@@ -102,9 +102,7 @@ async def send_test_email(principal: CurrentUser, session: DBSession) -> dict[st
         # Record the failure too: a test that never arrived is exactly what the
         # user wants to see in history, and silently dropping it would make the
         # log claim nothing was attempted.
-        session.add(
-            TestEmailLog(user_id=user.id, status="failed", error=str(exc)[:2000])
-        )
+        session.add(TestEmailLog(user_id=user.id, status="failed", error=str(exc)[:2000]))
         await session.flush()
         logger.exception("test email failed", extra={"user_id": user.id})
         raise HTTPException(

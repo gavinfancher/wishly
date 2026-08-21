@@ -39,18 +39,22 @@ async def list_notifications(
     # Two sources, one chronological list. Test reminders live in their own table
     # (see TestEmailLog) so notification_log stays a pure idempotency ledger; the
     # union happens here rather than by polluting that table.
-    reminders = select(
-        NotificationLog.id,
-        NotificationLog.event_id,
-        Event.title.label("event_title"),
-        Event.event_type,
-        NotificationLog.days_before,
-        NotificationLog.occurrence_date,
-        NotificationLog.status,
-        literal(False).label("is_test"),
-        NotificationLog.sent_at,
-        NotificationLog.created_at,
-    ).join(Event, Event.id == NotificationLog.event_id).where(Event.user_id == principal.sub)
+    reminders = (
+        select(
+            NotificationLog.id,
+            NotificationLog.event_id,
+            Event.title.label("event_title"),
+            Event.event_type,
+            NotificationLog.days_before,
+            NotificationLog.occurrence_date,
+            NotificationLog.status,
+            literal(False).label("is_test"),
+            NotificationLog.sent_at,
+            NotificationLog.created_at,
+        )
+        .join(Event, Event.id == NotificationLog.event_id)
+        .where(Event.user_id == principal.sub)
+    )
 
     tests = select(
         TestEmailLog.id,
@@ -68,11 +72,7 @@ async def list_notifications(
     ).where(TestEmailLog.user_id == principal.sub)
 
     combined = reminders.union_all(tests).subquery()
-    stmt = (
-        select(combined)
-        .order_by(combined.c.created_at.desc())
-        .limit(limit)
-    )
+    stmt = select(combined).order_by(combined.c.created_at.desc()).limit(limit)
     rows = (await session.execute(stmt)).mappings().all()
     logger.info(
         "send log listed",

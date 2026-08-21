@@ -11,9 +11,9 @@ each one costs more setup than the last.
 | 3. Real Clerk | as above, plus Clerk | sign-in / sign-up flows, tokens |
 | 4. Two origins | as above, on `:5173` + `:5174` | the `wishly.dev` / `app.wishly.dev` split |
 
-Recipes below use [`just`](https://github.com/casey/just) (`brew install just`).
-Each one is a one-liner — the raw equivalent is in the comment above it in the
-`justfile` — so you can skip the install and run the underlying command instead.
+Backend commands run from `backend/` (its own uv project); frontend commands from
+`frontend/`. The full containerised stack is one compose invocation — see the
+bottom of this page.
 
 ---
 
@@ -24,7 +24,7 @@ in-browser mock and `VITE_DEV_NO_AUTH=true` signs you in as a fixed "Dev User",
 so Clerk and Postgres are both unnecessary.
 
 ```bash
-just web-dev            # http://localhost:5173
+cd frontend && npm run dev      # http://localhost:5173
 ```
 
 Everything renders populated. No Clerk key required.
@@ -36,10 +36,10 @@ Everything renders populated. No Clerk key required.
 Start Postgres, migrate, seed, and run FastAPI:
 
 ```bash
-just db-up
-just migrate
-just seed
-just api-dev            # http://localhost:8000
+docker compose -f infra/compose.yaml -f infra/compose.local.yaml --env-file infra/.env up -d postgres
+cd backend && uv run alembic upgrade head
+cd backend && uv run python -m wishly.db.seed
+cd backend && uv run uvicorn wishly.api.main:app --reload   # http://localhost:8000
 ```
 
 In `backend/.env` (copy from `infra/.env.example`):
@@ -113,8 +113,8 @@ In production the marketing page and the dashboard are one build served from two
 hosts. Locally, two ports stand in for the two subdomains:
 
 ```bash
-just web-dev            # :5173 — marketing, stands in for wishly.dev
-just web-app-dev        # :5174 — dashboard, stands in for app.wishly.dev
+cd frontend && npm run dev                  # marketing, stands in for wishly.dev
+cd frontend && npm run dev -- --port 5174   # dashboard, stands in for app.wishly.dev
 
 # without just, from frontend/:
 npm run dev
@@ -153,12 +153,13 @@ CORS works locally it will work in production; the reverse isn't guaranteed.
 ## Everyday commands
 
 ```bash
-just db-up / just db-down     # Postgres (data survives db-down)
-just migrate                  # alembic upgrade head
-just lint / just test         # backend ruff + mypy / pytest
-just api-dev                  # FastAPI, autoreload
-just flow-run                 # run the send flow once
-just web-dev                  # Vite
+docker compose -f infra/compose.yaml -f infra/compose.local.yaml --env-file infra/.env up -d postgres   # data survives `down`
+cd backend && uv run alembic upgrade head
+cd backend && uv run ruff check . && uv run mypy src
+cd backend && uv run pytest      # needs the wishly_test database
+cd backend && uv run uvicorn wishly.api.main:app --reload
+cd backend && uv run python -m wishly.orchestration.flows   # send flow, once
+cd frontend && npm run dev
 ```
 
 Frontend checks run from `frontend/`:
@@ -184,3 +185,22 @@ comma-separated list read by `backend/src/wishly/core/settings.py`; it defaults 
 **Signed in on `:5173`, signed out on `:5174`.** Expected if the two servers were
 built with different `VITE_CLERK_PUBLISHABLE_KEY` values — they must share one
 Clerk instance to share a session.
+
+---
+
+## The whole stack in containers
+
+Everything the server runs — API, Postgres, Prefect server + worker, and the
+Cloudflare tunnel — in one command:
+
+```bash
+docker compose -f infra/compose.yaml -f infra/compose.local.yaml --env-file infra/.env up -d
+```
+
+`compose.local.yaml` is an **overlay**, not a stack: it only adds loopback-published
+ports and a separate Postgres volume, so both `-f` flags are required. `infra/.env`
+is rendered by the Infisical agent (docs/runbooks/secrets.md).
+
+**Tests never use the development database.** `backend/tests/conftest.py` truncates
+every table and refuses to start unless `DATABASE_URL` names a database ending in
+`_test`. Create it once with `create database wishly_test owner wishly` and migrate it.
