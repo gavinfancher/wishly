@@ -15,7 +15,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from wishly.api.deps import AuthedUser
+from wishly.core.logging import get_logger
 from wishly.db.models import Suppression, User
+
+logger = get_logger("wishly.api.crud")
 
 
 async def get_user(session: AsyncSession, user_id: str) -> User | None:
@@ -40,11 +43,22 @@ async def provision_user(session: AsyncSession, principal: AuthedUser) -> User:
             last_name=principal.last_name,
         )
         .on_conflict_do_nothing(index_elements=[User.id])
+        .returning(User.id)
     )
-    await session.execute(stmt)
+    inserted = (await session.execute(stmt)).scalar_one_or_none()
     await session.flush()
     user = await session.get(User, principal.sub)
     assert user is not None  # the insert (or a prior row) guarantees existence
+
+    # rowcount is 1 only when the insert actually created the row. A *new* row for
+    # a user who has signed in before means their previous row disappeared — which
+    # also silently resets onboarded_at and cascades away their events. Logged
+    # loudly because nothing in this app deletes a user, so it should never happen.
+    if inserted is not None:
+        logger.warning(
+            "user row provisioned (new)",
+            extra={"user_id": principal.sub, "created_at": str(user.created_at)},
+        )
     return user
 
 
