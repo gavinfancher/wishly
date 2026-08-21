@@ -1,6 +1,6 @@
 # Hourly backup sidecar (PLAN T8.3). Overlay on the main stack:
 #
-#   docker compose -f infra/docker-compose.yml -f infra/backup/docker-compose.backup.yml \
+#   docker compose -f infra/compose.yaml -f infra/compose.backup.yaml \
 #       --env-file infra/.env up -d backup
 #
 # Dumps the database and ships each dump to S3 (or any S3-compatible store, e.g.
@@ -10,7 +10,7 @@
 services:
   backup:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile.backup
     image: wishly-backup:latest
     container_name: wishly-backup

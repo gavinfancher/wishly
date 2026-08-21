@@ -36,7 +36,20 @@ from jwt import PyJWK, algorithms
 from svix.webhooks import Webhook
 
 # Ensure settings can instantiate before importing app modules.
-os.environ.setdefault("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly")
+os.environ.setdefault("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly_test")
+
+# SAFETY INTERLOCK. These fixtures TRUNCATE every table, so they must never point
+# at a real database. A previous configuration defaulted to the development
+# database and silently wiped live data on every test run; refusing to start is
+# the only reliable prevention, because the damage is invisible until someone
+# notices their rows are gone.
+_dsn = os.environ["DATABASE_URL"]
+if not _dsn.rsplit("/", 1)[-1].split("?")[0].endswith("_test"):
+    raise RuntimeError(
+        f"Refusing to run: DATABASE_URL must name a database ending in '_test', got {_dsn!r}. "
+        "These tests truncate every table."
+    )
+
 
 from fastapi import FastAPI  # noqa: E402
 from sqlalchemy import text  # noqa: E402

@@ -9,7 +9,7 @@ has to be built. This is the *procedure* — how to stand it up once it is.
 
 > **State check.** This describes the target topology. `infra/vm-db/` and
 > `infra/vm-wishly/` are produced by plan task **T1**; until that lands, the only thing
-> that exists is the single-host `infra/docker-compose.yml`, and steps 4–5 below do not
+> that exists is the single-host `infra/compose.yaml`, and steps 4–5 below do not
 > have files to point at. Steps 1–3 and 6–8 are accurate either way.
 
 ---

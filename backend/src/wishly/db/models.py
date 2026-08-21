@@ -217,6 +217,36 @@ class NotificationLog(Base):
     )
 
 
+class TestEmailLog(Base):
+    """Test reminders the user sent themselves from the Account page.
+
+    Deliberately **not** rows in ``notification_log``. That table is the
+    idempotency ledger: the sender only sends after winning
+    ``insert ... on conflict (event_id, days_before, occurrence_date) do nothing``,
+    so a synthetic row there could make a *real* reminder for the same occurrence
+    look already-sent and silently suppress it. A test email is also tied to no
+    event, which ``notification_log.event_id`` (NOT NULL) cannot express.
+
+    Kept here so history can show every email Wishly sent on the user's behalf
+    without weakening the guarantee that makes double-sends impossible.
+    """
+
+    __tablename__ = "test_email_log"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)  # sent|failed
+    resend_id: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = _created_at()
+    sent_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Suppression(Base):
     """Suppression list, fed by Resend bounce/complaint webhooks."""
 

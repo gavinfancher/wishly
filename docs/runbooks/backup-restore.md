@@ -70,7 +70,7 @@ Overlay the backup sidecar on the running stack. It runs `backup.sh` on a daily 
 named volume `wishly_backups`:
 
 ```bash
-docker compose -f infra/docker-compose.yml -f infra/backup/docker-compose.backup.yml \
+docker compose -f infra/compose.yaml -f infra/compose.backup.yaml \
     --env-file infra/.env up -d backup
 ```
 
@@ -158,7 +158,7 @@ create it empty first for a fresh host.
 
 ### Disaster recovery (rebuild from empty volume)
 
-1. `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres`
+1. `docker compose -f infra/compose.yaml --env-file infra/.env up -d postgres`
    (first boot creates `wishly` from `POSTGRES_DB`).
 2. Restore the latest dump into `wishly` (steps above; the empty DB already exists).
 3. Bring up the rest of the stack — `migrate` is a no-op since the schema is already present.

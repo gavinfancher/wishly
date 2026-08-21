@@ -1,0 +1,34 @@
+# Local full-stack testing on a workstation. Overlay on docker-compose.yml:
+#
+#   docker compose -f infra/compose.yaml -f infra/compose.local.yaml \
+#     --env-file infra/.env up -d
+#
+# Every service — including cloudflared — is defined in the base file and runs
+# the same way here as on the server. This overlay only adds workstation
+# conveniences: loopback-published ports and a separate Postgres volume.
+services:
+  # Published to loopback for curl/pgcli during development. Production publishes
+  # nothing: cloudflared reaches api:8000 over the compose network either way, so
+  # removing these changes nothing about how the app is served.
+  api:
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  prefect-server:
+    ports:
+      - "127.0.0.1:4200:4200"
+
+  # Published for inspection with pgcli/psql.
+  #
+  # NOTE: the test suite must NOT use this database. tests/conftest.py truncates
+  # every table, and pointing it here once destroyed live development data. Tests
+  # run against `wishly_test` and refuse to start against any database whose name
+  # does not end in `_test`.
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+volumes:
+  # Keeps local testing off `wishly_pgdata_prod`, which holds an older PG16 cluster.
+  wishly_pgdata:
+    name: wishly_pgdata_local

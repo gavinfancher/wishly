@@ -132,12 +132,15 @@ export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped'
 /** One row of the send log (notification_log), enriched with event details. */
 export type Notification = {
   id: string
-  event_id: string
+  /** Null for test reminders, which belong to no event. */
+  event_id: string | null
   event_title: string
   event_type: EventType
   days_before: number
   occurrence_date: string
   status: NotificationStatus
+  /** True for a test reminder sent from the Account page. */
+  is_test: boolean
   /** Null unless the send actually succeeded. */
   sent_at: string | null
   created_at: string

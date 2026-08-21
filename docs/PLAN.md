@@ -283,10 +283,10 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 **T0.2 — Local Postgres + env scaffolding**
 - *Depends on:* —
-- *Scope:* `infra/docker-compose.dev.yml` with a `postgres:18.4` service (named volume, healthcheck).
+- *Scope:* `infra/compose.local.yaml` with a `postgres:18.4` service (named volume, healthcheck).
   Create `infra/.env.example` and `backend/.env.example` with the vars from §11. Add a `justfile`
   or `Makefile` with `db-up`, `db-down`, `api-dev`, `flow-run`, `worker`, `migrate`, `lint`, `test`.
-- *Files:* `infra/docker-compose.dev.yml`, `infra/.env.example`, `backend/.env.example`, `justfile`.
+- *Files:* `infra/compose.local.yaml`, `infra/.env.example`, `backend/.env.example`, `justfile`.
 - *Acceptance:* `just db-up` brings up Postgres; `psql` against `DATABASE_URL` connects.
 
 **T0.3 — Settings & logging**
@@ -511,9 +511,9 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 **T7.2 — Full compose**
 - *Depends on:* T7.1
-- *Scope:* `infra/docker-compose.yml` with `postgres`, `api`, `prefect-worker`,
+- *Scope:* `infra/compose.yaml` with `postgres`, `api`, `prefect-worker`,
   `cloudflared`. Healthchecks, restart policies, named volume for Postgres, env via `.env`.
-- *Files:* `infra/docker-compose.yml`.
+- *Files:* `infra/compose.yaml`.
 - *Acceptance:* `docker compose up` brings the stack healthy; API reachable on the internal network.
 
 **T7.3 — Cloudflare Tunnel**

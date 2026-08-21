@@ -1,12 +1,3 @@
-# SUPERSEDED — single-host stack, kept only until the two-VM split is verified
-# on real hardware. Production now uses:
-#
-#   infra/vm-db/docker-compose.yml       postgres + backups
-#   infra/vm-wishly/docker-compose.yml   api, prefect, cloudflared
-#
-# See docs/DEPLOYMENT-PLAN.md T1 and docs/runbooks/production-deploy.md. Delete
-# this file once both VMs have been stood up successfully.
-#
 # Full production stack (PLAN T7.2 / T7.3). Run on the Docker host:
 #
 #   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d

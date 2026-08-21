@@ -32,7 +32,7 @@ through Cloudflare's infrastructure.
 - Zero Trust is enabled on the account (it is enabled by default on all accounts — navigate to
   dash.cloudflare.com and click **Zero Trust** in the left sidebar to confirm)
 - Docker + Docker Compose are running on the target host
-- `infra/docker-compose.yml` exists with at least the `api` service on a shared network (T7.2)
+- `infra/compose.yaml` exists with at least the `api` service on a shared network (T7.2)
 
 ---
 
@@ -100,7 +100,7 @@ tunnel secret.
 
 ## Step 4 — Add the cloudflared service to Docker Compose
 
-In `infra/docker-compose.yml`, add the `cloudflared` service alongside `api`:
+In `infra/compose.yaml`, add the `cloudflared` service alongside `api`:
 
 ```yaml
 services:
@@ -152,13 +152,13 @@ Key points:
 ## Step 5 — Start (or restart) the stack
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+docker compose -f infra/compose.yaml --env-file infra/.env up -d
 ```
 
 Watch `cloudflared` logs to confirm the tunnel connects:
 
 ```bash
-docker compose -f infra/docker-compose.yml logs cloudflared -f
+docker compose -f infra/compose.yaml logs cloudflared -f
 ```
 
 A healthy startup produces lines like:
@@ -249,8 +249,8 @@ Check current releases at hub.docker.com/r/cloudflare/cloudflared/tags.
 To update:
 
 ```bash
-docker compose -f infra/docker-compose.yml pull cloudflared
-docker compose -f infra/docker-compose.yml up -d cloudflared
+docker compose -f infra/compose.yaml pull cloudflared
+docker compose -f infra/compose.yaml up -d cloudflared
 ```
 
 ---
@@ -260,7 +260,7 @@ docker compose -f infra/docker-compose.yml up -d cloudflared
 1. **Zero Trust → Tunnels → wishly-prod → Edit → Overview → Refresh token**
 2. Copy the new token
 3. Update `TUNNEL_TOKEN` in `infra/.env`
-4. Restart the container: `docker compose -f infra/docker-compose.yml up -d cloudflared`
+4. Restart the container: `docker compose -f infra/compose.yaml up -d cloudflared`
 
 If you have multiple `cloudflared` replicas (e.g. on two hosts), update each `.env` and restart
 one at a time to avoid downtime.

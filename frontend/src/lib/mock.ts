@@ -146,6 +146,7 @@ function seedNotification(
     days_before: seed.days_before,
     occurrence_date: isoDate(occurrence),
     status: seed.status ?? 'sent',
+    is_test: false,
     sent_at: sentAt.toISOString(),
     created_at: sentAt.toISOString(),
   }
@@ -192,7 +193,7 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
   }
 
   if (path === '/me/test-email' && method === 'POST') {
-    return respond({ status: 'queued' })
+    return respond({ status: 'sent' })
   }
 
   if (path === '/notifications' && method === 'GET') {

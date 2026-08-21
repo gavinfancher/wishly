@@ -1767,3 +1767,17 @@ input[type='number'] {
   font-size: 0.95rem;
   line-height: 1.55;
 }
+
+/* Marks a history row as a test reminder the user sent themselves. */
+.history-test-badge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.12rem 0.4rem;
+}

@@ -4,7 +4,7 @@
 set shell := ["bash", "-cu"]
 
 backend := "backend"
-compose := "infra/docker-compose.dev.yml"
+compose := "infra/compose.local.yaml"
 
 # Show available recipes.
 default:

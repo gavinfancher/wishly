@@ -99,6 +99,7 @@ export default function HistoryPage() {
                   </p>
                 </div>
                 <div className="history-side">
+                  {n.is_test && <span className="history-test-badge">Test</span>}
                   <span className={`history-status history-status-${n.status}`}>
                     {STATUS_LABELS[n.status]}
                   </span>

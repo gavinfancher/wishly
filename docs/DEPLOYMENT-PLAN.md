@@ -48,7 +48,7 @@ Tailscale):
 `vm-db` is a **general Postgres host** and predates Wishly: the server runs as
 `homecloud-postgres` from `/home/ubuntu/docker-compose.yml` and is shared infrastructure.
 **Wishly does not manage it** — it is a *tenant*, with its own `wishly` and `prefect`
-databases and login roles created by `infra/vm-db/sql/create_tenant.sql`. That is exactly
+databases and login roles created by `infra/sql/create_tenant.sql`. That is exactly
 the relationship the eventual managed database will impose, which is the point.
 
 `vm-wishly` runs everything else.
@@ -117,7 +117,7 @@ Not to be re-done:
 
 | Piece | Where | State |
 |---|---|---|
-| Compose stack | `infra/docker-compose.yml` | postgres, migrate, api, prefect-server, prefect-deploy, prefect-worker, cloudflared. Healthchecks and restart policies in place. Needs splitting (T1). |
+| Compose stack | `infra/compose.yaml` | postgres, migrate, api, prefect-server, prefect-deploy, prefect-worker, cloudflared. Healthchecks and restart policies in place. Needs splitting (T1). |
 | Backups | `infra/backup/backup.sh` | `pg_dump -Fc` → S3, day-partitioned keys, S3-compatible endpoints. DSN-driven, so it runs from anywhere. Needs count-based pruning (T4). |
 | Restore | `infra/backup/restore.sh`, `docs/runbooks/backup-restore.md` | Documented; never actually executed (T8). |
 | Tunnel | `infra/cloudflared/config.yml`, `docs/runbooks/cloudflare-tunnel.md` | `api.wishly.dev` → `api:8000`. |
@@ -131,7 +131,7 @@ Not to be re-done:
 **T1 — Split the compose files** — ✅ done
 - *Scope:* `infra/vm-db/docker-compose.yml` (postgres + backup) and
   `infra/vm-wishly/docker-compose.yml` (migrate, api, prefect-server, prefect-deploy,
-  prefect-worker, cloudflared). Decide whether today's `infra/docker-compose.yml` becomes the
+  prefect-worker, cloudflared). Decide whether today's `infra/compose.yaml` becomes the
   dev all-in-one or is retired — don't leave three files where two are true.
 - *Treat vm-db like the managed database it stands in for:* no application containers on it,
   a role per consumer rather than one superuser, and connection by hostname over the VPN.
@@ -154,7 +154,7 @@ Not to be re-done:
   `docker-entrypoint-initdb.d` script. That cannot work here — those scripts run **only** when
   PGDATA is empty, and this server was initialized before Wishly existed, so the script would
   have silently never executed. Tenant setup is a one-time `psql` run instead
-  (`infra/vm-db/sql/create_tenant.sql`), guarded with `\gexec` existence checks so re-running
+  (`infra/sql/create_tenant.sql`), guarded with `\gexec` existence checks so re-running
   it is safe.
 - *Files:* `infra/postgres/init/01_databases.sql`, `infra/vm-wishly/docker-compose.yml`.
 - *Acceptance:* destroy `vm-wishly` entirely, recreate it from compose + Infisical, and the
@@ -295,4 +295,4 @@ Recorded so none of it is dropped silently:
 - **S3 as an application object store.** Nothing uploads files. Backups only.
 - **Prefect Cloud.** Its free tier offers only managed work pools, which run on Prefect's
   infrastructure and cannot reach a Postgres with no public port — already documented in
-  `infra/docker-compose.yml`. Self-hosted stays.
+  `infra/compose.yaml`. Self-hosted stays.

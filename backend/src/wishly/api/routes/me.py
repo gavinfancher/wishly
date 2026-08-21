@@ -12,6 +12,7 @@ from wishly.api.deps import CurrentUser, DBSession
 from wishly.api.errors import not_found
 from wishly.api.schemas import UserOut, UserUpdate
 from wishly.core.logging import get_logger
+from wishly.db.models import TestEmailLog
 from wishly.email.render import build_manage_url, render_email
 from wishly.email.resend_client import EmailSendError, ResendClient
 
@@ -97,12 +98,28 @@ async def send_test_email(principal: CurrentUser, session: DBSession) -> dict[st
             html=rendered.html,
             text=rendered.text,
         )
-    except EmailSendError:
+    except EmailSendError as exc:
+        # Record the failure too: a test that never arrived is exactly what the
+        # user wants to see in history, and silently dropping it would make the
+        # log claim nothing was attempted.
+        session.add(
+            TestEmailLog(user_id=user.id, status="failed", error=str(exc)[:2000])
+        )
+        await session.flush()
         logger.exception("test email failed", extra={"user_id": user.id})
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Could not send the test email.",
         ) from None
 
+    session.add(
+        TestEmailLog(
+            user_id=user.id,
+            status="sent",
+            resend_id=resend_id,
+            sent_at=dt.datetime.now(dt.UTC),
+        )
+    )
+    await session.flush()
     logger.info("test email sent", extra={"user_id": user.id, "resend_id": resend_id})
     return {"status": "sent"}

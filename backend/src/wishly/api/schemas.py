@@ -225,12 +225,15 @@ class NotificationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    event_id: uuid.UUID
+    # Null for test reminders, which belong to no event.
+    event_id: uuid.UUID | None = None
     event_title: str
     event_type: str
     days_before: int
     occurrence_date: dt.date
     status: str
+    # True for a test reminder the user sent themselves from the Account page.
+    is_test: bool = False
     # Null for rows that never reached a successful send (pending/failed/skipped).
     sent_at: dt.datetime | None = None
     created_at: dt.datetime

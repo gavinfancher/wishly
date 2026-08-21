@@ -14,6 +14,6 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run
 Local Postgres + migrations:
 
 ```bash
-docker compose -f ../infra/docker-compose.dev.yml up -d
+docker compose -f ../infra/compose.local.yaml up -d
 uv run alembic upgrade head
 ```

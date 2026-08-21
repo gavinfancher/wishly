@@ -31,9 +31,13 @@ are two entrypoints over one shared Python package and meet only at Postgres.
 - Run the send flow once: `uv run python -m wishly.orchestration.flows`
 - Prefect worker: `uv run prefect worker start --pool wishly-pool`
 - Frontend: `npm run lint && npm run typecheck && npm run build`
-- Local DB: `docker compose -f infra/docker-compose.dev.yml up -d`
+- Local DB: `docker compose -f infra/compose.local.yaml up -d`
 
 ## Conventions
 - Backend code under `backend/src/wishly/`; tests beside or under `backend/tests/`.
 - The user's reminder recipient defaults to their own Clerk email/name. `events.recipient_email`
   is nullable and **stays unused for now** (null ⇒ send to account owner).
+
+
+integrade https://infisical.com/docs/integrations/cicd/githubactions
+
