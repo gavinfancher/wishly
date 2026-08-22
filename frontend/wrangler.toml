@@ -14,15 +14,15 @@ compatibility_date = "2026-06-13"
 # wishly.dev, so leaving it enabled publishes the SPA outside the protection.
 workers_dev = false
 
-[assets]
-directory = "./dist"
-# Deep links like /app/history must serve index.html rather than 404 — the
-# router resolves them client-side.
-not_found_handling = "single-page-application"
-
 # Apex only. www.wishly.dev 301s here via a zone redirect rule instead of being a
 # second Worker origin — two origins meant two Clerk sessions (and two "new
 # device" emails) for what the user experiences as one sign-in.
 routes = [
   { pattern = "wishly.dev", custom_domain = true },
 ]
+
+[assets]
+directory = "./dist"
+# Deep links like /app/history must serve index.html rather than 404 — the
+# router resolves them client-side.
+not_found_handling = "single-page-application"

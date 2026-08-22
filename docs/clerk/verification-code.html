@@ -1,0 +1,88 @@
+<!--
+  Wishly — Clerk "Verification code" email body.
+
+  SOURCE OF TRUTH IS THE CLERK DASHBOARD, not this file. Clerk stores the
+  template; this copy exists so changes are reviewable in git. Paste it into
+  Customization → Emails → Verification code → Body (the <> source view).
+
+  Email-client constraints that shaped this markup — do not "clean it up":
+    * Tables, not flex/grid. Outlook (Word engine) ignores modern layout.
+    * Inline styles on every element. Gmail strips <style> in some contexts;
+      the <style> block below is progressive enhancement only.
+    * PNG logo, never the SVG. Gmail and Outlook drop SVG entirely, so
+      {{> app_logo}} would render broken for most recipients while looking
+      fine in Apple Mail during testing.
+    * The code is selectable text, never an image — recipients copy it.
+
+  Clerk variables: {{otp_code}} {{app_name}} {{requested_from}} {{requested_at}}
+-->
+<style>
+  /* Honoured by Apple Mail and Outlook.com; ignored by Gmail, which is fine —
+     the inline light palette below is the baseline everyone gets. */
+  @media (prefers-color-scheme: dark) {
+    .wl-page { background: #141418 !important; }
+    .wl-card { background: #1d1d22 !important; border-color: #33333b !important; }
+    .wl-h1, .wl-code { color: #ececee !important; }
+    .wl-body, .wl-meta { color: #9a9aa4 !important; }
+    .wl-rule { border-color: #33333b !important; }
+  }
+</style>
+
+<table class="wl-page" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f4f4f2;margin:0;padding:32px 16px;">
+  <tr>
+    <td align="center">
+      <table class="wl-card" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="max-width:480px;background:#ffffff;border:1px solid #e8e7e2;border-radius:16px;padding:36px 32px;">
+
+        <tr>
+          <td style="padding-bottom:24px;">
+            <img src="https://brand.wishly.dev/logo-320.png" width="40" height="40" alt="{{app_name}}"
+                 style="display:block;border:0;outline:none;text-decoration:none;border-radius:9px;" />
+          </td>
+        </tr>
+
+        <tr>
+          <td class="wl-h1"
+              style="font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:20px;font-weight:700;line-height:1.3;color:#1b1b1f;padding-bottom:10px;">
+            Your verification code
+          </td>
+        </tr>
+
+        <tr>
+          <td class="wl-body"
+              style="font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.55;color:#5c5c66;padding-bottom:24px;">
+            Enter this code to finish signing in to {{app_name}}.
+          </td>
+        </tr>
+
+        <tr>
+          <td class="wl-code" align="center"
+              style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:0.18em;color:#1b1b1f;padding:20px 0 22px;">
+            {{otp_code}}
+          </td>
+        </tr>
+
+        <tr>
+          <td class="wl-meta"
+              style="font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#5c5c66;padding-bottom:26px;">
+            The code expires shortly and can only be used once. Wishly will never
+            ask you to share it.
+          </td>
+        </tr>
+
+        <tr>
+          <td class="wl-rule" style="border-top:1px solid #e8e7e2;padding-top:20px;">
+            <div class="wl-meta"
+                 style="font-family:'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.55;color:#8a8a94;">
+              Requested from {{requested_from}} at {{requested_at}}. If that
+              wasn&rsquo;t you, ignore this email &mdash; without the code,
+              nobody can get in.
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
