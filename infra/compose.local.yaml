@@ -17,6 +17,17 @@ services:
   prefect-server:
     ports:
       - "127.0.0.1:4200:4200"
+    environment:
+      # The UI is a browser app, so it needs a URL the BROWSER can resolve.
+      # The base file sets PREFECT_API_URL=http://prefect-server:4200/api for
+      # in-network clients (the worker, prefect deploy), and the server derives
+      # PREFECT_SERVER_UI_API_URL from it — so /ui-settings handed the browser
+      # http://prefect-server:4200/api, a Docker-internal DNS name that resolves
+      # nowhere on the host. The UI then reported "Unable to connect to Prefect
+      # server" while /api/health returned 200 to anything inside the network.
+      # Overridden here and not in the base file because production publishes no
+      # UI port at all.
+      PREFECT_SERVER_UI_API_URL: http://localhost:4200/api
 
   # Published for inspection with pgcli/psql.
   #

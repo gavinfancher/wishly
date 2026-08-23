@@ -1,0 +1,40 @@
+# Infisical agent — macOS workstation, ONE-SHOT (no daemon).
+#
+# docs/runbooks/secrets.md describes the production shape: a long-running agent
+# supervised by systemd, polling for changes. This Mac has no systemd and we do
+# not want a background daemon, so `exit-after-auth: true` makes the agent
+# authenticate, render infra/.env once, and exit. infra/infisical/up.sh runs it
+# immediately before `docker compose up`, which is the moment the values are
+# actually needed.
+#
+# The trade-off vs. production: nothing re-renders on its own. A secret rotated
+# in Infisical reaches this Mac on the next up.sh run, not within a poll
+# interval. For a workstation that is the right trade — the alternative is a
+# daemon holding a live credential on a laptop that sleeps and travels.
+#
+# __HOME__ is substituted with $HOME by up.sh before the agent reads this file:
+# the machine-identity credentials must never sit inside the repo.
+
+infisical:
+  address: "https://app.infisical.com"
+  exit-after-auth: true
+  revoke-credentials-on-shutdown: false
+
+auth:
+  type: "universal-auth"
+  config:
+    client-id: "__HOME__/.infisical/wishly-client-id"
+    client-secret: "__HOME__/.infisical/wishly-client-secret"
+    # Must stay false: true deletes the client secret after first read, which
+    # would make this a single-use setup.
+    remove_client_secret_on_read: false
+
+sinks:
+  - type: "file"
+    config:
+      path: "__HOME__/.infisical/wishly-agent-token"
+
+templates:
+  # Reuses the SAME template production renders, so the two cannot drift.
+  - source-path: infra/infisical/env.tmpl
+    destination-path: infra/.env

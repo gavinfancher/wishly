@@ -150,6 +150,41 @@ propagates without a host change.
 
 ---
 
+## 5b. macOS workstation — one-shot, no daemon
+
+Everything above targets the Linux VMs. A Mac has no systemd, and a laptop that
+sleeps and travels is the wrong place for a long-running agent holding a live
+credential. The workstation path renders once, on demand, immediately before the
+containers need the values:
+
+```bash
+./infra/infisical/up.sh            # render infra/.env, then docker compose up -d
+./infra/infisical/up.sh --render   # render only
+```
+
+`infra/infisical/agent.mac.yaml` sets `exit-after-auth: true`, so the agent
+authenticates, renders, and exits — nothing is left running. It reuses
+`infra/infisical/env.tmpl`, the same template production renders, so the two
+cannot drift.
+
+**What this gives up:** nothing re-renders on its own. A rotated secret reaches
+the Mac on the next `up.sh`, not within a poll interval. Re-run it after any
+change in the dashboard.
+
+Machine-identity credentials live outside the repo, in `~/.infisical`:
+
+```bash
+printf '%s' '<client-id>'     > ~/.infisical/wishly-client-id
+printf '%s' '<client-secret>' > ~/.infisical/wishly-client-secret
+chmod 0600 ~/.infisical/wishly-client-id ~/.infisical/wishly-client-secret
+```
+
+`printf`, not `echo` — a trailing newline is sent as part of the credential and
+authentication fails with a message that does not mention whitespace.
+
+The committed config stores those paths as `__HOME__/...`; `up.sh` substitutes
+`$HOME` into a temp copy at run time so no absolute user path is checked in.
+
 ## 6. systemd unit
 
 `/etc/systemd/system/infisical-agent.service`:

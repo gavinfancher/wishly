@@ -23,3 +23,23 @@ deployments:
       - cron: "0 * * * *"
         timezone: "UTC"
         active: true
+
+  # Manually triggered — no `schedules`, so it only ever runs when you start it
+  # from the Prefect UI or CLI. Exercises the same DB -> render -> Resend path as
+  # hourly-send, but for an event that is not due yet, which is the whole point:
+  # the next real send may be months away.
+  #
+  # `send: false` is the default on purpose. Triggering with stock parameters
+  # renders the email and publishes it as a run artifact without touching Resend;
+  # set send=true in the UI when you want it delivered.
+  - name: preview-reminder
+    entrypoint: src/wishly/orchestration/preview.py:preview_reminder
+    description: >-
+      On-demand preview of a reminder email. Renders from real database rows and
+      optionally sends via Resend, recording the result in test_email_log (never
+      notification_log, which would suppress the genuine reminder).
+    work_pool:
+      name: wishly-pool
+    parameters:
+      days_before: 7
+      send: false
