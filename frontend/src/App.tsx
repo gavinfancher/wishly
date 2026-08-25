@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './routes/LandingPage.tsx'
+import PricingPage from './routes/PricingPage.tsx'
 import SignInPage from './routes/SignInPage.tsx'
 import SignUpPage from './routes/SignUpPage.tsx'
 import ProtectedLayout from './routes/ProtectedLayout.tsx'
@@ -13,8 +14,9 @@ import PreferencesPage from './routes/PreferencesPage.tsx'
 export default function App() {
   return (
     <Routes>
-      {/* Public marketing page */}
+      {/* Public marketing pages */}
       <Route path="/" element={<LandingPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
 
       {/* Auth routes — rendered by Clerk's hosted components */}
       <Route path="/sign-in/*" element={<SignInPage />} />

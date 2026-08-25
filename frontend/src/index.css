@@ -556,6 +556,163 @@ a {
   color: var(--ink);
 }
 
+/* ============================================================
+   Pricing page
+   ============================================================ */
+
+.pricing-hero {
+  padding: 3.5rem 0 3rem;
+  max-width: 34em;
+}
+
+.pricing-hero h1 {
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.pricing-hero p {
+  margin-top: 1.1rem;
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+}
+
+.pricing-plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  /* Equal-height panels so the two calls to action line up. */
+  align-items: stretch;
+  padding-bottom: 4.5rem;
+}
+
+.plan {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The paid plan sits one step forward — the pen circle does the rest. */
+.plan-pro {
+  box-shadow: var(--shadow-pop);
+}
+
+.plan-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  /* The circle overflows the number by ~0.34em on every side, so the cadence
+     needs to clear it — at this size that is a little over a rem. */
+  gap: 1.35rem;
+  margin: 1.8rem 0 0.2rem;
+}
+
+.plan-price-num {
+  font-size: clamp(2.4rem, 5vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.plan-cadence,
+.plan-alt {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+}
+
+.plan-alt {
+  margin-top: 1.35rem;
+}
+
+.plan-blurb {
+  margin-top: 1.1rem;
+  color: var(--ink-soft);
+}
+
+.plan-list {
+  list-style: none;
+  margin: 1.5rem 0 2rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.plan-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  font-size: 0.98rem;
+}
+
+/* A pen tick, drawn from two borders. A square bullet here read as an
+   unchecked checkbox — the opposite of what a plan list is saying. */
+.plan-list li::before {
+  content: '';
+  flex-shrink: 0;
+  width: 0.4rem;
+  height: 0.72rem;
+  border: solid var(--pen);
+  border-width: 0 2px 2px 0;
+  border-radius: 1px;
+  transform: rotate(42deg) translateY(-0.08rem);
+}
+
+.plan-cta {
+  margin-top: auto;
+  justify-content: center;
+}
+
+.plan-note {
+  margin-top: 0.9rem;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+.pricing-qa {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  padding: 3rem 0 4rem;
+  border-top: 1px solid var(--line);
+}
+
+.pricing-qa-item h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pricing-qa-item p {
+  margin-top: 0.6rem;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 780px) {
+  .pricing-plans,
+  .pricing-qa {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-qa {
+    gap: 1.75rem;
+  }
+}
+
 @media (max-width: 780px) {
   .hero {
     grid-template-columns: 1fr;
