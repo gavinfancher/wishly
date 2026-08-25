@@ -67,5 +67,18 @@ export const clerkAppearance = {
       borderTop: '1px solid var(--line)',
     },
     userButtonPopoverActionButton: { color: 'var(--ink)' },
+    // Clerk cannot derive shade scales from a var() — it only parses literal
+    // colors — so anything it tints for itself falls back to defaults built for
+    // a light card. On the dark card the "Primary" chip came out #25252b on
+    // #1d1d22: 1.15:1, invisible. Both badges are stated outright instead.
+    badge: {
+      backgroundColor: 'var(--wash)',
+      color: 'var(--ink-soft)',
+      border: '1px solid transparent',
+    },
+    badge__primary: {
+      backgroundColor: 'var(--pen-tint)',
+      color: 'var(--pen)',
+    },
   },
 }
