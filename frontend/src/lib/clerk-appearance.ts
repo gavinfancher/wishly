@@ -8,6 +8,10 @@
  * uses makes the whole card agree, and it follows the OS automatically: the
  * variables are already redefined under `prefers-color-scheme: dark`, so there is
  * no theme detection in JS to keep in sync.
+ *
+ * This is passed to <ClerkProvider>, not to individual components, so every
+ * Clerk surface inherits it — including the UserButton popover, which used to
+ * open as a stock white card over the dark app.
  */
 export const clerkAppearance = {
   variables: {
@@ -21,6 +25,13 @@ export const clerkAppearance = {
     colorDanger: 'var(--pen-deep)',
     colorSuccess: 'var(--ok)',
     colorNeutral: 'var(--ink)',
+    // Clerk derives its own hairlines, hovers, and focus rings when these are
+    // left out, and those derivations are what made the card read as a
+    // different product even once the background matched.
+    colorBorder: 'var(--line)',
+    colorMuted: 'var(--surface)',
+    colorMutedForeground: 'var(--ink-soft)',
+    colorRing: 'var(--ring)',
     borderRadius: 'var(--radius)',
     fontFamily: 'var(--font-sans)',
   },
@@ -44,5 +55,17 @@ export const clerkAppearance = {
       borderColor: 'var(--line)',
       color: 'var(--ink)',
     },
+    // The account menu is its own surface, not the auth card, so it needs the
+    // same three treatments spelled out again.
+    userButtonPopoverCard: {
+      backgroundColor: 'var(--card)',
+      border: '1px solid var(--line)',
+      boxShadow: 'var(--shadow-pop)',
+    },
+    userButtonPopoverFooter: {
+      backgroundColor: 'var(--surface)',
+      borderTop: '1px solid var(--line)',
+    },
+    userButtonPopoverActionButton: { color: 'var(--ink)' },
   },
 }

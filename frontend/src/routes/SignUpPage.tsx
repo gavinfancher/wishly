@@ -2,7 +2,6 @@ import { SignUp } from '@clerk/clerk-react'
 import { Navigate } from 'react-router-dom'
 
 import { DEV_NO_AUTH } from '../lib/auth-context.ts'
-import { clerkAppearance } from '../lib/clerk-appearance.ts'
 import { DASHBOARD_URL } from '../lib/urls.ts'
 
 export default function SignUpPage() {
@@ -14,7 +13,6 @@ export default function SignUpPage() {
   return (
     <div className="auth-page">
       <SignUp
-        appearance={clerkAppearance}
         routing="path"
         path="/sign-up"
         signInUrl="/sign-in"
