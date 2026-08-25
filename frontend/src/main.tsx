@@ -1,12 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { ClerkProvider } from '@clerk/clerk-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
 import { missingEnvVars } from './lib/env.ts'
 import { AuthProvider } from './lib/auth.tsx'
-import { clerkAppearance } from './lib/clerk-appearance.ts'
+import { ThemedClerkProvider } from './lib/clerk-provider.tsx'
 import { DEV_NO_AUTH } from './lib/auth-context.ts'
 import SetupScreen from './routes/SetupScreen.tsx'
 import './index.css'
@@ -40,9 +39,9 @@ if (setupMissing.length > 0) {
       {DEV_NO_AUTH ? (
         appTree
       ) : (
-        <ClerkProvider publishableKey={publishableKey!} appearance={clerkAppearance}>
+        <ThemedClerkProvider publishableKey={publishableKey!}>
           {appTree}
-        </ClerkProvider>
+        </ThemedClerkProvider>
       )}
     </StrictMode>
   )
