@@ -4,8 +4,8 @@ import { useWishlyAuth } from '../lib/auth-context.ts'
 import { DASHBOARD_URL, isExternal } from '../lib/urls.ts'
 
 /**
- * Header and footer shared by the public pages (`/` and `/pricing`), so the two
- * agree on the wordmark, the nav, and where Login points.
+ * Header and footer for the public pages, keeping the wordmark, the nav, and
+ * where Login points in one place.
  */
 export function MarketingHeader() {
   const { isLoaded, isSignedIn } = useWishlyAuth()
@@ -17,7 +17,6 @@ export function MarketingHeader() {
         wishly<span className="wordmark-dot">.</span>
       </Link>
       <nav className="landing-nav">
-        <Link to="/pricing">Pricing</Link>
         {signedIn && isExternal(DASHBOARD_URL) ? (
           <a href={DASHBOARD_URL} className="btn-secondary">
             Login
