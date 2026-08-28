@@ -30,6 +30,15 @@ function IconCalendar() {
   )
 }
 
+function IconCalendarGrid() {
+  return (
+    <svg {...iconProps} aria-hidden="true">
+      <rect x="2" y="3.5" width="12" height="10.5" rx="2" />
+      <path d="M2 6.75h12M5.5 2v3M10.5 2v3M6.25 9.5h3.5M2 11.75h12" />
+    </svg>
+  )
+}
+
 function IconSent() {
   return (
     <svg {...iconProps} aria-hidden="true">
@@ -49,6 +58,7 @@ function IconPerson() {
 
 /** Route → section name shown in the topbar. Longest match wins. */
 const SECTIONS: ReadonlyArray<readonly [string, string]> = [
+  ['/app/calendar', 'Calendar'],
   ['/app/history', 'Sent reminders'],
   ['/app/account', 'Account'],
   ['/onboarding', 'Set up reminders'],
@@ -83,6 +93,10 @@ export default function ProtectedLayout() {
           <NavLink to="/app" end className="nav-item">
             <IconCalendar />
             <span className="nav-label">Occasions</span>
+          </NavLink>
+          <NavLink to="/app/calendar" className="nav-item">
+            <IconCalendarGrid />
+            <span className="nav-label">Calendar</span>
           </NavLink>
           <NavLink to="/app/history" className="nav-item">
             <IconSent />
