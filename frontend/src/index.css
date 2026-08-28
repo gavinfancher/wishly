@@ -590,6 +590,48 @@ a {
   flex-direction: column;
 }
 
+/* The standalone shell reuses `.app-header` / `.app-main`, which are the
+   console's classes — `.app-main` is the sidebar layout's scrolling column, so
+   on its own it contributes no padding and no measure, and `.app-header` has
+   only a sticky rule for narrow viewports. Unstyled, the page welded itself to
+   the left edge of the viewport at full bleed. Scoped to `.prefs-shell` so the
+   console keeps its own behaviour. */
+.prefs-shell .app-header {
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.prefs-shell .app-main {
+  /* The console pairs `overflow: hidden` here with an inner `.content` that
+     does the scrolling. This shell has no such child, so tall content would be
+     clipped rather than scrolling the page. */
+  overflow: visible;
+  padding-block: 2.5rem 4rem;
+}
+
+/* One measure, applied to both bands, so the wordmark sits on the same left
+   edge as the panels rather than floating off toward the viewport corner. */
+.prefs-shell .app-header .wordmark,
+.prefs-shell .app-main > * {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+@media (max-width: 560px) {
+  .prefs-shell .app-header .wordmark,
+  .prefs-shell .app-main > * {
+    padding-inline: 1.1rem;
+  }
+
+  .prefs-shell .app-main {
+    padding-block: 1.75rem 3rem;
+  }
+}
+
 /* ---------- App shell ----------
    Console layout: a fixed sidebar for where you are, a topbar naming the
    section, and one scrolling content column. Only the content scrolls. */
@@ -1509,7 +1551,7 @@ input[type='number'] {
 .preferences-page h1 {
   font-size: 1.7rem;
   letter-spacing: -0.025em;
-  margin: 1rem 0 0.35rem;
+  margin: 0 0 0.35rem;
 }
 
 .preferences-page > p {

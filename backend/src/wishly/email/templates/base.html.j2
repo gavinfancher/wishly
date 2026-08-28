@@ -37,6 +37,25 @@
         color: #1b1b1f;
         -webkit-text-size-adjust: 100%;
       }
+      /* Inbox preview text: pulled by the client for the list view, never
+         rendered in the open email. Belt-and-braces because no single property
+         hides it everywhere — Gmail honours display, Outlook needs mso-hide,
+         and some webmail ignores both but respects the zero box. */
+      .preheader,
+      .preheader-pad {
+        display: none !important;
+        visibility: hidden;
+        mso-hide: all;
+        opacity: 0;
+        color: transparent;
+        height: 0;
+        width: 0;
+        max-height: 0;
+        max-width: 0;
+        overflow: hidden;
+        font-size: 1px;
+        line-height: 1px;
+      }
       .wrapper {
         width: 100%;
         background-color: #fafaf8;
@@ -173,6 +192,26 @@
     </style>
   </head>
   <body>
+    {#- Preview line for the inbox list. Without it the client scrapes the top
+        of the body and shows "wishly. APR 3 Gavin, ..." — the wordmark and the
+        calendar leaf, which the subject already covers. Lead with the weekday
+        date instead, since that is what the subject does NOT say.
+
+        The pad after it is a run of zero-width joiners: it fills out the rest
+        of the preview window so the visible content below cannot bleed into it.
+        Both are dropped from the plaintext part by ``_html_to_text``. -#}
+    <div class="preheader">
+      {%- block preheader -%}
+      {%- if message -%}
+      {{ occurrence_date }} &mdash; your note: {{ message }}
+      {%- elif days_before == 0 -%}
+      {{ occurrence_date }} &mdash; that&rsquo;s today.
+      {%- else -%}
+      {{ occurrence_date }} &mdash; still time to plan something.
+      {%- endif -%}
+      {%- endblock -%}
+    </div>
+    <div class="preheader-pad">&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;&#8204;&nbsp;</div>
     <div class="wrapper">
       <div class="frame">
         <div class="brand-row">

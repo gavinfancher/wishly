@@ -120,8 +120,9 @@ def _format_occurrence(occurrence_date: datetime.date) -> str:
 def _html_to_text(html: str) -> str:
     """Derive a readable plaintext fallback from rendered HTML.
 
-    Drops ``<head>`` (styles/title), turns common block tags into line breaks,
-    strips remaining tags, unescapes entities, and collapses whitespace.
+    Drops ``<head>`` (styles/title) and the hidden preheader, turns common block
+    tags into line breaks, strips remaining tags, unescapes entities, and
+    collapses whitespace.
     """
     # Remove head/style/script blocks wholesale — never wanted in plaintext.
     without_head = re.sub(
@@ -130,11 +131,23 @@ def _html_to_text(html: str) -> str:
         html,
         flags=re.IGNORECASE | re.DOTALL,
     )
+    # Drop the preheader and its pad. They exist only so the *client* has
+    # something to show in the inbox list; a plaintext reader has already been
+    # handed the subject, so repeating it there reads as a stutter — and the pad
+    # is a run of zero-width joiners that would arrive as mojibake. Matched on
+    # the class rather than the position because premailer rewrites the
+    # attribute order when it inlines the styles.
+    without_preheader = re.sub(
+        r'<div[^>]*class="[^"]*preheader[^"]*"[^>]*>.*?</div>',
+        " ",
+        without_head,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     # Block-level boundaries become newlines so structure survives.
     with_breaks = re.sub(
         r"</?(p|div|br|h[1-6]|tr|li)\b[^>]*>",
         "\n",
-        without_head,
+        without_preheader,
         flags=re.IGNORECASE,
     )
     # Strip every remaining tag.
