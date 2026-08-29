@@ -643,6 +643,23 @@ a {
   height: 100dvh;
 }
 
+/* Sizing the shell to the viewport is not enough to make `.content` the only
+   scroller — it stops the shell growing, but leaves the *viewport* scrollable.
+   A wheel over any non-scrollable region (the sidebar, or the gap past the end
+   of a short month) then chains up to the document and drags the whole
+   fixed-height shell off-screen: the sidebar strands mid-page with its bottom
+   edge showing, and everything below it is dead background.
+
+   Scoped with :has() so it applies only while the console is mounted — the
+   marketing and auth pages have no shell and must keep scrolling normally. */
+html:has(.app-shell) {
+  height: 100%;
+}
+
+body:has(.app-shell) {
+  overflow: hidden;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
