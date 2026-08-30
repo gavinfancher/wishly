@@ -1,0 +1,1 @@
+WAL for local postgres

@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1.7
+#
+# Tailscale device-staleness detector (the failover trigger).
+# Polls one device's `lastSeen` and signals when it has been stale THRESHOLD
+# checks in a row. See README.md for the decision logic and tuning notes.
+#
+# Build context is THIS directory, not the repo root:
+#   docker build -f Dockerfile.failover -t wishly-failover-detect .
+#
+# The container carries no credentials. TAILSCALE_API_KEY (required) and
+# SLACK_WEBHOOK_URL (optional) are supplied at run time; the script's
+# load_dotenv() finds no .env in the image and falls through to the real
+# environment, which is exactly what we want in deployment.
+
+# ---- builder: resolve and install deps into a self-contained .venv -----------
+FROM python:3.12-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
+
+WORKDIR /app
+
+# Deps first, from the lockfile alone, so editing the script does not
+# invalidate the dependency layer.
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+COPY detect_stale_device.py ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+# ---- runtime -----------------------------------------------------------------
+FROM python:3.12-slim AS runtime
+
+# ca-certificates is not optional here: every check is an outbound TLS call to
+# api.tailscale.com, and slim ships without the trust store.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system app \
+    && useradd --system --gid app --create-home app
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+COPY --from=builder --chown=app:app /app /app
+
+USER app
+
+# Run the interpreter from the baked .venv directly. `uv run` would re-validate
+# the lock against the network on every start, which is a needless dependency
+# for a process whose whole job is to keep reporting during an outage.
+CMD ["python", "detect_stale_device.py"]
