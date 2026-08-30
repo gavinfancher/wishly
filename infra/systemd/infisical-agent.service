@@ -24,7 +24,11 @@ Requires=docker.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/infisical agent --config /opt/wishly/infra/infisical/agent.vm.yaml
+# /usr/bin, not /usr/local/bin: that is where the apt package from
+# artifacts-cli.infisical.com puts it. A wrong path here fails as
+# `status=203/EXEC`, and because Restart=always retries, `systemctl is-active`
+# still reports "active" while nothing works. Check the journal, not is-active.
+ExecStart=/usr/bin/infisical agent --config /opt/wishly/infra/infisical/agent.vm.yaml
 
 # Runs as root because the post-render hook drives the Docker socket. A
 # dedicated user in the `docker` group is the usual alternative, but membership
