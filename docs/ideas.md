@@ -1,5 +1,11 @@
+# Original brief
 
+The unedited note this project started from, kept as written. Worth leaving in:
+the failover design below — a detection node on AWS watching the PVE cluster,
+triggering EC2 for compute and RDS for data — was scoped out at one point and is
+now the actual target. See [DEPLOYMENT-PLAN.md](DEPLOYMENT-PLAN.md).
 
+---
 i would like to make this app deployable to friends and family! 
 
 

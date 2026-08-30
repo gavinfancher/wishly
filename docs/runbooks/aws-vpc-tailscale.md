@@ -64,7 +64,7 @@ can't join the tailnet themselves.
 | Tailscale | 1.102.3, hostname `wishly-vpc-router`, tailnet `kudu-cliff.ts.net` |
 | Tailnet addresses | `100.90.214.84`, `fd7a:115c:a1e0::352f:d655` |
 | RDS instance | `database-1` — Postgres 18.3, db.t4g.micro, 20 GB gp2, encrypted |
-| RDS endpoint | `database-1.cv08qo42c464.us-east-1.rds.amazonaws.com:5432` |
+| RDS endpoint | `wishly-db.<id>.<region>.rds.amazonaws.com:5432` |
 | RDS private IP | `10.0.134.113` (subject to change — always use the hostname) |
 
 ### Security groups
@@ -204,7 +204,7 @@ itself**, which is the quickest way to tell this apart from a Tailscale problem.
 ## Step 8 (optional) — DNS forwarder for VPC-internal names
 
 **Not required for RDS.** AWS publishes RDS endpoint hostnames in *public* DNS, resolving to the
-private IP — `dig @1.1.1.1 database-1.cv08qo42c464.us-east-1.rds.amazonaws.com` returns
+private IP — `dig @1.1.1.1 wishly-db.<id>.<region>.rds.amazonaws.com` returns
 `10.0.134.113` from anywhere. DNS was never the obstacle; routing was, and Tailscale solves that.
 
 This forwarder exists for names that genuinely **don't** resolve publicly: EC2 private DNS
@@ -240,14 +240,24 @@ restricted to `ec2.internal`.
 
 ```bash
 /opt/homebrew/opt/libpq/bin/psql \
-  "host=database-1.cv08qo42c464.us-east-1.rds.amazonaws.com \
+  "host=wishly-db.<id>.<region>.rds.amazonaws.com \
    port=5432 dbname=postgres user=postgres sslmode=require"
 ```
 
 - `rds.force_ssl = 1` in the `default.postgres18` parameter group, so **`sslmode=require`
   is mandatory**.
-- No initial database was created (`DBName: null`), so you land in `postgres`. Wishly needs its
-  own database created before Alembic has anywhere to migrate.
+- The instance ships with the default `postgres` database and a `postgres` master user, so
+  that is where you land. Wishly gets its own role and database: run
+  `infra/sql/create_tenant.sql` as the master user, then apply `infra/sql/schema.sql` as
+  the `wishly` role.
+- **`sslmode` is the canonical spelling in `DATABASE_URL`.** `rds.force_ssl=1` makes TLS
+  mandatory, and the app rewrites the parameter per driver — psycopg keeps `sslmode`,
+  asyncpg gets `ssl`, because asyncpg raises `TypeError` on `sslmode` and psycopg rejects
+  `ssl`. See `core/settings.py:_with_driver`.
+- CA is `rds-ca-rsa2048-g1`. `sslmode=require` needs no local CA bundle; upgrading to
+  `verify-full` (DEPLOYMENT-PLAN T1) means shipping Amazon's `global-bundle.pem`.
+- **The instance certificate expires 2027-08-29.** Nothing tracks this; rotation is a
+  manual job and a silent outage if missed.
 - Never hardcode `10.0.134.113`; the IP changes on failover and maintenance.
 - Keep the master password in the environment, never in the repo (see `docs/runbooks/secrets.md`).
 
@@ -258,7 +268,7 @@ Quick health check without credentials:
 
 ```bash
 /opt/homebrew/opt/libpq/bin/pg_isready \
-  -h database-1.cv08qo42c464.us-east-1.rds.amazonaws.com -p 5432
+  -h wishly-db.<id>.<region>.rds.amazonaws.com -p 5432
 ```
 
 ---

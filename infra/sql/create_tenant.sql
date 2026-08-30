@@ -1,43 +1,51 @@
--- Wishly tenant bootstrap for the shared homecloud Postgres (DEPLOYMENT-PLAN T1/T2).
+-- Wishly database bootstrap. Creates the login role and the database that
+-- infra/sql/schema.sql then populates.
 --
--- Run ONCE against an existing server, as a superuser:
---   docker exec -i homecloud-postgres psql -U postgres -v ON_ERROR_STOP=1 \
---     -v wishly_password="'...'" -v prefect_password="'...'" < create_tenant.sql
+-- Run ONCE against a new server, as the RDS master user (or a superuser on a
+-- self-hosted Postgres):
 --
--- This is NOT a docker-entrypoint-initdb.d script. Those run only when PGDATA is
--- empty, and this server was initialized long before Wishly existed — an init
--- script would silently never execute.
+--   psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
+--     -v wishly_password="'...'" -f create_tenant.sql
 --
--- Two tenants, two roles: the app never touches Prefect's data and vice versa,
--- and neither is the superuser. That is the shape a managed database would force
--- on us anyway, so we adopt it now.
+-- Then apply the schema as the wishly role:
+--
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema.sql
+--
+-- The app connects as `wishly`, never as the master user. On RDS the master user
+-- is not a true superuser, but it can create roles and databases, which is all
+-- this needs. Prefect keeps its own state in Prefect Cloud, so there is no
+-- second tenant here.
 
 \set ON_ERROR_STOP on
 
--- Roles. `create role` errors if it already exists, so guard for re-runs.
+-- `create role` errors if the role already exists, so guard for re-runs.
 select format('create role wishly login password %L', :wishly_password)
 where not exists (select 1 from pg_roles where rolname = 'wishly')
 \gexec
 
-select format('create role prefect login password %L', :prefect_password)
-where not exists (select 1 from pg_roles where rolname = 'prefect')
-\gexec
+-- REQUIRED on RDS, and easy to miss on a self-hosted server where you are
+-- superuser and it is a no-op.
+--
+-- The RDS master user is deliberately not a superuser, and Postgres 16+ requires
+-- whoever runs `create database ... owner X` to be able to `set role X`. Without
+-- this grant the next statement fails with:
+--
+--   ERROR: must be able to SET ROLE "wishly"
+--
+-- Creating the role above gives us ADMIN OPTION on it, which is what makes this
+-- grant legal. Re-running is harmless: granting an existing membership is a
+-- notice, not an error.
+grant wishly to current_user;
 
--- Databases. `create database` cannot run inside a transaction or a DO block,
--- so the same \gexec trick applies.
+-- `create database` cannot run inside a transaction or a DO block, so the same
+-- \gexec trick applies.
 select 'create database wishly owner wishly'
 where not exists (select 1 from pg_database where datname = 'wishly')
 \gexec
 
-select 'create database prefect owner prefect'
-where not exists (select 1 from pg_database where datname = 'prefect')
-\gexec
-
--- Neither tenant should be able to enumerate or create objects in the other's
--- database, nor in the default `postgres` database.
+-- Nothing else on this server should be able to enumerate or create objects in
+-- the wishly database.
 revoke all on database wishly from public;
-revoke all on database prefect from public;
 grant connect on database wishly to wishly;
-grant connect on database prefect to prefect;
 
-\echo 'tenant bootstrap complete'
+\echo 'wishly database bootstrap complete'

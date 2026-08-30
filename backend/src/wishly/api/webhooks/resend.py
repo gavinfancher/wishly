@@ -14,13 +14,15 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Request
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from wishly.api import crud
 from wishly.api.deps import DBSession
 from wishly.api.errors import bad_request
 from wishly.api.webhooks.verify import verify_request
 from wishly.core.logging import get_logger
 from wishly.core.settings import settings
+from wishly.db.models import Suppression
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = get_logger("wishly.webhooks.resend")
@@ -30,6 +32,20 @@ VERIFIER_STATE_ATTR = "resend_webhook_verifier"
 
 # Resend event types we act on, mapped to the stored suppression ``reason``.
 _BOUNCE_TYPES = {"email.bounced": "bounce", "email.complained": "complaint"}
+
+
+async def _suppress(session: AsyncSession, *, email: str, reason: str) -> None:
+    """Add (or refresh the reason of) a suppressed recipient address.
+
+    Lower-cased for case-insensitive matching against recipient addresses.
+    """
+    insert_stmt = pg_insert(Suppression).values(email=email.strip().lower(), reason=reason)
+    await session.execute(
+        insert_stmt.on_conflict_do_update(
+            index_elements=[Suppression.email],
+            set_={"reason": insert_stmt.excluded.reason},
+        )
+    )
 
 
 def _recipients(data: dict[str, Any]) -> list[str]:
@@ -87,7 +103,7 @@ async def resend_webhook(request: Request, session: DBSession) -> dict[str, Any]
         raise bad_request("Resend event has no recipient address.")
 
     for email in recipients:
-        await crud.upsert_suppression(session, email=email, reason=reason)
+        await _suppress(session, email=email, reason=reason)
     logger.info(
         "resend suppression upsert",
         extra={"type": event_type, "reason": reason, "count": len(recipients)},

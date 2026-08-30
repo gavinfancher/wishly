@@ -1,0 +1,55 @@
+# Infisical agent — renders /opt/wishly/infra/.env and reloads the stack.
+#
+# Install:
+#   sudo cp infra/systemd/infisical-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now infisical-agent
+#
+# This is the only unit Wishly needs. There is deliberately no separate
+# "wishly.service" for Docker Compose: the containers carry
+# `restart: unless-stopped`, so Docker restores them itself after a reboot, and
+# this agent's post-render hook is what applies any *changed* configuration.
+# A second unit racing Compose against this one would buy nothing.
+#
+# See docs/runbooks/pve-vm-deploy.md and docs/runbooks/secrets.md.
+
+[Unit]
+Description=Infisical agent for Wishly (renders infra/.env, reloads compose)
+Documentation=https://infisical.com/docs/integrations/platforms/infisical-agent
+# network-online, not just network: the agent's first act is an HTTPS call to
+# Infisical Cloud, and `network.target` is reached long before DNS resolves.
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+# /usr/bin, not /usr/local/bin: that is where the apt package from
+# artifacts-cli.infisical.com puts it. A wrong path here fails as
+# `status=203/EXEC`, and because Restart=always retries, `systemctl is-active`
+# still reports "active" while nothing works. Check the journal, not is-active.
+ExecStart=/usr/bin/infisical agent --config /opt/wishly/infra/infisical/agent.vm.yaml
+
+# Runs as root because the post-render hook drives the Docker socket. A
+# dedicated user in the `docker` group is the usual alternative, but membership
+# of that group is root-equivalent on this host anyway — it would move the
+# credential without reducing the blast radius. Stated plainly rather than
+# dressed up as least privilege.
+User=root
+Group=root
+
+# The agent is the only thing that can repair a missing .env, so it must come
+# back. RestartSec keeps a hard failure (bad credential, Infisical down) from
+# becoming a hot loop against their API.
+Restart=always
+RestartSec=30s
+
+# The rendered file and the token sink must not be world-readable.
+UMask=0027
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=infisical-agent
+
+[Install]
+WantedBy=multi-user.target

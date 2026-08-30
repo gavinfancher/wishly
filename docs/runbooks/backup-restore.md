@@ -13,7 +13,7 @@ that matters is the one in the bucket.
 
 ## What is backed up
 
-The entire `wishly` application database (the Alembic-managed schema from PLAN §6: `users`,
+The entire `wishly` application database (the schema in `infra/sql/schema.sql`: `users`,
 `events`, `event_reminders`, `templates`, `notification_log`, `suppressions`). Dumps use
 Postgres **custom format** (`pg_dump -Fc`), which is compressed and supports selective/parallel
 restore via `pg_restore`.

@@ -33,11 +33,11 @@ Everything renders populated. No Clerk key required.
 
 ## Tier 2 — real API, auth still bypassed
 
-Start Postgres, migrate, seed, and run FastAPI:
+Start Postgres, apply the schema, seed, and run FastAPI:
 
 ```bash
 docker compose -f infra/compose.yaml -f infra/compose.local.yaml --env-file infra/.env up -d postgres
-cd backend && uv run alembic upgrade head
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f infra/sql/schema.sql
 cd backend && uv run python -m wishly.db.seed
 cd backend && uv run uvicorn wishly.api.main:app --reload   # http://localhost:8000
 ```
@@ -154,11 +154,11 @@ CORS works locally it will work in production; the reverse isn't guaranteed.
 
 ```bash
 docker compose -f infra/compose.yaml -f infra/compose.local.yaml --env-file infra/.env up -d postgres   # data survives `down`
-cd backend && uv run alembic upgrade head
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f infra/sql/schema.sql   # idempotent
 cd backend && uv run ruff check . && uv run mypy src
 cd backend && uv run pytest      # needs the wishly_test database
 cd backend && uv run uvicorn wishly.api.main:app --reload
-cd backend && uv run python -m wishly.orchestration.flows   # send flow, once
+cd backend && uv run python -m wishly.orchestration.flows --once   # send flow, once
 cd frontend && npm run dev
 ```
 

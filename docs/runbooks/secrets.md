@@ -1,7 +1,21 @@
 # Secrets — Infisical Cloud + agent
 
-How production secrets get from Infisical Cloud onto `vm-wishly` and `vm-db`.
-Implements T6 of [DEPLOYMENT-PLAN.md](../DEPLOYMENT-PLAN.md).
+How production secrets get from Infisical Cloud onto the hosts that run Wishly.
+Implements T4 of [DEPLOYMENT-PLAN.md](../DEPLOYMENT-PLAN.md).
+
+> **The Linux agent files now exist in the repo:**
+> `infra/infisical/agent.vm.yaml` (long-running daemon),
+> `infra/infisical/env.vm.tmpl` (RDS, no local Postgres),
+> `infra/infisical/reload.sh` (validates the render before reloading), and
+> `infra/systemd/infisical-agent.service`. The install procedure is
+> [pve-vm-deploy.md](pve-vm-deploy.md); this page is the model behind it.
+>
+> **Host names changed (2026-08-30).** This was written for the two home VMs
+> `vm-wishly` and `vm-db`. The database is now RDS, so there are two *application*
+> hosts instead: the home VM and the AWS standby, which need the **same** secret
+> set — that is what "pre-configured standby" has to mean, or a failover stops to
+> ask for credentials. The agent mechanics below are unchanged; read `vm-wishly`
+> as "either application host" and ignore the `vm-db` half.
 
 This replaces hand-maintained `infra/.env` files. Step 1 of
 [production-deploy.md](production-deploy.md) still describes the `.env` flow; it is
@@ -46,8 +60,14 @@ host's credentials.
 
 | Identity | Reads | Used by |
 |---|---|---|
-| `wishly-vm-app` | `CLERK_*`, `RESEND_*`, `EMAIL_FROM`, `APP_BASE_URL`, `ALLOWED_ORIGINS`, `DATABASE_URL`, `PREFECT_*`, `TUNNEL_TOKEN`, `ALERT_EMAIL_TO` | `vm-wishly` |
-| `wishly-vm-db` | `POSTGRES_*`, `S3_*`, `AWS_*`, `BACKUP_KEEP_LAST` | `vm-db` |
+| `wishly-vm` | `DATABASE_URL`, `CLERK_*`, `RESEND_*`, `PREFECT_*`, `TUNNEL_TOKEN`, `ALERT_EMAIL_TO` | the PVE VM |
+| `wishly-standby` | the same set | the AWS standby EC2 |
+| `wishly-backup` | `DATABASE_URL`, `S3_*`, `AWS_*`, `BACKUP_KEEP_LAST` | wherever `compose.backup.yaml` runs |
+
+There is no longer a database-host identity: Postgres is RDS, so `POSTGRES_*`
+exists only for the development container in `compose.local.yaml` and never
+leaves a workstation. The standby needs the **same** set as the VM — that is what
+"pre-configured" has to mean, or a failover stops to ask for credentials.
 
 In the Infisical dashboard:
 
@@ -107,21 +127,21 @@ auth:
   type: "universal-auth"
   config:
     client-id: "/etc/infisical/client-id"
-    client-secret: "/etc/infisical/client-secret"
+    client-secret: "/etc/infisical/wishly-client-secret"
     remove_client_secret_on_read: false
 
 sinks:
   - type: "file"
     config:
-      path: "/etc/infisical/token"
+      path: "/etc/infisical/wishly-agent-token"
 
 templates:
-  - source-path: /etc/infisical/env.tmpl
+  - source-path: /opt/wishly/infra/infisical/env.vm.tmpl
     destination-path: /opt/wishly/infra/.env
     config:
       polling-interval: 60s
       execute:
-        command: "/usr/bin/docker compose -f /opt/wishly/infra/vm-wishly/docker-compose.yml up -d"
+        command: "/opt/wishly/infra/infisical/reload.sh"
 ```
 
 > **Check the field names against Infisical's current agent docs before you commit
@@ -133,7 +153,7 @@ templates:
 client secret after first use, which is a nice hardening property right up until
 the VM reboots and cannot re-authenticate.
 
-`/etc/infisical/env.tmpl`:
+`infra/infisical/env.vm.tmpl` (in the repo, not `/etc`):
 
 ```
 {{- with secret "wishly" "prod" "/" }}
@@ -163,9 +183,13 @@ containers need the values:
 ```
 
 `infra/infisical/agent.mac.yaml` sets `exit-after-auth: true`, so the agent
-authenticates, renders, and exits — nothing is left running. It reuses
-`infra/infisical/env.tmpl`, the same template production renders, so the two
-cannot drift.
+authenticates, renders, and exits — nothing is left running.
+
+It renders `env.mac.tmpl`, **not** the VM's `env.vm.tmpl`. The two are separate
+files on purpose: the Mac runs a Postgres container and the VM uses RDS, so their
+`DATABASE_URL` genuinely differs. An earlier revision shared one template and
+claimed the two could not drift; that was true only while both hosts ran the same
+database, and is now the wrong shape.
 
 **What this gives up:** nothing re-renders on its own. A rotated secret reaches
 the Mac on the next `up.sh`, not within a poll interval. Re-run it after any
@@ -249,7 +273,7 @@ while looking healthy.
 
 **Editing the template does not trigger a re-render.** The agent polls Infisical for
 *secret value* changes; the template file itself is read at startup. Change
-`env.tmpl` — add a literal, fix an origin — and the agent will happily keep
+`env.vm.tmpl` — add a literal, fix an origin — and the agent will happily keep
 serving the old render until it restarts.
 
 This is easy to lose an hour to, because everything looks healthy: the agent is
@@ -344,7 +368,7 @@ Once both VMs render from the agent (T7 of the plan):
   `.env` is the only place production secrets exist;
 - `infra/infisical/` in the repo is a merged experiment — `get_secrets.py`,
   `aws_test.py`, `local_file.txt`, and practice scripts hardcoded to a
-  `wishly-dev-01` bucket and a `pg-backup-practice` container. Promote what this
+  `wishly-scratch` bucket and a `pg-backup-practice` container. Promote what this
   runbook actually uses and delete the rest;
 - decide whether `infra/infisical/docs-mintlify/` moves here or is dropped. Two
   copies of the same documentation is one too many.

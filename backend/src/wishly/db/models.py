@@ -1,8 +1,8 @@
-"""SQLAlchemy 2.0 ORM models for every table in ``docs/PLAN.md`` §6.
+"""SQLAlchemy 2.0 ORM models — one class per table.
 
-Schema changes ship as Alembic migrations only (never hand-edited DDL). UUID
-primary keys default to ``gen_random_uuid()`` which requires the ``pgcrypto``
-extension — enabled in the initial migration.
+These and ``infra/sql/schema.sql`` must agree: there are no migrations, and the
+test suite builds its database from that file, so a model that drifts from it
+fails the tests. Change both together.
 """
 
 from __future__ import annotations

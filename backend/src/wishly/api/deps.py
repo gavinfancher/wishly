@@ -30,11 +30,22 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError, PyJWK, PyJWKClient
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from wishly.api import config
 from wishly.api.errors import unauthorized
+from wishly.core.logging import get_logger
+from wishly.core.settings import (
+    DEV_USER_EMAIL,
+    DEV_USER_FIRST_NAME,
+    DEV_USER_LAST_NAME,
+    DEV_USER_SUB,
+    settings,
+)
+from wishly.db.models import User
 from wishly.db.session import get_session
+
+logger = get_logger("wishly.api.deps")
 
 # Clerk session tokens are signed with RS256.
 _ALGORITHMS = ["RS256"]
@@ -72,7 +83,7 @@ class JWKSClient(Protocol):
 class _BypassJWKSClient:
     """Placeholder key resolver for the dev auth bypass (never invoked).
 
-    When :func:`wishly.api.config.dev_auth_bypass` is on, tokens are not
+    When :attr:`~wishly.core.settings.Settings.dev_auth_bypass` is on, tokens are not
     verified, so this satisfies the dependency without a configured JWKS source.
     """
 
@@ -91,10 +102,10 @@ def get_jwks_client(request: Request) -> JWKSClient:
         return override
 
     # Dev bypass: no real Clerk tenant, nothing to verify against.
-    if config.dev_auth_bypass():
+    if settings.dev_auth_bypass:
         return _BypassJWKSClient()
 
-    jwks_url = config.clerk_jwks_url()
+    jwks_url = settings.jwks_url
     if not jwks_url:
         # Without a configured JWKS source and no override there is nothing to
         # verify against; treat as an auth failure rather than crashing.
@@ -115,7 +126,7 @@ def _decode_claims(token: str, jwks_client: JWKSClient) -> dict[str, Any]:
         # caller cannot be authenticated.
         raise unauthorized("Could not resolve a signing key for the token.") from exc
 
-    issuer = config.clerk_issuer()
+    issuer = settings.clerk_issuer
     try:
         # ``require`` enforces presence; ``verify_iss`` is only on when an issuer
         # is configured. Passed as a literal so mypy validates it against PyJWT's
@@ -143,13 +154,13 @@ async def get_current_user(
     badly-signed tokens, or when required claims are absent.
     """
     # Dev bypass (non-prod only): authenticate a fixed local user so the UI can
-    # run against a real backend without Clerk. See ``config.dev_auth_bypass``.
-    if config.dev_auth_bypass():
+    # run against a real backend without Clerk. See ``Settings.dev_auth_bypass``.
+    if settings.dev_auth_bypass:
         return AuthedUser(
-            sub=config.DEV_USER_SUB,
-            email=config.DEV_USER_EMAIL,
-            first_name=config.DEV_USER_FIRST_NAME,
-            last_name=config.DEV_USER_LAST_NAME,
+            sub=DEV_USER_SUB,
+            email=DEV_USER_EMAIL,
+            first_name=DEV_USER_FIRST_NAME,
+            last_name=DEV_USER_LAST_NAME,
         )
 
     if credentials is None or not credentials.credentials:
@@ -168,6 +179,44 @@ async def get_current_user(
         # ``sub`` is guaranteed by the decode ``require``; a missing ``email``
         # means the Clerk session-token claim (PLAN §10) is not configured.
         raise unauthorized("Token is missing required identity claims.") from exc
+
+
+async def provision_user(session: AsyncSession, principal: AuthedUser) -> User:
+    """Insert-or-fetch the ``users`` row for a verified principal.
+
+    Provision-on-first-request: on a user's first authenticated call we create
+    their row from the JWT claims. Uses an idempotent ``on conflict do nothing``
+    so a racing request (or a Clerk webhook that arrived first) does not error;
+    we then read the row back.
+
+    Never commits — that is owned by the ``get_session`` dependency.
+    """
+    stmt = (
+        pg_insert(User)
+        .values(
+            id=principal.sub,
+            email=principal.email,
+            first_name=principal.first_name,
+            last_name=principal.last_name,
+        )
+        .on_conflict_do_nothing(index_elements=[User.id])
+        .returning(User.id)
+    )
+    inserted = (await session.execute(stmt)).scalar_one_or_none()
+    await session.flush()
+    user = await session.get(User, principal.sub)
+    assert user is not None  # the insert (or a prior row) guarantees existence
+
+    # ``inserted`` is non-None only when the insert actually created the row. A
+    # *new* row for a user who has signed in before means their previous row
+    # disappeared — which also silently resets onboarded_at and cascades away
+    # their events. Logged loudly because nothing in this app deletes a user.
+    if inserted is not None:
+        logger.warning(
+            "user row provisioned (new)",
+            extra={"user_id": principal.sub, "created_at": str(user.created_at)},
+        )
+    return user
 
 
 # Public dependency aliases used by routes.

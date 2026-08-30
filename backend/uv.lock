@@ -1878,7 +1878,6 @@ name = "wishly"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "alembic" },
     { name = "asyncpg" },
     { name = "clerk-backend-api" },
     { name = "fastapi" },
@@ -1907,7 +1906,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "alembic", specifier = ">=1.18.4" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "clerk-backend-api", specifier = ">=6.0.1" },
     { name = "fastapi", specifier = ">=0.136.3" },

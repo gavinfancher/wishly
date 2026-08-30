@@ -7,8 +7,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, status
 from starlette.concurrency import run_in_threadpool
 
-from wishly.api import crud
-from wishly.api.deps import CurrentUser, DBSession
+from wishly.api.deps import CurrentUser, DBSession, provision_user
 from wishly.api.errors import not_found
 from wishly.api.schemas import UserOut, UserUpdate
 from wishly.core.logging import get_logger
@@ -29,7 +28,7 @@ async def get_me(principal: CurrentUser, session: DBSession) -> UserOut:
     ``sub`` has never been seen we insert a ``users`` row from the JWT claims —
     a fallback for a missed/raced Clerk webhook (PLAN §2).
     """
-    user = await crud.provision_user(session, principal)
+    user = await provision_user(session, principal)
     return UserOut.model_validate(user)
 
 
@@ -37,7 +36,7 @@ async def get_me(principal: CurrentUser, session: DBSession) -> UserOut:
 async def update_me(body: UserUpdate, principal: CurrentUser, session: DBSession) -> UserOut:
     """Update onboarding preferences (``timezone`` and/or ``send_hour``)."""
     # Ensure the row exists even if ``PATCH /me`` is somehow the first call.
-    user = await crud.provision_user(session, principal)
+    user = await provision_user(session, principal)
     if user is None:  # pragma: no cover — provision_user always returns a row
         raise not_found("User not found.")
 
@@ -78,7 +77,7 @@ async def send_test_email(principal: CurrentUser, session: DBSession) -> dict[st
     ``ResendClient`` is blocking, so it runs in a threadpool rather than stalling
     the event loop for the duration of the API call.
     """
-    user = await crud.provision_user(session, principal)
+    user = await provision_user(session, principal)
 
     rendered = render_email(
         event_type="birthday",

@@ -13,7 +13,8 @@ not require a configured ``DATABASE_URL`` (keeps imports cheap and test-friendly
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import contextmanager
 from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine
@@ -89,20 +90,15 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
             raise
 
 
-def sync_session() -> Generator[Session]:
-    """Context-managed sync session for worker tasks and scripts.
+@contextmanager
+def session_scope() -> Iterator[Session]:
+    """Sync session inside a transaction, for the send pipeline and scripts.
 
     Commits on success, rolls back on exception, always closes.
 
     Usage::
 
-        with contextlib.closing(...):
-            ...
-
-    or as a generator-backed contextmanager::
-
-        from contextlib import contextmanager
-        with contextmanager(sync_session)() as session:
+        with session_scope() as session:
             ...
     """
     factory = get_sync_sessionmaker()

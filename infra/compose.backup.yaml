@@ -1,4 +1,4 @@
-# Hourly backup sidecar (PLAN T8.3). Overlay on the main stack:
+# Hourly logical backup sidecar. Overlay on the main stack:
 #
 #   docker compose -f infra/compose.yaml -f infra/compose.backup.yaml \
 #       --env-file infra/.env up -d backup
@@ -7,6 +7,12 @@
 # Cloudflare R2, via S3_ENDPOINT_URL). The local volume is only a staging area —
 # the copy that matters is the remote one. For host-cron instead of an always-on
 # container, see docs/runbooks/backup-restore.md.
+#
+# This is deliberately kept alongside RDS automated snapshots rather than replaced
+# by them: a snapshot lives inside the same AWS account as the instance it protects
+# and cannot be restored anywhere else, while a pg_dump in a bucket can be restored
+# onto any Postgres — including a laptop. It is DSN-driven, so it runs unchanged
+# against RDS or a local container.
 services:
   backup:
     build:
@@ -16,7 +22,7 @@ services:
     container_name: wishly-backup
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: ${DATABASE_URL}
       BACKUP_DIR: /backups
       RETENTION_DAYS: "14"
       BACKUP_INTERVAL_SECONDS: "3600"
@@ -31,9 +37,6 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - 'while true; do /scripts/backup.sh || echo "backup failed"; sleep "$${BACKUP_INTERVAL_SECONDS}"; done'
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - app_net
 

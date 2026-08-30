@@ -27,10 +27,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from wishly.db.models import Event, NotificationLog, Suppression, User
+from wishly.db.session import session_scope
 from wishly.email.render import build_manage_url, render_email
 from wishly.email.resend_client import ResendClient
 from wishly.orchestration.due import is_in_send_window, local_today, occurrence_on
-from wishly.orchestration.session import session_scope
 
 # Transient Resend failures (rate limits, upstream 5xx, network) are worth a few
 # quick retries; the claim row already exists, so a retry updates it in place.

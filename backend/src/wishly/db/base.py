@@ -1,8 +1,8 @@
 """SQLAlchemy declarative base and shared metadata.
 
-All ORM models inherit from :class:`Base`. A deterministic naming convention for
-constraints/indexes is configured so that Alembic autogenerate produces stable,
-predictable migration names (and downgrades can drop them by name).
+All ORM models inherit from :class:`Base`. The naming convention gives every
+constraint and index a deterministic name, so the names SQLAlchemy expects match
+the ones written by hand in ``infra/sql/schema.sql``.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
-# Stable names for constraints/indexes -> reproducible Alembic migrations.
+# Stable names for constraints/indexes -> they match infra/sql/schema.sql.
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_N_name)s",
     "uq": "uq_%(table_name)s_%(column_0_N_name)s",

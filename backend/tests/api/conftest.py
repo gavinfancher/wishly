@@ -6,15 +6,12 @@ Design goals:
   client (installed on ``app.state.jwks_client``) returns the matching public
   key. The real :mod:`wishly.api.deps` verification path runs unchanged — no
   network, no Clerk tenant.
-* **Real Postgres.** Integration tests run against the dev database (brought up
-  via ``infra/docker-compose.dev.yml`` and migrated with Alembic). Each test
-  starts from clean tables (``TRUNCATE`` in :func:`_clean_tables`).
+* **Real Postgres.** Integration tests run against the ``wishly_test`` database,
+  whose schema the root ``conftest.py`` builds from ``infra/sql/schema.sql``.
+  Each test starts from clean tables (``TRUNCATE`` in :func:`_clean_tables`).
 * **Webhook signing.** Real :class:`svix.webhooks.Webhook` secrets are installed
   on ``app.state`` so the production Svix verification path is exercised; helper
   factories build correctly-signed payloads.
-
-These fixtures live under ``tests/api/`` only; the shared ``tests/`` root is left
-untouched for the parallel agent.
 """
 
 from __future__ import annotations
@@ -37,6 +34,14 @@ from svix.webhooks import Webhook
 
 # Ensure settings can instantiate before importing app modules.
 os.environ.setdefault("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly_test")
+
+# Tests must never inherit the developer's backend/.env: it commonly carries
+# AUTH_DEV_BYPASS=true, which would authenticate every request as the fixed dev
+# user and quietly turn the 401 tests green for the wrong reason. Real env vars
+# win over the .env file, so setting it here neutralises the file.
+os.environ["AUTH_DEV_BYPASS"] = "false"
+os.environ.setdefault("ENVIRONMENT", "dev")
+
 
 # SAFETY INTERLOCK. These fixtures TRUNCATE every table, so they must never point
 # at a real database. A previous configuration defaulted to the development
