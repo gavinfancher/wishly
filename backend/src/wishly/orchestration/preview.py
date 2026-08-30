@@ -30,10 +30,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from wishly.db.models import Event, TestEmailLog, User
+from wishly.db.session import session_scope
 from wishly.email.render import build_manage_url, render_email
 from wishly.email.resend_client import EmailSendError, ResendClient
 from wishly.orchestration.due import local_today
-from wishly.orchestration.session import session_scope
 
 # Matches the default lead time the /me/test-email endpoint previews with.
 DEFAULT_DAYS_BEFORE = 7

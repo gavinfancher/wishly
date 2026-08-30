@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1.7
 #
-# Prefect worker image (PLAN T7.1). Polls Prefect Cloud for scheduled runs of
-# the send flow and executes them in this container — the scheduler and UI are
-# Cloud's, so nothing orchestration-related is self-hosted.
+# Send-pipeline image. Runs Prefect's serve(): registers the deployments with
+# their schedules against PREFECT_API_URL, then executes flow runs in subprocesses
+# of this container. The scheduler and UI are Prefect Cloud's, so nothing
+# orchestration-related is self-hosted.
 # Build context is the repo root (same as Dockerfile.api).
 
 # ---- builder: resolve and install deps into a self-contained .venv -----------
@@ -38,5 +39,6 @@ COPY --from=builder --chown=app:app /app/backend /app/backend
 
 USER app
 
-# The work pool name is supplied by compose; PREFECT_API_URL/KEY authenticate to Cloud.
-CMD ["prefect", "worker", "start", "--pool", "wishly-pool"]
+# PREFECT_API_URL/KEY authenticate to Cloud. Pass --once to run the send a single
+# time and exit instead of serving.
+CMD ["python", "-m", "wishly.orchestration.flows"]

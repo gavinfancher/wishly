@@ -1,4 +1,4 @@
-"""Prefect flow for the hourly send pipeline (T5.4).
+"""Prefect flow for the hourly send pipeline, and the process that serves it.
 
 :func:`send_reminders` chains the two tasks in
 :mod:`wishly.orchestration.tasks`: find what is due, then claim/send/record it.
@@ -6,20 +6,22 @@ The send task carries its own retry policy for transient Resend errors.
 
 The schedule is a plain hourly tick — per-user ``send_hour`` gating happens
 inside the task, so the flow does not need to know anything about timezones.
-Cron and work pool live in ``backend/prefect.yaml``; deploy with::
 
-    uv run prefect deploy --all
+**Running it.** ``python -m wishly.orchestration.flows`` starts a long-lived
+process that registers both deployments (with their schedules) against whatever
+``PREFECT_API_URL`` points at, then executes their runs in subprocesses. That is
+the whole deployment story: no work pool, no separate worker, no ``prefect.yaml``.
 
-Run it once locally (no server or Cloud account needed)::
-
-    uv run python -m wishly.orchestration.flows
+To run the flow exactly once without registering anything — handy in a shell or a
+test — call :func:`send_reminders` directly instead.
 """
 
 from __future__ import annotations
 
-from prefect import flow, get_run_logger
+from prefect import flow, get_run_logger, serve
 
 from wishly.core.logging import get_logger
+from wishly.orchestration.preview import DEFAULT_DAYS_BEFORE, preview_reminder
 from wishly.orchestration.tasks import find_due_notifications, send_due_notifications
 
 # Hourly tick at the top of the hour.
@@ -50,8 +52,47 @@ def send_reminders() -> dict[str, int]:
     return tally
 
 
-if __name__ == "__main__":  # pragma: no cover - manual local run
-    send_reminders()
+def main() -> None:
+    """Serve both deployments until interrupted.
+
+    ``hourly-send`` runs on a cron. ``preview-reminder`` has no schedule, so it
+    only ever runs when triggered from the Prefect UI or CLI — it renders a real
+    email for an event that is not due yet, which is the only way to check your
+    work when the next genuine send is months away. ``send=False`` by default, so
+    triggering it with stock parameters renders without touching Resend.
+    """
+    hourly = send_reminders.to_deployment(
+        name="hourly-send",
+        cron=HOURLY_CRON,
+        description=(
+            "Finds reminders due this hour and sends each exactly once. Per-user "
+            "send_hour gating happens inside the flow, so the tick is a plain hourly cron."
+        ),
+    )
+    preview = preview_reminder.to_deployment(
+        name="preview-reminder",
+        parameters={"days_before": DEFAULT_DAYS_BEFORE, "send": False},
+        description=(
+            "On-demand preview of a reminder email. Renders from real database rows and "
+            "optionally sends via Resend, recording the result in test_email_log (never "
+            "notification_log, which would suppress the genuine reminder)."
+        ),
+    )
+    # `to_deployment` is overloaded for sync and async callers; both flows here are
+    # sync, so these are RunnerDeployment objects rather than coroutines.
+    serve(hourly, preview)  # type: ignore[arg-type]
 
 
-__all__ = ["HOURLY_CRON", "send_reminders"]
+if __name__ == "__main__":  # pragma: no cover - manual/long-running entrypoint
+    import sys
+
+    # `--once` runs the send exactly once and exits (local checks, cron fallback).
+    # With no argument this serves the deployments and blocks, which is what the
+    # worker container does.
+    if "--once" in sys.argv:
+        send_reminders()
+    else:
+        main()
+
+
+__all__ = ["HOURLY_CRON", "main", "send_reminders"]

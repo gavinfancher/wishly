@@ -1,45 +1,38 @@
-# Full production stack (PLAN T7.2 / T7.3). Run on the Docker host:
+# Wishly application stack.
 #
-#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+#   docker compose -f infra/compose.yaml --env-file infra/.env up -d
 #
-# Build context is the repo root (..) so the API/Dagster images can copy backend/.
-# Only Postgres holds a host-published port-free named volume; no app port is
-# published to the host — inbound traffic arrives via the cloudflared tunnel.
+# Three long-lived containers and one one-shot. The database is NOT here: it is
+# Amazon RDS, reached over the VPN via DATABASE_URL. For a self-contained stack
+# with a local Postgres, add the overlay:
+#
+#   docker compose -f infra/compose.yaml -f infra/compose.local.yaml \
+#     --env-file infra/.env up -d
+#
+# Build context is the repo root (..) so the images can copy backend/.
+# No application port is published — inbound traffic arrives via cloudflared.
 services:
-  postgres:
+  # One-shot: apply infra/sql/schema.sql, then exit. `create table if not exists`
+  # throughout, so running it on every boot is a no-op once the tables exist.
+  #
+  # It waits for the database itself rather than using `depends_on: healthy`,
+  # which cannot span hosts: with the database on RDS there is no local container
+  # to depend on, and a compose restart while RDS is still reachable-but-slow
+  # would otherwise start the API against an empty schema.
+  schema:
     image: postgres:18.4
-    container_name: wishly-postgres
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until pg_isready -d "$$DATABASE_URL" >/dev/null 2>&1; do
+          echo "waiting for database..."
+          sleep 2
+        done
+        psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema.sql
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      DATABASE_URL: ${DATABASE_URL}
     volumes:
-      # Postgres 18 keeps PGDATA in a versioned subdirectory; mounting the parent
-      # is what the official image recommends so pg_upgrade --link stays possible.
-      - wishly_pgdata:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - app_net
-
-  # One-shot schema migration. The api/dagster services wait for it to finish so
-  # they never start against an un-migrated database.
-  migrate:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.api
-    image: wishly-api:latest
-    command: ["alembic", "upgrade", "head"]
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - ./sql/schema.sql:/schema.sql:ro
     restart: "no"
     networks:
       - app_net
@@ -52,9 +45,7 @@ services:
     env_file:
       - .env
     depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
+      schema:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -67,82 +58,26 @@ services:
     restart: unless-stopped
     networks:
       - app_net
-    # No ports published — cloudflared reaches api:8000 over app_net.
 
-  # Prefect Server: scheduler + UI, self-hosted next to the database.
+  # The send pipeline. `python -m wishly.orchestration.flows` calls Prefect's
+  # serve(), which registers both deployments with their schedules and then runs
+  # their flow runs in subprocesses of this container. One process does the whole
+  # job — there is no work pool, no separate worker, and no prefect.yaml.
   #
-  # Prefect Cloud's free plan only offers *managed* work pools, which execute
-  # flows on Prefect's infrastructure — that cannot reach this Postgres, which
-  # publishes no ports and sits behind the tunnel. Self-hosting keeps the data
-  # private and stays free. Point PREFECT_API_URL at Cloud instead if you move to
-  # a plan with hybrid (self-hosted worker) pools; nothing else changes.
-  prefect-server:
-    image: prefecthq/prefect:3-latest
-    container_name: wishly-prefect-server
-    command: ["prefect", "server", "start", "--host", "0.0.0.0", "--port", "4200"]
-    environment:
-      PREFECT_API_URL: http://prefect-server:4200/api
-      # State lives in Postgres, not a local SQLite volume — see env.tmpl for why.
-      PREFECT_SERVER_DATABASE_CONNECTION_URL: ${PREFECT_SERVER_DATABASE_CONNECTION_URL}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - python -c "import urllib.request;urllib.request.urlopen('http://localhost:4200/api/health')"
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    restart: unless-stopped
-    networks:
-      - app_net
-    # UI is internal-only; add a tunnel hostname if you want it remotely.
-
-  # One-shot: publish the flow deployment + its hourly schedule to the server.
-  prefect-deploy:
-    # Built by prefect-worker below — declaring `build` on both services makes
-    # buildx race on exporting the same tag and one of them fails.
-    image: wishly-worker:latest
-    pull_policy: never
-    # Create the pool first: `prefect deploy` warns (and runs go unclaimed) if the
-    # deployment references a pool that does not exist yet. Both are idempotent.
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - 'prefect work-pool create "$${PREFECT_WORK_POOL}" --type process || true; prefect deploy --all'
-    env_file:
-      - .env
-    environment:
-      PREFECT_API_URL: ${PREFECT_API_URL}
-    depends_on:
-      prefect-server:
-        condition: service_healthy
-    restart: "no"
-    networks:
-      - app_net
-
-  # Prefect worker: polls the server for scheduled runs of the send flow and
-  # executes them in this container, where Postgres is reachable over app_net.
-  prefect-worker:
+  # Scheduling lives in Prefect Cloud (PREFECT_API_URL + PREFECT_API_KEY), so the
+  # control plane survives this host going away. That matters: the standby EC2
+  # exists precisely for the case where this machine is gone, and a scheduler
+  # running here would be gone with it.
+  worker:
     build:
       context: ..
       dockerfile: infra/Dockerfile.worker
     image: wishly-worker:latest
-    # --type creates the pool on first start, so the stack is self-configuring.
-    command:
-      ["prefect", "worker", "start", "--pool", "${PREFECT_WORK_POOL}", "--type", "process"]
     env_file:
       - .env
-    environment:
-      PREFECT_API_URL: ${PREFECT_API_URL}
     depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
+      schema:
         condition: service_completed_successfully
-      prefect-server:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - app_net
@@ -164,10 +99,6 @@ services:
     restart: unless-stopped
     networks:
       - app_net
-
-volumes:
-  wishly_pgdata:
-    name: wishly_pgdata_prod
 
 networks:
   app_net:

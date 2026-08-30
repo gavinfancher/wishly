@@ -16,17 +16,20 @@ and cannot call Clerk per send (PLAN §3).
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from typing import Any
 
 from fastapi import APIRouter, Request
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from wishly.api import crud
 from wishly.api.deps import DBSession
 from wishly.api.errors import bad_request
 from wishly.api.webhooks.verify import verify_request
 from wishly.core.logging import get_logger
 from wishly.core.settings import settings
+from wishly.db.models import User
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = get_logger("wishly.webhooks.clerk")
@@ -58,6 +61,47 @@ def _primary_email(data: dict[str, Any]) -> str | None:
     return None
 
 
+async def _upsert_user(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    email: str,
+    first_name: str | None,
+    last_name: str | None,
+) -> None:
+    """Upsert a user from a ``user.created`` / ``user.updated`` event.
+
+    Updates the synced identity fields and clears any prior ``deleted_at`` (a
+    re-created Clerk user reactivates the row). Onboarding-owned columns
+    (``timezone``, ``send_hour``) are deliberately left untouched.
+    """
+    insert_stmt = pg_insert(User).values(
+        id=user_id,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+    )
+    await session.execute(
+        insert_stmt.on_conflict_do_update(
+            index_elements=[User.id],
+            set_={
+                "email": insert_stmt.excluded.email,
+                "first_name": insert_stmt.excluded.first_name,
+                "last_name": insert_stmt.excluded.last_name,
+                "deleted_at": None,
+                "updated_at": dt.datetime.now(tz=dt.UTC),
+            },
+        )
+    )
+
+
+async def _soft_delete_user(session: AsyncSession, user_id: str) -> None:
+    """Mark a user deleted (``user.deleted`` event). No-op if unknown."""
+    user = await session.get(User, user_id)
+    if user is not None and user.deleted_at is None:
+        user.deleted_at = dt.datetime.now(tz=dt.UTC)
+
+
 @router.post("/clerk", status_code=200)
 async def clerk_webhook(request: Request, session: DBSession) -> dict[str, str]:
     """Verify and process a Clerk user lifecycle webhook."""
@@ -85,7 +129,7 @@ async def clerk_webhook(request: Request, session: DBSession) -> dict[str, str]:
         email = _primary_email(data)
         if email is None:
             raise bad_request("Clerk user has no email address.")
-        await crud.upsert_user_from_clerk(
+        await _upsert_user(
             session,
             user_id=user_id,
             email=email,
@@ -96,7 +140,7 @@ async def clerk_webhook(request: Request, session: DBSession) -> dict[str, str]:
         return {"status": "upserted"}
 
     if event_type == "user.deleted":
-        await crud.soft_delete_user(session, user_id)
+        await _soft_delete_user(session, user_id)
         logger.info("clerk webhook soft-delete", extra={"clerk_user_id": user_id})
         return {"status": "deleted"}
 

@@ -57,10 +57,10 @@ fi
 # while cloudflared has no tunnel or the API has no Clerk key. Fail loudly and
 # put the working file back instead.
 REQUIRED=(
-  POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL
+  DATABASE_URL
   TUNNEL_TOKEN RESEND_API_KEY EMAIL_FROM
   CLERK_SECRET_KEY CLERK_FRONTEND_API
-  PREFECT_API_URL PREFECT_WORK_POOL PREFECT_SERVER_DATABASE_CONNECTION_URL
+  PREFECT_API_URL PREFECT_API_KEY
   ALLOWED_ORIGINS APP_BASE_URL ENVIRONMENT AUTH_DEV_BYPASS
 )
 MISSING=()
@@ -70,7 +70,7 @@ done
 if (( ${#MISSING[@]} )); then
   echo "error: rendered $ENV_FILE is missing required keys:" >&2
   printf '  %s\n' "${MISSING[@]}" >&2
-  echo "Add them to Infisical (project 8cbc2c7e…, env dev) or widen the machine" >&2
+  echo "Add them to Infisical (env dev) or widen the machine" >&2
   echo "identity's scope, then re-run. Not starting the stack." >&2
   if [[ -n "$BACKUP" ]]; then
     cp "$BACKUP" "$ENV_FILE"

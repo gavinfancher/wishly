@@ -14,8 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from wishly.api import crud
-from wishly.api.deps import CurrentUser, DBSession
+from wishly.api.deps import CurrentUser, DBSession, provision_user
 from wishly.api.errors import not_found, unprocessable
 from wishly.api.schemas import EventCreate, EventOut, EventUpdate, check_month_day
 from wishly.core.logging import get_logger
@@ -66,7 +65,7 @@ async def list_events(principal: CurrentUser, session: DBSession) -> list[EventO
 async def create_event(body: EventCreate, principal: CurrentUser, session: DBSession) -> EventOut:
     """Create an event owned by the current user."""
     # Provision the owner row so the FK holds even before the first ``GET /me``.
-    await crud.provision_user(session, principal)
+    await provision_user(session, principal)
 
     event = Event(
         user_id=principal.sub,

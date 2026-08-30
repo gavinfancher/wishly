@@ -18,7 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from wishly.api import config
 from wishly.api.middleware import RequestLoggingMiddleware
 from wishly.api.routes import events as events_routes
 from wishly.api.routes import me as me_routes
@@ -42,8 +41,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         extra={
             "environment": settings.environment,
             "allowed_origins": settings.allowed_origins,
-            "auth_dev_bypass": config.dev_auth_bypass(),
-            "clerk_frontend_api": config.clerk_frontend_api(),
+            "auth_dev_bypass": settings.dev_auth_bypass,
+            "clerk_frontend_api": settings.clerk_frontend_api,
         },
     )
     try:

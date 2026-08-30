@@ -1,45 +1,49 @@
-# Local full-stack testing on a workstation. Overlay on docker-compose.yml:
+# Local overlay: adds a Postgres container and publishes ports to loopback.
 #
 #   docker compose -f infra/compose.yaml -f infra/compose.local.yaml \
 #     --env-file infra/.env up -d
 #
-# Every service — including cloudflared — is defined in the base file and runs
-# the same way here as on the server. This overlay only adds workstation
-# conveniences: loopback-published ports and a separate Postgres volume.
+# Both -f flags are required — this is an overlay, not a stack. In production the
+# database is RDS and this file is not used, which is the only difference between
+# the two environments.
 services:
-  # Published to loopback for curl/pgcli during development. Production publishes
-  # nothing: cloudflared reaches api:8000 over the compose network either way, so
-  # removing these changes nothing about how the app is served.
-  api:
-    ports:
-      - "127.0.0.1:8000:8000"
-
-  prefect-server:
-    ports:
-      - "127.0.0.1:4200:4200"
-    environment:
-      # The UI is a browser app, so it needs a URL the BROWSER can resolve.
-      # The base file sets PREFECT_API_URL=http://prefect-server:4200/api for
-      # in-network clients (the worker, prefect deploy), and the server derives
-      # PREFECT_SERVER_UI_API_URL from it — so /ui-settings handed the browser
-      # http://prefect-server:4200/api, a Docker-internal DNS name that resolves
-      # nowhere on the host. The UI then reported "Unable to connect to Prefect
-      # server" while /api/health returned 200 to anything inside the network.
-      # Overridden here and not in the base file because production publishes no
-      # UI port at all.
-      PREFECT_SERVER_UI_API_URL: http://localhost:4200/api
-
-  # Published for inspection with pgcli/psql.
+  # Stands in for RDS. The `schema` one-shot in the base file waits for it and
+  # applies infra/sql/schema.sql, so a fresh volume comes up fully provisioned.
   #
   # NOTE: the test suite must NOT use this database. tests/conftest.py truncates
   # every table, and pointing it here once destroyed live development data. Tests
   # run against `wishly_test` and refuse to start against any database whose name
   # does not end in `_test`.
   postgres:
+    image: postgres:18.4
+    container_name: wishly-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # Postgres 18 keeps PGDATA in a versioned subdirectory; mounting the parent
+      # is what the official image recommends so pg_upgrade --link stays possible.
+      - wishly_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Published for inspection with psql/pgcli.
     ports:
       - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # Published to loopback for curl during development. Production publishes
+  # nothing: cloudflared reaches api:8000 over app_net either way.
+  api:
+    ports:
+      - "127.0.0.1:8000:8000"
 
 volumes:
-  # Keeps local testing off `wishly_pgdata_prod`, which holds an older PG16 cluster.
   wishly_pgdata:
     name: wishly_pgdata_local
