@@ -170,6 +170,8 @@ docs/        PLAN.md (product), DEPLOYMENT-PLAN.md (ops), runbooks/
 
 - [docs/PLAN.md](docs/PLAN.md) — the product and the build plan
 - [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md) — topology, failover, open tasks
+- [docs/runbooks/pve-vm-deploy.md](docs/runbooks/pve-vm-deploy.md) — moving the
+  deployment off a workstation onto a Proxmox VM, against RDS
 - [docs/runbooks/](docs/runbooks/) — local dev, deploys, secrets, backup/restore,
   Cloudflare, Resend, the AWS VPC and Tailscale setup
 

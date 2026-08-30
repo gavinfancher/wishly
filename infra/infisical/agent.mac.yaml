@@ -36,5 +36,5 @@ sinks:
 
 templates:
   # Reuses the SAME template production renders, so the two cannot drift.
-  - source-path: infra/infisical/env.tmpl
+  - source-path: infra/infisical/env.mac.tmpl
     destination-path: infra/.env

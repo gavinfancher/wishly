@@ -1,0 +1,53 @@
+# Infisical agent — PVE VM, LONG-RUNNING (systemd daemon).
+#
+# The opposite shape to agent.mac.yaml, deliberately. That one is `exit-after-auth:
+# true` because a laptop sleeps and travels and should not hold a live credential
+# in the background. This host does neither, so the agent stays up, polls, and
+# re-renders on its own — a secret rotated in Infisical reaches the stack within
+# `polling-interval` instead of waiting for someone to run a script.
+#
+# Installed at /opt/wishly/infra/infisical/agent.vm.yaml and driven by
+# infra/systemd/infisical-agent.service. See docs/runbooks/pve-vm-deploy.md.
+#
+# Paths are absolute and rooted at /etc and /opt: there is no __HOME__
+# substitution here because this does not run as a login user.
+
+infisical:
+  address: "https://app.infisical.com"
+  # False is the whole difference from the Mac config: stay resident and poll.
+  exit-after-auth: false
+  # Keep the credential valid across restarts. Revoking on shutdown would mean a
+  # reboot needs a human to re-issue one, which is the opposite of what you want
+  # at 2am.
+  revoke-credentials-on-shutdown: false
+
+auth:
+  type: "universal-auth"
+  config:
+    # A machine identity belonging to THIS host only. Do not reuse the Mac's —
+    # see docs/runbooks/secrets.md §2.
+    client-id: "/etc/infisical/wishly-client-id"
+    client-secret: "/etc/infisical/wishly-client-secret"
+    # Must stay false: true deletes the client secret after first read, which
+    # would leave the agent unable to re-authenticate after a restart.
+    remove_client_secret_on_read: false
+
+sinks:
+  - type: "file"
+    config:
+      path: "/etc/infisical/wishly-agent-token"
+
+templates:
+  - source-path: /opt/wishly/infra/infisical/env.vm.tmpl
+    destination-path: /opt/wishly/infra/.env
+    config:
+      # A rotated secret is live within a minute. Cheap: this is one API call.
+      polling-interval: 60s
+      execute:
+        # Runs after every render, including the first. The script validates the
+        # rendered file before touching the stack — a render that dropped a key
+        # must not be allowed to restart containers. See reload.sh.
+        command: "/opt/wishly/infra/infisical/reload.sh"
+        # Generous because `up -d` may pull an image. It is NOT enough for a
+        # first build from source — do that by hand, once, at deploy time.
+        timeout: 600

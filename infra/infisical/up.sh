@@ -52,7 +52,7 @@ if ! infisical agent --config "$RENDERED_CFG"; then
 fi
 
 # The rendered file is whatever the identity can READ plus the literals in
-# env.tmpl. If a secret is missing from Infisical dev — or the identity is not
+# env.mac.tmpl. If a secret is missing from Infisical dev — or the identity is not
 # scoped to it — the key simply vanishes, and the stack comes up looking healthy
 # while cloudflared has no tunnel or the API has no Clerk key. Fail loudly and
 # put the working file back instead.

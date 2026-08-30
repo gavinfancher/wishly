@@ -130,7 +130,7 @@ ping -c1 <vm-db-address>
 Do this **before** bringing up either stack, so no `.env` is ever hand-copied onto a host.
 
 Full procedure in [secrets.md](secrets.md) — machine identity per VM, bootstrap credentials
-at `/etc/infisical/`, `agent.yaml` + `env.tmpl`, and the systemd units.
+at `/etc/infisical/`, `agent.vm.yaml` + `env.vm.tmpl`, and the systemd unit.
 
 Verify on each VM before continuing:
 
