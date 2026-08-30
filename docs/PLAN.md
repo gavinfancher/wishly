@@ -1,5 +1,10 @@
 # Wishly — Implementation Plan
 
+> **§1–§7 and §11 are current.** The Epic/task log in §8 is a build record kept as
+> history — some of it describes work (Alembic migrations, a self-hosted Prefect
+> server) that has since been removed. For where the system is going, read
+> [DEPLOYMENT-PLAN.md](DEPLOYMENT-PLAN.md).
+
 > **Purpose of this document.** This is the build plan for Wishly, structured so that
 > coding agents (or humans) can pick up a single task at a time and execute it to a
 > verifiable "done." Read [Conventions](#5-conventions-for-agents) before starting any task.
@@ -30,9 +35,9 @@ people they care about, and emails the user **reminders ahead of time** so they 
 | Frontend | React + Vite + TypeScript SPA, deployed to **Cloudflare Pages** (`wishly.dev`) |
 | Frontend auth | `@clerk/clerk-react` |
 | API | **FastAPI** + uvicorn, containerized, exposed at `api.wishly.dev` via **Cloudflare Tunnel** |
-| Orchestration | **Prefect** (self-hosted server + worker in the compose stack) |
-| Database | **PostgreSQL 18.4** |
-| ORM / migrations | **SQLAlchemy 2.0** (async for API, sync for the worker) + **Alembic** |
+| Orchestration | **Prefect** — Cloud holds the schedule/UI; `serve()` executes flows in the local `worker` container |
+| Database | **PostgreSQL 18** on **Amazon RDS** (a container only for local development) |
+| ORM / schema | **SQLAlchemy 2.0** (async for API, sync for the worker). No migration tool — `infra/sql/schema.sql` is the schema |
 | Auth | **Clerk** — JWT verification on the API; webhook sync of users into Postgres |
 | Email delivery | **Resend** (Python SDK) |
 | Email templating | **Jinja2** + **premailer** (CSS inlining), pure Python. MJML optional at dev time only. |
@@ -40,7 +45,7 @@ people they care about, and emails the user **reminders ahead of time** so they 
 | Python version | **3.12** (backend). Pin via `.python-version` and `requires-python = ">=3.12,<3.13"`. |
 | Node version | **20 LTS+** (frontend build only) |
 | Runtime split | **Python = all logic. JS = frontend only.** The SPA talks to the world only through the FastAPI API. |
-| Deploy target | A single Linux host running Docker + Docker Compose (VPS or home server — interchangeable). |
+| Deploy target | A Proxmox VM running Docker Compose, with a pre-configured **AWS EC2 standby**. Both stateless; see [DEPLOYMENT-PLAN.md](DEPLOYMENT-PLAN.md). |
 
 ---
 
@@ -103,8 +108,6 @@ wishly/
 │       └── components/
 ├── backend/
 │   ├── pyproject.toml        # uv-managed; fastapi + prefect + shared deps
-│   ├── alembic.ini
-│   ├── alembic/
 │   │   └── versions/
 │   └── src/wishly/
 │       ├── core/             # settings (pydantic-settings), logging
@@ -119,7 +122,7 @@ wishly/
 │       └── orchestration/    # Prefect: flows.py, tasks.py, due.py, session.py
 └── infra/
     ├── docker-compose.yml    # full stack
-    ├── docker-compose.dev.yml# postgres-only for local dev
+    ├── sql/schema.sql       # the whole schema, idempotent
     ├── Dockerfile.api
     ├── Dockerfile.worker
     ├── .env.example
@@ -147,7 +150,8 @@ These are the **Definition of Done** rules. A task is not complete unless they h
 6. **Keep the runtime split:** no business logic in the frontend; the SPA reaches the backend
    only via the FastAPI API.
 7. **Migrations are the only way to change schema.** Never hand-edit a created table; add an
-   Alembic revision. Every model change ships with its migration in the same task.
+   matching edit to `infra/sql/schema.sql`, in the same task. The test suite builds its
+   database from that file, so drift between the two fails the tests.
 8. **Each task is self-contained and leaves `main` green.** If a task can't be finished without
    breaking the build, split it.
 
@@ -598,7 +602,7 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 | Variable | Used by | Notes |
 |---|---|---|
-| `DATABASE_URL` | API, worker, Alembic | API uses asyncpg driver; worker/Alembic sync (psycopg) |
+| `DATABASE_URL` | API, worker | API uses the asyncpg driver; the worker uses sync psycopg |
 | `CLERK_SECRET_KEY` | API | Backend SDK / token verification |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | API | Svix verification for `/webhooks/clerk` |
 | `CLERK_FRONTEND_API` | API | **Required.** Token issuer / JWKS origin; without it every request 401s |
@@ -609,8 +613,7 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 | `ALLOWED_ORIGINS` | API | CORS allowlist, e.g. `https://wishly.dev,https://app.wishly.dev` |
 | `ENVIRONMENT` | API, worker | `dev` / `prod` |
 | `PREFECT_API_URL` | worker | `http://prefect-server:4200/api` (self-hosted) or a Cloud workspace URL |
-| `PREFECT_API_KEY` | worker | Only needed when pointing at Prefect Cloud |
-| `PREFECT_WORK_POOL` | worker | work pool the worker polls (e.g. `wishly-pool`) |
+| `PREFECT_API_KEY` | worker | Prefect Cloud workspace key |
 | `S3_BUCKET` | backup | destination bucket for hourly dumps |
 | `S3_PREFIX` | backup | key prefix (default `wishly/postgres`) |
 | `S3_ENDPOINT_URL` | backup | set for S3-compatible stores (R2/MinIO); empty for AWS |

@@ -1,7 +1,14 @@
 # Secrets — Infisical Cloud + agent
 
-How production secrets get from Infisical Cloud onto `vm-wishly` and `vm-db`.
-Implements T6 of [DEPLOYMENT-PLAN.md](../DEPLOYMENT-PLAN.md).
+How production secrets get from Infisical Cloud onto the hosts that run Wishly.
+Implements T4 of [DEPLOYMENT-PLAN.md](../DEPLOYMENT-PLAN.md).
+
+> **Host names changed (2026-08-30).** This was written for the two home VMs
+> `vm-wishly` and `vm-db`. The database is now RDS, so there are two *application*
+> hosts instead: the home VM and the AWS standby, which need the **same** secret
+> set — that is what "pre-configured standby" has to mean, or a failover stops to
+> ask for credentials. The agent mechanics below are unchanged; read `vm-wishly`
+> as "either application host" and ignore the `vm-db` half.
 
 This replaces hand-maintained `infra/.env` files. Step 1 of
 [production-deploy.md](production-deploy.md) still describes the `.env` flow; it is
@@ -344,7 +351,7 @@ Once both VMs render from the agent (T7 of the plan):
   `.env` is the only place production secrets exist;
 - `infra/infisical/` in the repo is a merged experiment — `get_secrets.py`,
   `aws_test.py`, `local_file.txt`, and practice scripts hardcoded to a
-  `wishly-dev-01` bucket and a `pg-backup-practice` container. Promote what this
+  `wishly-scratch` bucket and a `pg-backup-practice` container. Promote what this
   runbook actually uses and delete the rest;
 - decide whether `infra/infisical/docs-mintlify/` moves here or is dropped. Two
   copies of the same documentation is one too many.

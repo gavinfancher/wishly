@@ -1,6 +1,6 @@
 # wishly-prod: the Wishly SPA on Cloudflare Workers static assets.
 #
-# Unlike homecloud's gavinf-prod there is no worker.js — that exists only to
+# Unlike another project's Worker there is no worker.js — that exists only to
 # route four hostnames onto one Worker. Wishly serves a single SPA, so asset
 # serving with SPA fallback covers it and there is no request-time code at all.
 #

@@ -1,5 +1,16 @@
 # Production deploy
 
+> **Superseded in part (2026-08-30).** This runbook describes the previous
+> topology: two home VMs (`vm-wishly` + `vm-db`) with Postgres and a self-hosted
+> Prefect server on Proxmox. The database has since moved to **RDS**, Prefect's
+> control plane to **Prefect Cloud**, and the recovery story to an **AWS standby**
+> — see [DEPLOYMENT-PLAN.md](../DEPLOYMENT-PLAN.md) for the current target and the
+> tasks that get there.
+>
+> Still accurate and worth reading: the VM sizing rationale, the Proxmox settings,
+> the Cloudflare tunnel steps, and the failure modes at the end. Treat the compose
+> service list and the migration step as historical.
+
 End-to-end order of operations for deploying Wishly onto two Proxmox VMs. Each step links
 to the runbook with the detail; this page exists so the sequence and its dependencies live
 in one place.
@@ -278,16 +289,24 @@ affect operating the thing:
 
 ---
 
-## Why not Prefect Cloud
+## Prefect Cloud and the work-pool limit
 
-Prefect Cloud's free plan offers **only managed work pools** — creating a `process`,
+Worth recording, because it is the constraint that shaped the orchestration setup.
+
+Prefect Cloud's free plan offers **no custom work pools** — creating a `process`,
 `docker`, or `kubernetes` pool returns *"Your plan does not support hybrid or push work
-pools."* Managed pools execute flows on Prefect's infrastructure, which cannot reach this
-Postgres: it publishes no public port and sits on a private VLAN.
+pools."* Its managed pools execute flows on Prefect's own infrastructure, which cannot
+reach a Postgres that publishes no public port. That ruled out the work-pool-and-worker
+model on the free tier, and a self-hosted Prefect server was the answer for a while.
 
-Letting Cloud run the flow would mean exposing the database to the internet — trading the
-entire private-by-default posture for a hosted scheduler. Self-hosting keeps the data
-private, costs nothing, and runs the same flow code and the same `prefect.yaml`.
+**`serve()` sidesteps the limit**, which is why the stack now uses it.
+`flow.to_deployment(...)` plus `serve(...)` registers a deployment and runs it from a
+long-lived local process; it creates no work pool and needs no worker, so the plan
+restriction above does not apply to it. `PREFECT_API_URL` + `PREFECT_API_KEY` point at the
+Cloud workspace, and the flow still executes here, next to the database.
 
-If you later move to a plan with hybrid pools, point `PREFECT_API_URL` at the workspace,
-set `PREFECT_API_KEY`, and drop the `prefect-server` service. Nothing else changes.
+**If Cloud refuses the deployment** (a tier limit tightening, or exceeding the free plan's
+deployment cap), the fallback is one step: add a `prefect-server` service back to
+`infra/compose.yaml`, give it a `prefect` database, and point `PREFECT_API_URL` at
+`http://prefect-server:4200/api`. Nothing in the flow code changes — `serve()` talks to
+whichever API it is pointed at.
