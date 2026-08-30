@@ -1,0 +1,20 @@
+# Reloads the Wishly stack after infra/.env changes. Triggered by
+# wishly-reload.path, never enabled directly.
+#
+# reload.sh validates the rendered file and refuses to run compose on a bad
+# render, so a dropped secret leaves the running containers alone rather than
+# restarting them into a broken configuration.
+
+[Unit]
+Description=Reload the Wishly stack after infra/.env changes
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/wishly/infra/infisical/reload.sh
+# Root because the script drives the Docker socket; same reasoning as the agent.
+User=root
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wishly-reload

@@ -169,18 +169,34 @@ network. Check it with
 
 ## Step 6 — Hand it to systemd
 
+Three units: the agent renders the file, and a path watcher reloads the stack
+when it changes.
+
 ```bash
 sudo cp /opt/wishly/infra/systemd/infisical-agent.service /etc/systemd/system/
+sudo cp /opt/wishly/infra/systemd/wishly-reload.{path,service} /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now infisical-agent
-journalctl -u infisical-agent -f
+sudo systemctl enable --now infisical-agent wishly-reload.path
+journalctl -u infisical-agent -u wishly-reload -f
 ```
 
-You should see the agent authenticate, render, and `reload.sh` report the key
-list followed by `docker compose up -d`. From here a secret rotated in Infisical
-reaches the stack within 60 seconds.
+You should see the agent authenticate and render, then `wishly-reload` report the
+key list followed by `docker compose up -d`. From there a secret rotated in
+Infisical reaches the stack within the 60s poll interval.
 
-There is no second unit for Compose. The containers carry
+**Why a path unit rather than the agent's own hook.** The agent supports an
+`execute` block that is meant to run a command after each render. It does not run
+on the CLI build here (0.43.128): the render succeeds, the log looks healthy, and
+the command is silently never invoked — verified with a probe command that never
+fired, both nested under `config` and as a sibling of it. Watching the file from
+outside is independent of that, and its output goes to the journal under its own
+unit instead of disappearing.
+
+`systemctl is-active` is not a health check for the agent. `Restart=always` means
+a unit that cannot even exec its binary still reports `active` while flapping.
+Read the journal.
+
+There is no unit for Compose itself. The containers carry
 `restart: unless-stopped`, so Docker restores them after a reboot on its own.
 
 ## Step 7 — Cut over

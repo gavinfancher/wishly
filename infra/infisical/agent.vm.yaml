@@ -43,15 +43,14 @@ templates:
     config:
       # A rotated secret is live within a minute. Cheap: this is one API call.
       polling-interval: 60s
-    # `execute` is a SIBLING of `config`, not nested inside it. Nested, the agent
-    # ignores it silently — no warning, no error, the render still succeeds and
-    # nothing reloads. Verified the hard way: an `execute` under `config` never
-    # ran, and a probe command proved the block was not being read at all.
-    execute:
-      # Runs after each render. The script validates the rendered file before
-      # touching the stack — a render that dropped a key must not be allowed to
-      # restart containers. See reload.sh.
-      command: "/opt/wishly/infra/infisical/reload.sh"
-      # Generous because `up -d` may pull an image. It is NOT enough for a first
-      # build from source — do that by hand, once, at deploy time.
-      timeout: 600
+    # NOTE: no `execute` block here on purpose.
+    #
+    # The agent's post-render hook does not run on this CLI build (0.43.128) —
+    # verified with a probe command that never fired, both nested under `config`
+    # and as a sibling of it. The render succeeds and logs normally; the command
+    # is simply never invoked, with no warning.
+    #
+    # Reloading is therefore driven from the outside, by systemd watching this
+    # file: wishly-reload.path triggers wishly-reload.service, which runs
+    # reload.sh. That works regardless of what the agent supports, and its output
+    # lands in the journal under its own unit instead of vanishing.
