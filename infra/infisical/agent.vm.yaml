@@ -43,11 +43,15 @@ templates:
     config:
       # A rotated secret is live within a minute. Cheap: this is one API call.
       polling-interval: 60s
-      execute:
-        # Runs after every render, including the first. The script validates the
-        # rendered file before touching the stack — a render that dropped a key
-        # must not be allowed to restart containers. See reload.sh.
-        command: "/opt/wishly/infra/infisical/reload.sh"
-        # Generous because `up -d` may pull an image. It is NOT enough for a
-        # first build from source — do that by hand, once, at deploy time.
-        timeout: 600
+    # `execute` is a SIBLING of `config`, not nested inside it. Nested, the agent
+    # ignores it silently — no warning, no error, the render still succeeds and
+    # nothing reloads. Verified the hard way: an `execute` under `config` never
+    # ran, and a probe command proved the block was not being read at all.
+    execute:
+      # Runs after each render. The script validates the rendered file before
+      # touching the stack — a render that dropped a key must not be allowed to
+      # restart containers. See reload.sh.
+      command: "/opt/wishly/infra/infisical/reload.sh"
+      # Generous because `up -d` may pull an image. It is NOT enough for a first
+      # build from source — do that by hand, once, at deploy time.
+      timeout: 600
