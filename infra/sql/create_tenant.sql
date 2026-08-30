@@ -23,6 +23,20 @@ select format('create role wishly login password %L', :wishly_password)
 where not exists (select 1 from pg_roles where rolname = 'wishly')
 \gexec
 
+-- REQUIRED on RDS, and easy to miss on a self-hosted server where you are
+-- superuser and it is a no-op.
+--
+-- The RDS master user is deliberately not a superuser, and Postgres 16+ requires
+-- whoever runs `create database ... owner X` to be able to `set role X`. Without
+-- this grant the next statement fails with:
+--
+--   ERROR: must be able to SET ROLE "wishly"
+--
+-- Creating the role above gives us ADMIN OPTION on it, which is what makes this
+-- grant legal. Re-running is harmless: granting an existing membership is a
+-- notice, not an error.
+grant wishly to current_user;
+
 -- `create database` cannot run inside a transaction or a DO block, so the same
 -- \gexec trick applies.
 select 'create database wishly owner wishly'
