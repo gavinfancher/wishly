@@ -246,9 +246,18 @@ restricted to `ec2.internal`.
 
 - `rds.force_ssl = 1` in the `default.postgres18` parameter group, so **`sslmode=require`
   is mandatory**.
-- No initial database was created (`DBName: null`), so you land in `postgres`. Create the
-  `wishly` role and database with `infra/sql/create_tenant.sql`, then apply
-  `infra/sql/schema.sql` as that role.
+- The instance ships with the default `postgres` database and a `postgres` master user, so
+  that is where you land. Wishly gets its own role and database: run
+  `infra/sql/create_tenant.sql` as the master user, then apply `infra/sql/schema.sql` as
+  the `wishly` role.
+- **`sslmode` is the canonical spelling in `DATABASE_URL`.** `rds.force_ssl=1` makes TLS
+  mandatory, and the app rewrites the parameter per driver — psycopg keeps `sslmode`,
+  asyncpg gets `ssl`, because asyncpg raises `TypeError` on `sslmode` and psycopg rejects
+  `ssl`. See `core/settings.py:_with_driver`.
+- CA is `rds-ca-rsa2048-g1`. `sslmode=require` needs no local CA bundle; upgrading to
+  `verify-full` (DEPLOYMENT-PLAN T1) means shipping Amazon's `global-bundle.pem`.
+- **The instance certificate expires 2027-08-29.** Nothing tracks this; rotation is a
+  manual job and a silent outage if missed.
 - Never hardcode `10.0.134.113`; the IP changes on failover and maintenance.
 - Keep the master password in the environment, never in the repo (see `docs/runbooks/secrets.md`).
 

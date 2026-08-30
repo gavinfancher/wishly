@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Annotated, Literal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -117,12 +118,12 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         """The DSN rewritten to use the asyncpg driver (for the FastAPI engine)."""
-        return _with_driver(self.database_url, "postgresql+asyncpg")
+        return _with_driver(self.database_url, "postgresql+asyncpg", ssl_param="ssl")
 
     @property
     def sync_database_url(self) -> str:
         """The DSN rewritten to use the psycopg (v3) driver (for the worker/CLIs)."""
-        return _with_driver(self.database_url, "postgresql+psycopg")
+        return _with_driver(self.database_url, "postgresql+psycopg", ssl_param="sslmode")
 
     @property
     def dev_auth_bypass(self) -> bool:
@@ -153,17 +154,39 @@ class Settings(BaseSettings):
         return None
 
 
-def _with_driver(url: str, driver: str) -> str:
-    """Return ``url`` with its scheme replaced by ``driver``.
+def _with_driver(url: str, driver: str, *, ssl_param: str) -> str:
+    """Return ``url`` with its scheme replaced by ``driver`` and TLS spelled right.
 
-    Accepts a bare ``postgresql://`` (or ``postgres://``) DSN, or one that
-    already carries a ``+driver`` suffix, and normalises it to ``driver``.
+    Accepts a bare ``postgresql://`` (or ``postgres://``) DSN, or one that already
+    carries a ``+driver`` suffix, and normalises it to ``driver``.
+
+    The two drivers disagree about how to ask for TLS, and neither tolerates the
+    other's spelling:
+
+    * **psycopg** (worker, schema, psql) uses libpq's ``sslmode``. Given ``ssl``
+      it raises ``invalid connection option "ssl"``.
+    * **asyncpg** (the API) takes ``ssl``. Given ``sslmode`` it raises
+      ``TypeError: connect() got an unexpected keyword argument 'sslmode'`` — on
+      every request, because the failure is at connect time.
+
+    So a single ``DATABASE_URL`` cannot be handed to both verbatim. We take
+    libpq's ``sslmode`` as the canonical spelling in the environment (it is what
+    RDS, psql, and every runbook use) and rename the key here per driver. The
+    *values* share one vocabulary — ``disable``, ``allow``, ``prefer``,
+    ``require``, ``verify-ca``, ``verify-full`` — so only the key moves.
     """
     scheme, sep, rest = url.partition("://")
     if not sep:
         # Not a URL we recognise; hand it back unchanged for the caller to fail on.
         return url
-    return f"{driver}://{rest}"
+    parts = urlsplit(f"{driver}://{rest}")
+    if not parts.query:
+        return urlunsplit(parts)
+    query = [
+        (ssl_param if key in ("sslmode", "ssl") else key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+    ]
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 @lru_cache(maxsize=1)

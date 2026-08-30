@@ -149,8 +149,15 @@ Not to be re-done:
   local Postgres container on the home host — `compose.local.yaml` keeps one for
   development, and that is the only place it should exist now.
 - *Scope:* turn on **TLS to the database**, which the previous design deferred.
-  RDS supports it out of the box and the connection carries Clerk user ids and
-  email addresses. Append `?sslmode=verify-full` and ship the RDS CA bundle.
+  RDS makes it mandatory anyway (`rds.force_ssl=1`), and the connection carries
+  Clerk user ids and email addresses. `?sslmode=require` is the working minimum;
+  `verify-full` additionally needs Amazon's `global-bundle.pem` on each host.
+  Write `sslmode` in the environment either way — `core/settings.py` renames it to
+  `ssl` for asyncpg, which raises `TypeError` on `sslmode`, while psycopg rejects
+  `ssl`. One DSN cannot be handed to both drivers verbatim.
+- *Scope:* the instance certificate expires **2027-08-29**. Nothing tracks it, and
+  an expired cert with `force_ssl=1` is a total outage. Fold it into T6's alerting
+  or put it in a calendar.
 - *Acceptance:* the home stack comes up against RDS; `GET /ready` returns 200;
   an event created through the UI appears in RDS.
 
