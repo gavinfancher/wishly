@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './routes/LandingPage.tsx'
 import SignInPage from './routes/SignInPage.tsx'
 import SignUpPage from './routes/SignUpPage.tsx'
+import WaitlistPage from './routes/WaitlistPage.tsx'
 import ProtectedLayout from './routes/ProtectedLayout.tsx'
 import OnboardingGate from './routes/OnboardingGate.tsx'
 import OnboardingPage from './routes/OnboardingPage.tsx'
@@ -20,10 +21,12 @@ export default function App() {
       {/* Auth routes — rendered by Clerk's hosted components */}
       <Route path="/sign-in/*" element={<SignInPage />} />
       <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/waitlist" element={<WaitlistPage />} />
 
       {/* Aliases for the URLs people type */}
       <Route path="/login" element={<Navigate to="/sign-in" replace />} />
       <Route path="/signup" element={<Navigate to="/sign-up" replace />} />
+      <Route path="/join" element={<Navigate to="/waitlist" replace />} />
 
       {/* Public preferences page (linked from emails); auth optional */}
       <Route path="/preferences" element={<PreferencesPage />} />
