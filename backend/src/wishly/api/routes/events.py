@@ -82,7 +82,15 @@ async def create_event(body: EventCreate, principal: CurrentUser, session: DBSes
     )
     session.add(event)
     await session.flush()
-    await session.refresh(event, attribute_names=["reminders"])
+    # Refresh the server-managed columns as well as the relationship. A flush
+    # expires anything the database owns — `created_at`/`updated_at` carry
+    # server defaults and `updated_at` an onupdate — and refreshing only
+    # `reminders` leaves those expired. Pydantic then reads them synchronously
+    # in `_to_out`, which triggers a lazy load, which async SQLAlchemy cannot do:
+    #   MissingGreenlet: greenlet_spawn has not been called
+    # It surfaces as a 500 on an otherwise valid request. See routes/me.py, which
+    # hit the same thing on PATCH /me.
+    await session.refresh(event, attribute_names=["reminders", "created_at", "updated_at"])
     return _to_out(event)
 
 
@@ -121,7 +129,15 @@ async def update_event(
         setattr(event, field, value)
 
     await session.flush()
-    await session.refresh(event, attribute_names=["reminders"])
+    # Refresh the server-managed columns as well as the relationship. A flush
+    # expires anything the database owns — `created_at`/`updated_at` carry
+    # server defaults and `updated_at` an onupdate — and refreshing only
+    # `reminders` leaves those expired. Pydantic then reads them synchronously
+    # in `_to_out`, which triggers a lazy load, which async SQLAlchemy cannot do:
+    #   MissingGreenlet: greenlet_spawn has not been called
+    # It surfaces as a 500 on an otherwise valid request. See routes/me.py, which
+    # hit the same thing on PATCH /me.
+    await session.refresh(event, attribute_names=["reminders", "created_at", "updated_at"])
     return _to_out(event)
 
 

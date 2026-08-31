@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { ApiError, isOffline } from '../lib/api.ts'
 import type { Event, EventType } from '../lib/api.ts'
 import {
   DEFAULT_REMINDERS,
@@ -60,6 +61,45 @@ function fromEvent(event: Event): EventFormValues {
     is_active: event.is_active,
     reminders: event.reminders.length > 0 ? [...event.reminders] : [...DEFAULT_REMINDERS],
   }
+}
+
+/**
+ * Turn a save failure into something that tells the user what to do next.
+ *
+ * The previous blanket "Please try again" was worse than unhelpful when the
+ * cause was a deterministic server error: retrying could never work, and the
+ * message implied the input was at fault. Distinguish the three cases that need
+ * different actions — fix your input, check your connection, or wait for a fix.
+ */
+function describeSaveFailure(err: unknown): string {
+  if (isOffline(err)) {
+    return 'Wishly is unreachable. Check your connection and try again.'
+  }
+  if (err instanceof ApiError) {
+    if (err.status === 422 || err.status === 400) {
+      const detail = extractDetail(err.body)
+      return detail ? `That could not be saved: ${detail}` : 'Some of those details are not valid.'
+    }
+    if (err.status === 401 || err.status === 403) {
+      return 'Your session has expired. Sign in again and retry.'
+    }
+    if (err.status >= 500) {
+      return `Something went wrong on our end (${err.status}). This is not your input — your changes are still here, so nothing is lost.`
+    }
+  }
+  return 'Could not save this event. Please try again.'
+}
+
+/** Pull a readable message out of FastAPI's error body, if there is one. */
+function extractDetail(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return null
+  const detail = (body as { detail?: unknown }).detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const first = detail[0] as { msg?: unknown } | undefined
+    if (first && typeof first.msg === 'string') return first.msg
+  }
+  return null
 }
 
 export default function EventForm({
@@ -124,8 +164,8 @@ export default function EventForm({
 
     try {
       await onSubmit(values)
-    } catch {
-      setSubmitError('Could not save this event. Please try again.')
+    } catch (err) {
+      setSubmitError(describeSaveFailure(err))
     }
   }
 
