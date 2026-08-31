@@ -565,8 +565,17 @@ a {
   }
 
   .hero-mock {
-    justify-self: start;
-    margin-left: 0.5rem;
+    /* Was `start` with a 0.5rem nudge, which left the card visibly off-centre
+       once the hero collapsed to one column. */
+    justify-self: center;
+    margin-left: 0;
+    /* `.hero-mock-leaf` is absolutely positioned at `right: -0.9rem`, so it hangs
+       past the card's edge by design. On desktop the grid column absorbs that;
+       here the card fills its container and the date badge was clipped by the
+       viewport. Reserving the overhang keeps the badge on screen — and because
+       the leaf sits to the right, the small right margin centres the composition
+       as a whole rather than just the card box. */
+    margin-right: 0.9rem;
   }
 
   .how-steps {
@@ -756,13 +765,46 @@ body:has(.app-shell) {
 }
 
 @media (max-width: 780px) {
+  /* Hand scrolling back to the document.
+     The console's model is "the shell is exactly viewport-tall and only
+     `.content` scrolls", which needs `body { overflow: hidden }` to stop the
+     wheel chaining up and dragging the fixed-height shell off-screen. Below this
+     breakpoint the shell becomes `height: auto` and stacks vertically, so that
+     premise is gone — but the body lock was never lifted with it. The result was
+     a page where nothing scrolled at all: at 390x844 the content ran to 1536px
+     and the bottom 692px was simply unreachable. `.content` could not take over
+     either, because with an auto-height shell it is sized to its own content and
+     so has nothing to scroll. */
+  html:has(.app-shell) {
+    height: auto;
+  }
+
+  body:has(.app-shell) {
+    overflow: visible;
+  }
+
+  .app-main,
+  .content {
+    overflow: visible;
+  }
+
   .app-shell {
     /* minmax(0, 1fr), not 1fr: a grid track sized `1fr` still floors at the
        min-content width of its items, so one too-wide child widens the entire
-       page rather than being contained by it. */
+       page rather than being contained by it. This also replaces the horizontal
+       containment that `.app-main { overflow: hidden }` was providing before the
+       rule above relaxed it. */
     grid-template-columns: minmax(0, 1fr);
     height: auto;
     min-height: 100dvh;
+  }
+
+  /* With the page scrolling, a nav bar in normal flow scrolls away and leaves no
+     way to change section without scrolling back up. */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
   }
 
   .sidebar {

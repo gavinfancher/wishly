@@ -36,3 +36,6 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# Wrangler local state (caches the Cloudflare account id)
+.wrangler/
