@@ -757,7 +757,10 @@ body:has(.app-shell) {
 
 @media (max-width: 780px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr), not 1fr: a grid track sized `1fr` still floors at the
+       min-content width of its items, so one too-wide child widens the entire
+       page rather than being contained by it. */
+    grid-template-columns: minmax(0, 1fr);
     height: auto;
     min-height: 100dvh;
   }
@@ -1077,18 +1080,6 @@ body:has(.app-shell) {
   }
 }
 
-/* Comfortable touch targets when there's no mouse. */
-@media (pointer: coarse) {
-  .btn-quiet {
-    padding: 0.45rem 0.6rem;
-    font-size: 0.9rem;
-  }
-
-  .btn-icon {
-    padding: 0.4rem 0.55rem;
-  }
-}
-
 @media (max-width: 560px) {
   .events-header {
     flex-direction: column;
@@ -1296,7 +1287,6 @@ textarea {
   gap: 0.75rem;
   align-items: end;
 }
-
 
 /* A year isn't worth stepping through one at a time. */
 input[type='number']::-webkit-inner-spin-button,
@@ -2060,6 +2050,11 @@ input[type='number'] {
 
   .filter-chips {
     overflow-x: auto;
+    /* `max-width: 100%` alone does nothing here: a flex item defaults to
+       `min-width: auto`, which refuses to shrink below its intrinsic content
+       width, so the chip row pushed the whole shell wider than the viewport.
+       At 320px that overflowed by 19px and clipped the last chip. */
+    min-width: 0;
     max-width: 100%;
     padding-bottom: 2px;
     scrollbar-width: none;
@@ -2198,8 +2193,24 @@ input[type='number'] {
   }
 
   .sidebar {
-    overflow-x: visible;
+    /* Was `visible`, on the reasoning that icon-only nav "fits with room to
+       spare". True at 390px; false at 320px, where the row is ~19px too wide and
+       `visible` let it widen the whole document instead of scrolling — every
+       ancestor stretched to 339px and the last filter chip was clipped off the
+       screen. Scrolling a nav row is a much smaller cost than a page that
+       scrolls sideways. */
+    overflow-x: auto;
+    min-width: 0;
+    scrollbar-width: none;
     padding: 0.6rem 0.75rem;
+  }
+
+  .sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar-nav {
+    min-width: 0;
   }
 
   .nav-item {
@@ -2227,5 +2238,54 @@ input[type='number'] {
     justify-content: flex-start;
     align-self: auto;
     margin-top: 0.15rem;
+  }
+}
+
+/* ---------- Touch targets — LAST on purpose ----------
+   These override `--control-h` and the base control padding, both of which are
+   declared further up the file. At equal specificity the later rule wins, so
+   this block sitting earlier meant `.toolbar { --control-h: 34px }` quietly beat
+   it and every toolbar control stayed 34px tall on a phone. Keep it last. */
+/* Comfortable touch targets when there's no mouse.
+   The 34px control height is deliberate under a cursor and too small under a
+   thumb — 44px is the figure Apple's HIG and WCAG 2.5.5 both land on. Scoped to
+   `pointer: coarse` so the desktop density we designed for is untouched. */
+@media (pointer: coarse) {
+  .toolbar {
+    --control-h: 44px;
+  }
+
+  .nav-item {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .sidebar-brand {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* The row overflow menu is the smallest thing on a card and the easiest to
+     miss — it is declared as a hard 30x30. The icon inside stays 30px; only the
+     hit area grows, so nothing moves visually. */
+  .row-menu-trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Short labels ("All") leave the chip narrower than it is tall. */
+  .chip {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .btn-quiet {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .btn-icon {
+    padding: 0.4rem 0.55rem;
   }
 }
