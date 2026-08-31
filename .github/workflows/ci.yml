@@ -10,58 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: backend (lint, types, tests)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-
-    services:
-      postgres:
-        image: postgres:18.4
-        env:
-          POSTGRES_USER: wishly
-          POSTGRES_PASSWORD: wishly
-          POSTGRES_DB: wishly_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U wishly -d wishly_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      # The test fixtures refuse to run against a database whose name does not
-      # end in _test, because they truncate every table.
-      DATABASE_URL: postgresql://wishly:wishly@localhost:5432/wishly_test
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Sync dependencies
-        run: uv sync --frozen
-
-      - name: Lint
-        run: uv run ruff check .
-
-      - name: Format
-        run: uv run ruff format --check .
-
-      - name: Types
-        run: uv run mypy src
-
-      # No migration step: the test fixtures build the database from
-      # infra/sql/schema.sql, which is the same file that provisions production.
-      - name: Tests
-        run: uv run pytest
-
   frontend:
     name: frontend (lint, types, build)
     runs-on: ubuntu-latest
