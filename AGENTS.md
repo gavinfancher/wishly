@@ -45,6 +45,9 @@ Run backend commands from `backend/` (its own uv project).
 - Serve the deployments (what the worker container does): `uv run python -m wishly.orchestration.flows`
 - Frontend: `npm run lint && npm run typecheck && npm run build` (from `frontend/`)
 - Frontend dev server: `npm run dev` (from `frontend/`)
+- Ship a backend change to the VM: `./infra/deploy.sh --host ubuntu@<vm>`.
+  The frontend deploys itself on push to `main`; **the backend does not** — it is a
+  container image built on the host, and the old one keeps passing health checks.
 
 Full local stack (API, Postgres, worker, cloudflared tunnel):
 ```

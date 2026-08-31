@@ -228,6 +228,39 @@ In Prefect Cloud, the deployment should show exactly one healthy runner. Trigger
 `preview-reminder` with `send=false` — it renders from real rows without touching
 Resend, which proves database, rendering, and the Prefect round-trip in one go.
 
+## Shipping a backend change
+
+The frontend deploys itself — Cloudflare builds on push to `main`. **The backend
+does not.** It is a container image built on this host, so a backend fix on
+`main` is not live until something rebuilds it, and the gap is invisible: the old
+container keeps answering health checks perfectly while serving the old code.
+
+```bash
+./infra/deploy.sh --host ubuntu@<vm>     # from your laptop
+./infra/deploy.sh                        # on the VM itself
+./infra/deploy.sh --rollback             # put the previous images back
+```
+
+It refuses to run against a dirty tree on the host, fast-forwards only, tags the
+running images `:previous` before replacing them, waits for `/ready` (which hits
+RDS, so it also proves the database connection survived), and **verifies that
+each container is actually running the image it should be**.
+
+That last check is not paranoia. During its own first end-to-end test the script
+built a new image and compose left the containers on the old one — printing
+`Container infra-api-1 Running` rather than recreating — so the deploy looked
+clean and changed nothing. Containers are now replaced with `--force-recreate`
+rather than trusting compose's change detection, and the image IDs are compared
+afterwards because compose's output prints `Running` both when a container is
+correctly up to date and when it declined to replace one that was not.
+
+Recreating the worker kills an in-flight send. That cannot double-send —
+`notification_log`'s unique constraint sees to that — but an interrupted run can
+leave its row `pending` rather than `sent`, so deploy away from the top of the
+hour when you can.
+
+---
+
 ## Rollback
 
 Nothing was destroyed, so this is just reversing step 7:
