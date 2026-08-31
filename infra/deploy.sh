@@ -18,12 +18,35 @@
 # The frontend is untouched here.
 set -euo pipefail
 
+log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+die() { printf '\033[31merror: %s\033[0m\n' "$*" >&2; exit 1; }
+
 REPO="${WISHLY_ROOT:-/opt/wishly}"
 COMPOSE=(docker compose -f infra/compose.yaml --env-file infra/.env)
 # Only these are built from source. `schema` uses the stock postgres image and
 # `cloudflared` Cloudflare's, so rebuilding them would be a no-op at best.
 SERVICES=(api worker)
 HEALTH_TIMEOUT=120
+
+# Compare each running container's image ID against the tag it should be using.
+# Compose's own output is not evidence: it prints "Running" both when a container
+# is correctly up-to-date and when it declined to replace one that was not.
+verify_running_images() {
+  local svc cid running tagged bad=0
+  for svc in "${SERVICES[@]}"; do
+    cid="$(sudo "${COMPOSE[@]}" ps -q "$svc" 2>/dev/null || true)"
+    [[ -n "$cid" ]] || { echo "  $svc: no container!"; bad=1; continue; }
+    running="$(sudo docker inspect -f '{{.Image}}' "$cid")"
+    tagged="$(sudo docker image inspect -f '{{.Id}}' "wishly-${svc}:latest")"
+    if [[ "$running" == "$tagged" ]]; then
+      echo "  $svc: running ${tagged:7:12} (matches wishly-${svc}:latest)"
+    else
+      echo "  $svc: running ${running:7:12} but wishly-${svc}:latest is ${tagged:7:12} — STALE"
+      bad=1
+    fi
+  done
+  (( bad == 0 )) || die "at least one container is not running the image it should be"
+}
 
 REMOTE_HOST=""
 ROLLBACK=false
@@ -51,8 +74,6 @@ if [[ -n "$REMOTE_HOST" ]]; then
 fi
 
 cd "$REPO"
-log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
-die() { printf '\033[31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 
 [[ -f infra/compose.yaml ]] || die "no infra/compose.yaml under $REPO — wrong host, or set WISHLY_ROOT"
 [[ -s infra/.env ]] || die "infra/.env is missing or empty; the Infisical agent should render it"
@@ -67,7 +88,11 @@ if $ROLLBACK; then
     sudo docker tag "${img}:previous" "${img}:latest"
     echo "  ${img}:previous -> ${img}:latest"
   done
-  sudo "${COMPOSE[@]}" up -d "${SERVICES[@]}"
+  # --force-recreate for the same reason as the forward path below: retagging
+  # an image does not, on its own, reliably persuade compose to replace a
+  # running container.
+  sudo "${COMPOSE[@]}" up -d --force-recreate "${SERVICES[@]}"
+  verify_running_images
   log "Rolled back. The working tree still points at $(git rev-parse --short HEAD) — reset it if the code was the problem."
   exit 0
 fi
@@ -122,7 +147,14 @@ sudo "${COMPOSE[@]}" build "${SERVICES[@]}"
 log "Recreating containers"
 # `schema` is included so schema.sql is applied before the API starts against a
 # database that may be missing a table the new code expects. It is idempotent.
-sudo "${COMPOSE[@]}" up -d schema "${SERVICES[@]}"
+#
+# --force-recreate is not belt-and-braces. Without it this script built a new
+# image and compose left the containers on the old one — reporting "Running"
+# rather than "Recreated" — so the deploy looked clean while serving the previous
+# code. That is the exact failure this script exists to prevent, so the
+# containers are replaced unconditionally rather than relying on compose's
+# change detection.
+sudo "${COMPOSE[@]}" up -d --force-recreate schema "${SERVICES[@]}"
 
 # --- Verify ------------------------------------------------------------------
 log "Waiting for the API to report ready (up to ${HEALTH_TIMEOUT}s)"
@@ -147,6 +179,9 @@ if ! $ready; then
   printf '\n\033[31mRoll back with:  %s --rollback\033[0m\n' "$0"
   exit 1
 fi
+
+log "Verifying the containers actually took the new images"
+verify_running_images
 
 # /ready hits Postgres, so this also proves the RDS connection survived.
 log "Deployed"
