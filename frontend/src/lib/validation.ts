@@ -56,10 +56,17 @@ export function validateMonthDay(month: number, day: number): string | null {
 }
 
 export function validateEventYear(year: string): string | null {
-  if (!year.trim()) return null
-  const parsed = Number(year)
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 9999) {
-    return 'Year must be between 1 and 9999.'
+  const trimmed = year.trim()
+  if (!trimmed) return null
+  // Digits only, and at most four of them. `Number()` alone is too permissive
+  // here: it happily reads "1e3" as 1000 and " 12 " as 12, both of which would
+  // pass a range check while being nothing the user meant to type.
+  if (!/^\d{1,4}$/.test(trimmed)) {
+    return 'Year must be 4 digits or fewer, numbers only.'
+  }
+  const parsed = Number(trimmed)
+  if (parsed < 1 || parsed > 9999) {
+    return 'Year must be between 0001 and 9999.'
   }
   return null
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import type { Event, EventType } from '../lib/api.ts'
@@ -29,6 +29,11 @@ type EventFormProps = {
   onSubmit: (values: EventFormValues) => Promise<void>
   onCancel: () => void
   isSubmitting: boolean
+  /**
+   * Reports whether the user has changed anything, so the container can refuse
+   * to dismiss on a stray backdrop click and throw the work away.
+   */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 function emptyForm(): EventFormValues {
@@ -57,12 +62,30 @@ function fromEvent(event: Event): EventFormValues {
   }
 }
 
-export default function EventForm({ initial, onSubmit, onCancel, isSubmitting }: EventFormProps) {
-  const [values, setValues] = useState<EventFormValues>(() =>
-    initial ? fromEvent(initial) : emptyForm()
-  )
+export default function EventForm({
+  initial,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  onDirtyChange,
+}: EventFormProps) {
+  // What the form opened with. Held in state rather than a ref so it can be read
+  // during render without tripping the rules of hooks; it is initialised once
+  // and never set again, so it is a snapshot either way.
+  const [openedWith] = useState<EventFormValues>(() => (initial ? fromEvent(initial) : emptyForm()))
+  const [values, setValues] = useState<EventFormValues>(openedWith)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // "Dirty" means differs from what was there when it opened — so returning a
+  // field to its original value correctly counts as clean again.
+  const isDirty = useMemo(
+    () => JSON.stringify(values) !== JSON.stringify(openedWith),
+    [values, openedWith]
+  )
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
 
   const maxDay = values.event_month === 2 ? 29 : new Date(2024, values.event_month, 0).getDate()
   const dayOptions = Array.from({ length: maxDay }, (_, i) => i + 1)
@@ -179,12 +202,17 @@ export default function EventForm({ initial, onSubmit, onCancel, isSubmitting }:
             Year <span className="optional">(optional)</span>
           </span>
           <input
-            type="number"
-            min={1}
-            max={9999}
+            /* Not type="number": it ignores maxLength, accepts "1990e5" and
+               decimals, and shows spinners nobody wants on a year. Text plus
+               inputMode="numeric" keeps the numeric keypad on mobile while
+               letting us enforce four digits. */
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
             placeholder="e.g. 1990"
             value={values.event_year}
-            onChange={(e) => setField('event_year', e.target.value)}
+            onChange={(e) => setField('event_year', e.target.value.replace(/\D/g, '').slice(0, 4))}
           />
           {errors.event_year && <span className="form-error">{errors.event_year}</span>}
         </label>

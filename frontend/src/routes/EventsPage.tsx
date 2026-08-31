@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 
 import ConfirmDialog from '../components/ConfirmDialog.tsx'
 import EventRow from '../components/EventRow.tsx'
@@ -53,6 +54,12 @@ export default function EventsPage() {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Event | null>(null)
+  // Set by EventForm. Guards the two ways a modal gets dismissed by accident.
+  const [formDirty, setFormDirty] = useState(false)
+  // A drag that starts inside the panel and releases on the backdrop (selecting
+  // text, say) fires `click` on the overlay. Without this it reads as "clicked
+  // outside" and throws the form away mid-sentence.
+  const pressedOnBackdrop = useRef(false)
   const [confirmDelete, setConfirmDelete] = useState<Event | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
@@ -86,14 +93,16 @@ export default function EventsPage() {
   useEffect(() => {
     if (!modalOpen) return
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !isSaving) {
+      // Escape closes an untouched form, but never discards typed work — the
+      // Cancel button is the deliberate way out.
+      if (e.key === 'Escape' && !isSaving && !formDirty) {
         setModalOpen(false)
         setEditing(null)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [modalOpen, isSaving])
+  }, [modalOpen, isSaving, formDirty])
 
   function openCreate() {
     setEditing(null)
@@ -105,10 +114,24 @@ export default function EventsPage() {
     setModalOpen(true)
   }
 
+  /** Explicit dismissal — Cancel, or a successful save. Always closes. */
   function closeModal() {
     if (isSaving) return
     setModalOpen(false)
     setEditing(null)
+    setFormDirty(false)
+  }
+
+  /**
+   * Dismissal by clicking the backdrop. Ignored once the form has been touched:
+   * a misplaced click used to wipe out everything typed with no warning and no
+   * way back.
+   */
+  function handleBackdropClick(e: ReactMouseEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return
+    if (!pressedOnBackdrop.current) return
+    if (formDirty) return
+    closeModal()
   }
 
   async function handleSave(values: EventFormValues) {
@@ -277,7 +300,14 @@ export default function EventsPage() {
       )}
 
       {modalOpen && (
-        <div className="modal-overlay" role="presentation" onClick={closeModal}>
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(e) => {
+            pressedOnBackdrop.current = e.target === e.currentTarget
+          }}
+          onClick={handleBackdropClick}
+        >
           <div
             className="modal-panel"
             role="dialog"
@@ -290,6 +320,7 @@ export default function EventsPage() {
               onSubmit={handleSave}
               onCancel={closeModal}
               isSubmitting={isSaving}
+              onDirtyChange={setFormDirty}
             />
           </div>
         </div>
