@@ -543,12 +543,22 @@ Task IDs are stable references for assigning work. **Depends-on** must be comple
 
 ### Epic 8 — Cross-cutting
 
-**T8.1 — CI**
+**T8.1 — CI** — added 2026-08-30, removed the same day
 - *Depends on:* T0.1, T0.4
 - *Scope:* GitHub Actions: backend (`ruff`, `mypy`, `pytest` against a Postgres service) and frontend
   (`lint`, `typecheck`, `build`). Run on PR.
 - *Files:* `.github/workflows/ci.yml`.
 - *Acceptance:* CI is green on a clean PR and red when a check fails.
+- *Why it went:* every run failed, and a permanently red badge teaches you to
+  ignore the badge. The cause was small — `vite.config.ts` refuses to build
+  without a real `VITE_CLERK_PUBLISHABLE_KEY`, and the runner has no `.env`, so
+  the frontend job died before the backend job's result mattered.
+- *To bring it back:* restore the workflow and give the frontend job
+  `VITE_CLERK_PUBLISHABLE_KEY` as a plain `env:` value. It is a *publishable*
+  key — public by design, already visible in the shipped bundle — so it does not
+  need to be a repository secret. The backend job needs nothing extra: it builds
+  its database from `infra/sql/schema.sql` against a Postgres service container.
+  Until then the checks in AGENTS.md are run by hand before pushing.
 
 **T8.2 — Observability**
 - *Depends on:* T2.2, T5.4
