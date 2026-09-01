@@ -30,7 +30,7 @@ function HeroEmailMock() {
         <p className="hero-mock-subject">Mom’s birthday is in 7 days</p>
         <p className="hero-mock-body">
           Time to prepare — she turns 64 on {monthAbbr(occasion.getMonth() + 1)}{' '}
-          {occasion.getDate()}. Your note: “the blue ceramic vase at Harlow&nbsp;&amp;&nbsp;Co.”
+          {occasion.getDate()}. Your note: “the blue ceramic vase in my Amazon cart”
         </p>
         <span className="hero-mock-count">In 7 days</span>
       </div>
@@ -41,7 +41,7 @@ function HeroEmailMock() {
 const STEPS = [
   {
     title: 'Add the dates',
-    body: 'Birthdays, anniversaries, any day you can’t miss. A month and a day is all it takes — years are optional.',
+    body: 'Birthdays, anniversaries, any day you can’t miss.',
   },
   {
     title: 'Choose your lead time',
@@ -49,7 +49,7 @@ const STEPS = [
   },
   {
     title: 'Get the email',
-    body: 'Reminders land in your inbox at your hour, in your timezone. Nothing to install, nothing to check.',
+    body: 'Reminders land in your inbox, at your hour.',
   },
 ] as const
 
