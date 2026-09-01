@@ -39,3 +39,10 @@ Thumbs.db
 
 # Wrangler local state (caches the Cloudflare account id)
 .wrangler/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example

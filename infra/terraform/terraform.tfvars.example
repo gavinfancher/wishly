@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored;
+# this .example file is committed and must never contain a real value.
+#
+# Alternatives that avoid a file entirely:
+#   export TF_VAR_db_password='...'        # matches CLAUDE.md rule #5
+#   or an HCP workspace variable marked Sensitive
+
+db_password = "REPLACE-ME"

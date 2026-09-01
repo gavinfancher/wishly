@@ -1,0 +1,70 @@
+#cloud-config
+# First-boot configuration for the Tailscale subnet router.
+#
+# Cloud-init runs this ONCE, on the instance's very first boot. It does not
+# re-run on reboot, so anything that must survive a reboot has to be written to
+# disk as config (a sysctl file, an fstab line, a systemd mask) rather than
+# executed live. That distinction is exactly what bit the hand-built router:
+# `systemctl stop fwupd` held only until the next boot.
+#
+# This file is rendered by Terraform's templatefile(), so $${...} is a Terraform
+# interpolation, not shell. Shell variables here must be written $VAR, never
+# $${VAR}, or Terraform will try to resolve them and fail the plan.
+
+# ethtool is needed for the GRO tuning below; it is not in the minimal AMI.
+package_update: true
+packages:
+  - ethtool
+
+# bootcmd runs early and on EVERY boot, which is what we want for the mask:
+# it is idempotent, and it lands before any apt/snap activity can start.
+#
+# fwupd and packagekit are firmware- and GUI-package daemons. On a headless
+# router they do nothing useful, and each one wants 120-140 MB. They were the
+# largest repeat OOM victims on the old box, seven kills in 48 hours.
+#
+# unattended-upgrades is deliberately NOT masked. It was also being killed, but
+# the answer to "security updates don't fit in memory" is more memory, not fewer
+# security updates. With 1 GiB and a swapfile it now completes.
+bootcmd:
+  - [systemctl, mask, --now, fwupd.service, fwupd-refresh.service, packagekit.service]
+
+write_files:
+  # Forwarding must be on for a subnet router: by definition every packet it
+  # handles is addressed to somebody else. Under /etc/sysctl.d/ so it reapplies
+  # each boot rather than being a live-only setting.
+  - path: /etc/sysctl.d/99-tailscale.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+
+  # Tailscale warns at startup that default NIC offload settings cap forwarding
+  # throughput. networkd-dispatcher reruns this hook every time the link comes
+  # up, so it survives reboots and NIC renames. The interface is discovered
+  # rather than hardcoded to ens5, which is not stable across instance types.
+  - path: /etc/networkd-dispatcher/routable.d/50-tailscale
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+      IFACE=$(ip -o route get 1.1.1.1 | awk '{print $5}')
+      ethtool -K "$IFACE" rx-udp-gro-forwarding on rx-gro-list off
+
+runcmd:
+  # A swapfile does not make the box faster; it makes memory pressure degrade
+  # into slowness instead of into the OOM killer. The old router had none, so
+  # every allocation spike went straight to a kill. Guarded so a re-run is safe.
+  - [sh, -c, "test -f /swapfile || (fallocate -l ${swap_size} /swapfile && chmod 600 /swapfile && mkswap /swapfile)"]
+  - [sh, -c, "swapon --show | grep -q /swapfile || swapon /swapfile"]
+  - [sh, -c, "grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab"]
+
+  - [sysctl, -p, /etc/sysctl.d/99-tailscale.conf]
+
+  - [sh, -c, "curl -fsSL https://tailscale.com/install.sh | sh"]
+
+  # --advertise-routes only OFFERS the route. It stays inert until approved in
+  # the tailnet policy (see autoApprovers in the README notes).
+  # --accept-dns=false stops tailscaled rewriting /etc/resolv.conf on a server.
+  - [sh, -c, "tailscale up --auth-key='${tailscale_auth_key}' --advertise-routes='${advertise_routes}' --accept-dns=false --hostname='${tailscale_hostname}'"]
+
+  # Apply the GRO hook now; networkd-dispatcher handles it on later boots.
+  - [sh, -c, "/etc/networkd-dispatcher/routable.d/50-tailscale || true"]

@@ -1,0 +1,288 @@
+# Tailscale subnet router — the single network path from the tailnet into the
+# VPC, and therefore the thing that must be reachable for the API and the send
+# pipeline to see RDS at all. See docs/runbooks/aws-vpc-tailscale.md.
+#
+#   terraform init
+#   terraform plan
+#   terraform apply
+#
+# Everything the hand-built router needed a human to remember is encoded here:
+# source/dest check off, IP forwarding, swap, the masked memory hogs, a private
+# IP outside the range the home LAN shadows, and a static public IP.
+
+# ---------------------------------------------------------------------------
+# 1. Providers — which plugins Terraform downloads, and at what versions.
+# ---------------------------------------------------------------------------
+# Pinning matters: without it, a provider release months from now can change
+# a default under you and `terraform apply` proposes changes you did not write.
+terraform {
+  required_version = ">= 1.9"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0" # 6.x, but not 7.0 — allows patches, blocks breaking majors.
+    }
+  }
+
+  # State lives in a local terraform.tfstate for now. See the README notes on
+  # moving it to S3 before a second person (or machine) ever runs apply.
+}
+
+provider "aws" {
+  region = var.region
+}
+
+# ---------------------------------------------------------------------------
+# 2. Variables — the inputs. Anything environment-specific or secret.
+# ---------------------------------------------------------------------------
+variable "region" {
+  description = "AWS region. The VPC and RDS both live here."
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "instance_type" {
+  description = <<-EOT
+    t4g.micro (1 GiB), not t4g.nano (512 MiB). The nano had ~343 MiB usable
+    after kernel reserves and OOM-killed something 31 times in 48 hours before
+    wedging. The extra ~$3/month buys the only path into the VPC.
+  EOT
+  type        = string
+  default     = "t4g.micro"
+}
+
+variable "subnet_id" {
+  description = "Public subnet for the router. It needs an internet path to reach the Tailscale coordination server."
+  type        = string
+  default     = "subnet-05a06e430010ed238" # 10.0.0.0/20, us-east-1a, routes to the IGW
+}
+
+variable "private_ip" {
+  description = <<-EOT
+    Pinned so the router can never land in 10.0.0.0/24. The home LAN is
+    10.0.0.0/24, which is more specific than the tunnel's 10.0.0.0/16 route and
+    therefore wins — any VPC address in that range is invisible from the laptop,
+    failing as a bare timeout. The old router got 10.0.11.59 by luck. Anything
+    in this subnet above .0.255 is fine.
+  EOT
+  type        = string
+  default     = "10.0.11.60"
+}
+
+variable "vpc_id" {
+  description = "VPC the router and RDS share."
+  type        = string
+  default     = "vpc-082652e0a55804c01"
+}
+
+variable "advertise_routes" {
+  description = "CIDR the router offers to the tailnet. One /16 covers all four subnets, so adding a subnet later needs no change here."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "tailscale_hostname" {
+  description = "Node name in the tailnet."
+  type        = string
+  default     = "wishly-vpc-router"
+}
+
+variable "tailscale_auth_key" {
+  description = <<-EOT
+    Tailscale auth key, used once at first boot to join the tailnet. Make it
+    reusable=false, ephemeral=false, and short-lived — see the README notes on
+    why this ends up in state and what that means.
+  EOT
+  type        = string
+  sensitive   = true # keeps it out of plan/apply output. NOT out of state.
+}
+
+variable "ssh_key_name" {
+  description = "Existing EC2 key pair for the SSH fallback."
+  type        = string
+  default     = "macbook-pro-key"
+}
+
+variable "ssh_ingress_cidrs" {
+  description = <<-EOT
+    Who may reach port 22 on the public IP. The old SG allowed 0.0.0.0/0 as a
+    fallback independent of the tailnet. Deliberately has no default: set it to
+    your own address, or to ["0.0.0.0/0"] if you want the old behaviour back.
+  EOT
+  type        = list(string)
+}
+
+variable "rds_security_group_id" {
+  description = "SG attached to RDS. The router needs an ingress rule on it, or every connection times out with the SG as the cause."
+  type        = string
+  default     = "sg-0358d6914bd8d3d7e"
+}
+
+variable "swap_size" {
+  description = "Swapfile size, passed to fallocate."
+  type        = string
+  default     = "2G"
+}
+
+# ---------------------------------------------------------------------------
+# 3. Data sources — read something that already exists. They never change it.
+# ---------------------------------------------------------------------------
+# Canonical publishes the current Ubuntu AMI id as a public SSM parameter, so
+# this resolves at plan time instead of being a hardcoded ami-* that silently
+# rots. Note the consequence: when Canonical publishes a new image, this value
+# changes and Terraform will want to replace the instance. That is a feature
+# here (the router is stateless and rebuildable), but it is why you read the
+# plan before applying.
+data "aws_ssm_parameter" "ubuntu" {
+  name = "/aws/service/canonical/ubuntu/server/26.04/stable/current/arm64/hvm/ebs-gp3/ami-id"
+}
+
+# ---------------------------------------------------------------------------
+# 4. Resources — the things Terraform creates and owns.
+# ---------------------------------------------------------------------------
+
+resource "aws_security_group" "router" {
+  name        = "wishly-vpc-router"
+  description = "Tailscale subnet router: SSH fallback in, everything out."
+  vpc_id      = var.vpc_id
+
+  tags = { Name = "wishly-vpc-router" }
+}
+
+# Rules are separate resources rather than inline blocks. Inline rules make the
+# SG authoritative — anything added by hand in the console gets silently
+# reverted on the next apply, which is a surprising way to lose access.
+resource "aws_vpc_security_group_ingress_rule" "ssh" {
+  for_each = toset(var.ssh_ingress_cidrs)
+
+  security_group_id = aws_security_group.router.id
+  description       = "SSH fallback, independent of the tailnet"
+  cidr_ipv4         = each.value
+  from_port         = 22
+  to_port           = 22
+  ip_protocol       = "tcp"
+}
+
+# Tailscale needs no inbound rule. It makes an outbound connection to the
+# coordination server and NAT-traverses, so egress is the whole requirement.
+resource "aws_vpc_security_group_egress_rule" "all" {
+  security_group_id = aws_security_group.router.id
+  description       = "All egress: Tailscale coordination, DERP relays, apt"
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+
+# The rule that actually lets the router talk to the database.
+#
+# It references the SOURCE SECURITY GROUP, not a Tailscale CIDR. The router
+# SNATs forwarded traffic to its own private address, so from RDS's side the
+# packets arrive from the router's ENI — a rule keyed to 100.x tailnet
+# addresses would match nothing at all.
+#
+# This rule attaches to an SG that Terraform does not otherwise manage. That is
+# fine: Terraform owns this one rule, and leaves the rest of the SG alone.
+resource "aws_vpc_security_group_ingress_rule" "rds_from_router" {
+  security_group_id            = var.rds_security_group_id
+  description                  = "Postgres from the Tailscale subnet router"
+  referenced_security_group_id = aws_security_group.router.id
+  from_port                    = 5432
+  to_port                      = 5432
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_instance" "router" {
+  ami           = data.aws_ssm_parameter.ubuntu.value
+  instance_type = var.instance_type
+  subnet_id     = var.subnet_id
+  private_ip    = var.private_ip
+  key_name      = var.ssh_key_name
+
+  vpc_security_group_ids = [aws_security_group.router.id]
+
+  # THE setting. EC2 drops any packet whose source or destination is not the
+  # instance itself — which is every packet a subnet router forwards. Left at
+  # the default true, everything installs cleanly, the node reports healthy,
+  # the route shows approved, and no traffic reaches the VPC.
+  source_dest_check = false
+
+  # Burstable instances throttle to a low baseline once CPU credits run out.
+  # "unlimited" pays a small overage instead, which is the right trade for
+  # infrastructure whose failure mode is a total VPC outage.
+  credit_specification {
+    cpu_credits = "unlimited"
+  }
+
+  root_block_device {
+    volume_size           = 12 # 8 GB plus room for the swapfile and apt cache
+    volume_type           = "gp3"
+    encrypted             = true
+    delete_on_termination = true
+  }
+
+  # IMDSv2 required: blocks the SSRF-to-credentials path against IMDSv1.
+  metadata_options {
+    http_tokens   = "required"
+    http_endpoint = "enabled"
+  }
+
+  user_data = templatefile("${path.module}/cloud-init.yaml", {
+    tailscale_auth_key = var.tailscale_auth_key
+    tailscale_hostname = var.tailscale_hostname
+    advertise_routes   = var.advertise_routes
+    swap_size          = var.swap_size
+  })
+
+  # Cloud-init only runs on FIRST boot. By default a user_data change triggers
+  # a stop/start, which would never re-run it — you would apply a config change
+  # and get nothing, with Terraform reporting success. This makes the change
+  # rebuild the instance, so what the file says is what the box has.
+  user_data_replace_on_change = true
+
+  tags = { Name = "wishly-vpc-router" }
+}
+
+# A static public IP. The old router's IP was dynamic, so any stop/start would
+# have changed it and broken the documented SSH fallback — which meant the one
+# recovery action for a wedged box was also the one that invalidated the
+# runbook. The EIP survives both stop/start and full replacement.
+resource "aws_eip" "router" {
+  domain = "vpc"
+  tags   = { Name = "wishly-vpc-router" }
+}
+
+resource "aws_eip_association" "router" {
+  instance_id   = aws_instance.router.id
+  allocation_id = aws_eip.router.id
+}
+
+# ---------------------------------------------------------------------------
+# 5. Outputs — values printed after apply, and readable later with
+#    `terraform output`. Handy for runbooks that need the current address.
+# ---------------------------------------------------------------------------
+output "instance_id" {
+  description = "EC2 instance id, for describe-instance-status when it misbehaves."
+  value       = aws_instance.router.id
+}
+
+output "public_ip" {
+  description = "Static EIP. SSH fallback: ssh ubuntu@<this>"
+  value       = aws_eip.router.public_ip
+}
+
+output "private_ip" {
+  description = "VPC address of the router."
+  value       = aws_instance.router.private_ip
+}
+
+output "next_steps" {
+  description = "The parts Terraform cannot do for you."
+  value       = <<-EOT
+    1. Approve ${var.advertise_routes} for ${var.tailscale_hostname} in the
+       Tailscale admin console (Machines -> Route settings), unless the tailnet
+       policy autoApproves it. Advertised != approved.
+    2. Disable key expiry for this machine, or it goes dark in ~180 days.
+    3. Verify: tailscale status --json | grep PrimaryRoutes
+    4. Verify from the laptop: pg_isready -h <rds-endpoint> -p 5432
+  EOT
+}

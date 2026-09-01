@@ -1,0 +1,19 @@
+#cloud-config
+# First-boot setup. Cloud-init reads this once, on the instance's very first
+# boot — not on later reboots.
+
+# Runs `apt-get update` before installing anything below.
+package_update: true
+
+# The cloud-init way to say `apt-get install -y btop`. Better than putting apt
+# commands in runcmd: cloud-init waits for the apt lock and handles the
+# non-interactive flags for you.
+packages:
+  - btop
+
+# Anything that is not a package install goes here, in order.
+runcmd:
+  # Installs the tailscale binary and enables tailscaled. It does NOT join the
+  # tailnet — that needs `sudo tailscale up`, which you run over SSH so no auth
+  # key has to live in this file or in Terraform state.
+  - [sh, -c, "curl -fsSL https://tailscale.com/install.sh | sh"]
