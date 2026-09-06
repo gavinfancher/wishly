@@ -12,7 +12,7 @@
 -- There are no migrations. `create table if not exists` creates what is missing
 -- and leaves what exists untouched — it will NOT alter an existing table. On a
 -- database that already holds data, a column change is hand-written SQL applied
--- before this file is re-run. See docs/runbooks/database.md.
+-- before this file is re-run.
 
 -- gen_random_uuid() is core in Postgres 13+, but pgcrypto keeps this working on
 -- older servers and costs nothing where it is already built in.

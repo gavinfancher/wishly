@@ -4,7 +4,7 @@
 #   ./infra/infisical/up.sh            # render + up -d
 #   ./infra/infisical/up.sh --render   # render only, don't touch containers
 #
-# macOS workstation equivalent of the systemd agent in docs/runbooks/secrets.md.
+# macOS workstation equivalent of the systemd agent on the VM (agent.vm.yaml).
 # One-shot: no daemon is left running. Re-run it whenever a secret changes.
 set -euo pipefail
 

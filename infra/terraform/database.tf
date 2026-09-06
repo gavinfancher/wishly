@@ -1,5 +1,9 @@
 # RDS Postgres in the isolated subnets.
 #
+# NOTE: this is a Terraform exercise, not production. Wishly's real database is
+# PlanetScale (see ../database-choice.md) and nothing here backs the running
+# app — the whole `wishly-tf-test` stack is safe to destroy.
+#
 # Three resources, three different layers — none of them is "another database":
 #
 #   aws_subnet.private_a/b   address ranges (in network.tf)
@@ -13,9 +17,8 @@
 
 # Not a network — pure metadata. Costs nothing, creates nothing.
 #
-# It contains ONLY the two isolated subnets, which is the structural fix for
-# open item #2 in docs/runbooks/aws-vpc-tailscale.md: prod's group spans the
-# public subnets too, so a restore could legitimately place the database in a
+# It contains ONLY the two isolated subnets. An RDS subnet group that also spans
+# public subnets lets a restore legitimately place the database in a
 # publicly-routable subnet, or inside the 10.0.0.x range the home LAN shadows.
 # With this group, that placement is not a rule to remember — it is unavailable.
 resource "aws_db_subnet_group" "main" {
@@ -29,8 +32,8 @@ resource "aws_db_instance" "main" {
   identifier = "wishly-tf-test"
 
   engine = "postgres"
-  # 18.4 matches the postgres image CLAUDE.md pins for local Docker. Prod runs
-  # 18.3 — that drift is runbook open item #9, not something to reproduce here.
+  # 18.4 matches the postgres image the local Docker overlay pins, so the
+  # sandbox and a local stack behave the same.
   engine_version = "18.4"
   instance_class = "db.t4g.micro"
 

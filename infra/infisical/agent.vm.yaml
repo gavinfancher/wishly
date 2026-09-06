@@ -7,7 +7,7 @@
 # `polling-interval` instead of waiting for someone to run a script.
 #
 # Installed at /opt/wishly/infra/infisical/agent.vm.yaml and driven by
-# infra/systemd/infisical-agent.service. See docs/runbooks/pve-vm-deploy.md.
+# infra/systemd/infisical-agent.service.
 #
 # Paths are absolute and rooted at /etc and /opt: there is no __HOME__
 # substitution here because this does not run as a login user.
@@ -24,8 +24,8 @@ infisical:
 auth:
   type: "universal-auth"
   config:
-    # A machine identity belonging to THIS host only. Do not reuse the Mac's —
-    # see docs/runbooks/secrets.md §2.
+    # A machine identity belonging to THIS host only. Never reuse the Mac's:
+    # one credential across two hosts means revoking either revokes both.
     client-id: "/etc/infisical/wishly-client-id"
     client-secret: "/etc/infisical/wishly-client-secret"
     # Must stay false: true deletes the client secret after first read, which

@@ -5,8 +5,7 @@ time to actually do something about them. Add an occasion, choose how many days'
 warning you want, and the reminder arrives at an hour you pick, in your timezone.
 
 It is a personal project, built to be run properly rather than just demoed: real
-auth, real email delivery, an idempotent send pipeline, and a documented failover
-onto AWS when the home server goes dark.
+auth, real email delivery, and an idempotent send pipeline.
 
 ---
 
@@ -133,8 +132,8 @@ end in `_test`, because the fixtures truncate every table.
 `create table if not exists`. For a single-user app whose schema changes a few
 times a year, a migration tool is more machinery than the problem deserves. The
 cost is real and worth naming: this will not *alter* an existing table, so a
-column change on a live database is hand-written SQL. The [deployment
-plan](docs/DEPLOYMENT-PLAN.md) says so where it matters.
+column change on a live database is hand-written SQL, applied before the file is
+re-run.
 
 **Prefect for one hourly job.** Overkill on the face of it, and cron is one flag
 away (`--once`). It stays because the send window is exactly one hour wide, so a
@@ -142,10 +141,10 @@ tick missed during a reboot is a reminder that is simply never sent. Prefect kee
 that run pending instead of dropping it. The schedule lives in Prefect Cloud
 rather than on the server, so it survives the server it schedules.
 
-**The database left the house first.** Moving Postgres to RDS is what makes the
-AWS standby simple: both application hosts are stateless and point at the same
-database, so a failover moves compute and nothing else. Nothing is promoted,
-replicated, or reconciled.
+**The database left the house first.** Postgres is PlanetScale, reached over the
+public internet with TLS, so the application containers hold no state and no host
+has to sit in a particular network to reach its data. See
+[infra/database-choice.md](infra/database-choice.md).
 
 ---
 
@@ -160,20 +159,17 @@ backend/     FastAPI app, send pipeline, models — one package, two entrypoints
     email/          Jinja2 rendering + Resend client
     orchestration/  due-date logic, Prefect flows and tasks
 frontend/    React + Vite SPA
-infra/       compose files, Dockerfiles, schema.sql, backup, failover watchdog
-docs/        PLAN.md (product), DEPLOYMENT-PLAN.md (ops), runbooks/
+infra/       compose files, Dockerfiles, schema.sql, Infisical, Terraform
 ```
 
 ---
 
 ## Documentation
 
-- [docs/PLAN.md](docs/PLAN.md) — the product and the build plan
-- [docs/DEPLOYMENT-PLAN.md](docs/DEPLOYMENT-PLAN.md) — topology, failover, open tasks
-- [docs/runbooks/pve-vm-deploy.md](docs/runbooks/pve-vm-deploy.md) — moving the
-  deployment off a workstation onto a Proxmox VM, against RDS
-- [docs/runbooks/](docs/runbooks/) — local dev, deploys, secrets, backup/restore,
-  Cloudflare, Resend, the AWS VPC and Tailscale setup
+- [AGENTS.md](AGENTS.md) — what this is, the stack, and where it is going
+- [infra/database-choice.md](infra/database-choice.md) — why the database is managed
+- [infra/terraform/reference/README.md](infra/terraform/reference/README.md) — the
+  AWS VPC and Tailscale subnet router
 
 ---
 

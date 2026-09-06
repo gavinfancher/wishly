@@ -1,8 +1,11 @@
 -- Wishly database bootstrap. Creates the login role and the database that
 -- infra/sql/schema.sql then populates.
 --
--- Run ONCE against a new server, as the RDS master user (or a superuser on a
--- self-hosted Postgres):
+-- Mostly for self-hosted and local use: PlanetScale hands you the database and a
+-- role already, so production skips straight to schema.sql.
+--
+-- Run ONCE against a new server, as an admin role that may create roles and
+-- databases (a superuser on self-hosted Postgres):
 --
 --   psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
 --     -v wishly_password="'...'" -f create_tenant.sql
@@ -11,10 +14,10 @@
 --
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema.sql
 --
--- The app connects as `wishly`, never as the master user. On RDS the master user
--- is not a true superuser, but it can create roles and databases, which is all
--- this needs. Prefect keeps its own state in Prefect Cloud, so there is no
--- second tenant here.
+-- The app connects as `wishly`, never as the admin role. That admin need not be
+-- a true superuser — creating a role and a database is all this requires, which
+-- is the most a managed provider will hand you. Prefect keeps its own state in
+-- Prefect Cloud, so there is no second tenant here.
 
 \set ON_ERROR_STOP on
 
@@ -23,10 +26,10 @@ select format('create role wishly login password %L', :wishly_password)
 where not exists (select 1 from pg_roles where rolname = 'wishly')
 \gexec
 
--- REQUIRED on RDS, and easy to miss on a self-hosted server where you are
--- superuser and it is a no-op.
+-- REQUIRED on a managed provider, and easy to miss on a self-hosted server
+-- where you are superuser and it is a no-op.
 --
--- The RDS master user is deliberately not a superuser, and Postgres 16+ requires
+-- A managed admin role is deliberately not a superuser, and Postgres 16+ requires
 -- whoever runs `create database ... owner X` to be able to `set role X`. Without
 -- this grant the next statement fails with:
 --

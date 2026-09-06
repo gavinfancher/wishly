@@ -2,7 +2,7 @@
 # this .example file is committed and must never contain a real value.
 #
 # Alternatives that avoid a file entirely:
-#   export TF_VAR_db_password='...'        # matches CLAUDE.md rule #5
+#   export TF_VAR_db_password='...'        # no secrets in git, ever
 #   or an HCP workspace variable marked Sensitive
 
 db_password = "REPLACE-ME"

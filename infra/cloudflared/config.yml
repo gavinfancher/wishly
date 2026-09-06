@@ -1,9 +1,9 @@
-# Locally-managed tunnel ingress (PLAN T7.3).
+# Locally-managed tunnel ingress.
 #
-# Production uses a *remotely-managed* tunnel driven by TUNNEL_TOKEN (the
-# docker-compose `cloudflared` service + the dashboard public-hostname route) —
-# see docs/runbooks/cloudflare-tunnel.md. This file is the file-based equivalent,
-# kept for offline/local use or if you switch to a credentials-file tunnel.
+# Production uses a *remotely-managed* tunnel driven by TUNNEL_TOKEN: the
+# compose `cloudflared` service plus the public-hostname route configured in the
+# Cloudflare dashboard. This file is the file-based equivalent, kept for
+# offline/local use or if you switch to a credentials-file tunnel.
 #
 # Usage (locally-managed):
 #   cloudflared tunnel --config infra/cloudflared/config.yml run

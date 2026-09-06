@@ -28,8 +28,9 @@ if [[ ! -s "$ENV_FILE" ]]; then
 fi
 
 # Every key the stack needs to come up correctly. Keep in sync with
-# infra/.env.example. POSTGRES_* are absent on purpose: this host uses RDS, and
-# the only Postgres container lives in the local overlay, which is not used here.
+# infra/.env.example. POSTGRES_* are absent on purpose: this host talks to
+# PlanetScale, and the only Postgres container lives in the local overlay, which
+# is not used here.
 REQUIRED=(
   DATABASE_URL
   TUNNEL_TOKEN RESEND_API_KEY EMAIL_FROM
@@ -48,11 +49,11 @@ if (( ${#MISSING[@]} )); then
   exit 1
 fi
 
-# rds.force_ssl=1 on the RDS parameter group refuses a plain connection. Catching
-# it here turns a confusing runtime failure into a named one.
+# PlanetScale refuses a plaintext connection. Catching it here turns a confusing
+# runtime failure into a named one.
 if ! grep -qE '^DATABASE_URL=.*sslmode=' "$ENV_FILE"; then
   log "error: DATABASE_URL has no sslmode= parameter." >&2
-  log "RDS refuses non-TLS connections; add ?sslmode=require to the DSN." >&2
+  log "The database refuses non-TLS connections; add ?sslmode=require to the DSN." >&2
   exit 1
 fi
 
@@ -64,8 +65,8 @@ log "$ENV_FILE validated; keys: $(grep -oE '^[A-Z_]+=' "$ENV_FILE" | tr -d '=' |
 cd "$REPO_ROOT"
 
 # No compose.local.yaml: that overlay exists to add a Postgres container, and
-# this host talks to RDS. Adding it here would start a second, empty database
-# and quietly point the app at it.
+# this host talks to PlanetScale. Adding it here would start a second, empty
+# database and quietly point the app at it.
 log "docker compose up -d"
 docker compose -f infra/compose.yaml --env-file infra/.env up -d
 

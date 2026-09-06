@@ -3,8 +3,8 @@
 #   docker compose -f infra/compose.yaml --env-file infra/.env up -d
 #
 # Three long-lived containers and one one-shot. The database is NOT here: it is
-# Amazon RDS, reached over the VPN via DATABASE_URL. For a self-contained stack
-# with a local Postgres, add the overlay:
+# PlanetScale Postgres, reached over the public internet via DATABASE_URL. For a
+# self-contained stack with a local Postgres, add the overlay:
 #
 #   docker compose -f infra/compose.yaml -f infra/compose.local.yaml \
 #     --env-file infra/.env up -d
@@ -16,26 +16,9 @@ services:
   # throughout, so running it on every boot is a no-op once the tables exist.
   #
   # It waits for the database itself rather than using `depends_on: healthy`,
-  # which cannot span hosts: with the database on RDS there is no local container
-  # to depend on, and a compose restart while RDS is still reachable-but-slow
-  # would otherwise start the API against an empty schema.
-  schema:
-    image: postgres:18.4
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        until pg_isready -d "$$DATABASE_URL" >/dev/null 2>&1; do
-          echo "waiting for database..."
-          sleep 2
-        done
-        psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema.sql
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-    volumes:
-      - ./sql/schema.sql:/schema.sql:ro
-    restart: "no"
-    networks:
-      - app_net
+  # which cannot span hosts: with the database on PlanetScale there is no local
+  # container to depend on, and a compose restart while the database is still
+  # reachable-but-slow would otherwise start the API against an empty schema.
 
   api:
     build:
@@ -65,9 +48,9 @@ services:
   # job — there is no work pool, no separate worker, and no prefect.yaml.
   #
   # Scheduling lives in Prefect Cloud (PREFECT_API_URL + PREFECT_API_KEY), so the
-  # control plane survives this host going away. That matters: the standby EC2
-  # exists precisely for the case where this machine is gone, and a scheduler
-  # running here would be gone with it.
+  # control plane survives this host going away. That matters: the standby exists
+  # precisely for the case where this machine is gone, and a scheduler running
+  # here would be gone with it.
   worker:
     build:
       context: ..

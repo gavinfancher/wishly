@@ -1,6 +1,5 @@
 # Tailscale subnet router — the single network path from the tailnet into the
-# VPC, and therefore the thing that must be reachable for the API and the send
-# pipeline to see RDS at all. See docs/runbooks/aws-vpc-tailscale.md.
+# VPC, and what puts the AWS side on the tailnet at all.
 #
 #   terraform init
 #   terraform plan

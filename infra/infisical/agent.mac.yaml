@@ -1,8 +1,8 @@
 # Infisical agent — macOS workstation, ONE-SHOT (no daemon).
 #
-# docs/runbooks/secrets.md describes the production shape: a long-running agent
-# supervised by systemd, polling for changes. This Mac has no systemd and we do
-# not want a background daemon, so `exit-after-auth: true` makes the agent
+# Production (agent.vm.yaml) is a long-running agent supervised by systemd,
+# polling for changes. This Mac has no systemd and we do not want a background
+# daemon, so `exit-after-auth: true` makes the agent
 # authenticate, render infra/.env once, and exit. infra/infisical/up.sh runs it
 # immediately before `docker compose up`, which is the moment the values are
 # actually needed.
