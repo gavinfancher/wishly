@@ -95,9 +95,9 @@ cd frontend && cp .env.example .env
 npm install && npm run dev
 ```
 
-The UI runs without any backend at all with `VITE_MOCK_API=true`, and against a
-real backend without Clerk with `AUTH_DEV_BYPASS=true` (non-production only —
-`ENVIRONMENT=prod` disables it permanently, whatever the flag says).
+The UI runs without any backend at all with `VITE_MOCK_API=true`. Against a real
+backend it always authenticates through Clerk — there is no bypass, in any
+environment.
 
 The full stack, including the tunnel:
 

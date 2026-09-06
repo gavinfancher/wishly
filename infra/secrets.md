@@ -9,8 +9,9 @@ ECS — reads the same secret, `wishly/prod`, through the same code.
    (edit here)           (one JSON document)                (boto3, at startup)
 ```
 
-`infra/.env` holds only what is needed to *reach* AWS: which secret, which
-region, and credentials where the host is not in AWS. That is the same shape an
+`infra/.env` holds only what is needed to *reach* AWS: which secret, and
+credentials where the host is not in AWS. The region is fixed at `us-east-1` in
+`bootstrap.py` — every Wishly resource lives there. That is the same shape an
 ECS task definition has, which is the point — local is a rehearsal of failover,
 not a different arrangement.
 
@@ -41,28 +42,28 @@ Grant it `secretsmanager:{Create,Update,Put,Describe,Get,Tag}*` on
 `wishly/prod`, auto-sync on. Many-To-One matters: one secret at $0.40/month
 instead of eight, and one thing to reference instead of eight.
 
-**3. Put the whole environment in Infisical.** The synced document has to be
-complete, because nothing else contributes to it now. Six values used to be
-literals in the deleted `env.vm.tmpl`: `ENVIRONMENT`, `AUTH_DEV_BYPASS`,
-`CLERK_FRONTEND_API`, `EMAIL_FROM`, `APP_BASE_URL`, `ALLOWED_ORIGINS`.
+**3. Keep Infisical to actual secrets.** The synced document needs every value the
+app cannot default. It does not need deployment constants: `APP_BASE_URL`,
+`ALLOWED_ORIGINS`, `CLERK_FRONTEND_API` and `EMAIL_FROM` now default to their
+production values in `core/settings.py`, so they belong in code, not in a secret
+store. Override them in `infra/.env` when you want a local frontend.
 
-You do not have to take this list on trust. At `ENVIRONMENT=prod` the app
-refuses to start when any of them is missing or still at a development default,
-and names the ones it wants:
+`ENVIRONMENT` is the one deployment fact worth setting explicitly — it is the
+switch the checks below key off.
+
+You do not have to take any of this on trust. At `ENVIRONMENT=prod` the app
+refuses to start when a required secret is missing, or when a deployment constant
+has been overridden back to a localhost value, and it names them:
 
 ```
 ENVIRONMENT=prod but these are unset or still at their development default:
-allowed_origins, app_base_url, clerk_frontend_api. Add them to the secret this
-process loads (see infra/secrets.md), or run with ENVIRONMENT=dev.
+clerk_secret_key, resend_api_key. Add them to the secret this process loads
+(see infra/secrets.md), or run with ENVIRONMENT=dev.
 ```
 
-That check lives in `core/settings.py`. The localhost defaults are the reason
-it exists: an unset `ALLOWED_ORIGINS` does not fail, it silently falls back to
-`http://localhost:5173` and breaks CORS in production while every health check
-stays green.
-
-Delete `PREFECT_SERVER_DATABASE_CONNECTION_URL` and `PREFECT_WORK_POOL` while
-you are there — leftovers from self-hosted Prefect.
+Delete `PREFECT_SERVER_DATABASE_CONNECTION_URL` and `PREFECT_WORK_POOL` — leftovers
+from self-hosted Prefect. `TAILSCALE_API_KEY` and `SLACK_WEBHOOK_URL` stay: nothing
+reads them today, but the failover detector is coming back as a Lambda.
 
 ## How a container gets it
 

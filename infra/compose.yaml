@@ -7,10 +7,9 @@
 # by hand with psql; there are no migrations.
 #
 # CONFIGURATION. Nothing in this file carries application config. The api and
-# worker entrypoints load it from one AWS Secrets Manager secret at startup, so
-# `infra/.env` holds only what is needed to reach AWS. That is deliberately the
-# same shape an ECS task definition has — name the secret, let the credential
-# chain do the rest — so what runs here is what runs after a failover.
+# worker entrypoints load it from the AWS Secrets Manager secret named by
+# WISHLY_SECRETS_ID, so `infra/.env` holds only what is needed to reach AWS:
+# that name and an IAM user's keys.
 #
 # Build context is the repo root (..) so the images can copy backend/.
 # No application port is published — inbound traffic arrives via cloudflared.
@@ -22,13 +21,11 @@ services:
     image: wishly-api:latest
     env_file:
       - .env
-    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY arrive via env_file above and
-    # are what boto3 authenticates with here. On ECS they are absent and the
-    # task role supplies temporary ones instead — the only difference between
-    # the two environments.
-    environment: &aws
+    # Which secret the entrypoint loads. Unset it and the entrypoint does
+    # nothing, leaving .env as the whole configuration. The credentials boto3
+    # uses arrive via env_file above; the region is fixed in the code.
+    environment:
       WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID:-}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
     healthcheck:
       test:
         - CMD-SHELL
@@ -47,9 +44,8 @@ services:
   # job — there is no work pool, no separate worker, and no prefect.yaml.
   #
   # Scheduling lives in Prefect Cloud (PREFECT_API_URL + PREFECT_API_KEY), so the
-  # control plane survives this host going away. That matters: the standby exists
-  # precisely for the case where this machine is gone, and a scheduler running
-  # here would be gone with it.
+  # control plane survives this host going away — which is the whole point of
+  # keeping the scheduler off the machine it schedules.
   worker:
     build:
       context: ..
@@ -57,7 +53,8 @@ services:
     image: wishly-worker:latest
     env_file:
       - .env
-    environment: *aws
+    environment:
+      WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID:-}
     restart: unless-stopped
     networks:
       - app_net

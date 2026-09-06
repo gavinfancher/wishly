@@ -44,10 +44,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from wishly.api.errors import unauthorized
 from wishly.core.logging import get_logger
 from wishly.core.settings import (
-    DEV_USER_EMAIL,
-    DEV_USER_FIRST_NAME,
-    DEV_USER_LAST_NAME,
-    DEV_USER_SUB,
     settings,
 )
 from wishly.db.models import User
@@ -125,17 +121,6 @@ class HttpxJWKClient(PyJWKClient):
         return jwk_set
 
 
-class _BypassJWKSClient:
-    """Placeholder key resolver for the dev auth bypass (never invoked).
-
-    When :attr:`~wishly.core.settings.Settings.dev_auth_bypass` is on, tokens are not
-    verified, so this satisfies the dependency without a configured JWKS source.
-    """
-
-    def get_signing_key_from_jwt(self, token: str) -> PyJWK:  # pragma: no cover - never called
-        raise RuntimeError("JWKS resolution is disabled under the dev auth bypass.")
-
-
 def get_jwks_client(request: Request) -> JWKSClient:
     """Return the JWKS client, preferring an override on ``app.state``.
 
@@ -145,10 +130,6 @@ def get_jwks_client(request: Request) -> JWKSClient:
     override: JWKSClient | None = getattr(request.app.state, "jwks_client", None)
     if override is not None:
         return override
-
-    # Dev bypass: no real Clerk tenant, nothing to verify against.
-    if settings.dev_auth_bypass:
-        return _BypassJWKSClient()
 
     jwks_url = settings.jwks_url
     if not jwks_url:
@@ -195,19 +176,13 @@ async def get_current_user(
 ) -> AuthedUser:
     """FastAPI dependency: verify the Bearer token and return the principal.
 
+    Every request is verified against Clerk. There is no bypass: a flag that
+    authenticates an arbitrary caller is one environment variable away from
+    doing it in production, so it does not exist.
+
     Raises ``401 Unauthorized`` for missing, malformed, expired, or
     badly-signed tokens, or when required claims are absent.
     """
-    # Dev bypass (non-prod only): authenticate a fixed local user so the UI can
-    # run against a real backend without Clerk. See ``Settings.dev_auth_bypass``.
-    if settings.dev_auth_bypass:
-        return AuthedUser(
-            sub=DEV_USER_SUB,
-            email=DEV_USER_EMAIL,
-            first_name=DEV_USER_FIRST_NAME,
-            last_name=DEV_USER_LAST_NAME,
-        )
-
     if credentials is None or not credentials.credentials:
         raise unauthorized("Missing bearer token.")
 

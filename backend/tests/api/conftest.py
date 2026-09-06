@@ -35,11 +35,6 @@ from svix.webhooks import Webhook
 # Ensure settings can instantiate before importing app modules.
 os.environ.setdefault("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly_test")
 
-# Tests must never inherit the developer's backend/.env: it commonly carries
-# AUTH_DEV_BYPASS=true, which would authenticate every request as the fixed dev
-# user and quietly turn the 401 tests green for the wrong reason. Real env vars
-# win over the .env file, so setting it here neutralises the file.
-os.environ["AUTH_DEV_BYPASS"] = "false"
 os.environ.setdefault("ENVIRONMENT", "dev")
 
 

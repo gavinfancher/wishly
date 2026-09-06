@@ -19,12 +19,6 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["dev", "prod"]
 
-# Identity used when the local dev auth bypass is active (see ``dev_auth_bypass``).
-DEV_USER_SUB = "user_dev_local"
-DEV_USER_EMAIL = "dev@wishly.local"
-DEV_USER_FIRST_NAME = "Dev"
-DEV_USER_LAST_NAME = "User"
-
 
 class Settings(BaseSettings):
     """Strongly-typed application configuration.
@@ -57,9 +51,9 @@ class Settings(BaseSettings):
     # and the JWKS source. Without it the API cannot verify a single token and
     # every authenticated request 401s while the app otherwise looks healthy.
     clerk_frontend_api: str | None = Field(
-        default=None,
+        default="https://clerk.wishly.dev",
         validation_alias=AliasChoices("clerk_frontend_api", "clerk_issuer"),
-        description="Clerk Frontend API origin, e.g. https://clerk.wishly.dev.",
+        description="Clerk Frontend API origin.",
     )
     clerk_jwks_url: str | None = Field(
         default=None,
@@ -77,21 +71,24 @@ class Settings(BaseSettings):
     )
 
     # --- App / API -----------------------------------------------------------
+    #
+    # These default to PRODUCTION, deliberately. They are deployment facts, not
+    # secrets and not tunable, so keeping them in the secret store meant four
+    # rows that never changed. Defaulting them to localhost instead was the
+    # worse failure: forgetting one in production did not fail, it silently
+    # served a dev value and broke CORS or put a localhost link in an email.
+    # Override in infra/.env to run against a local frontend.
     app_base_url: str = Field(
-        default="http://localhost:5173",
+        default="https://wishly.dev",
         description="Public base URL of the SPA; used to build manage_url in emails.",
     )
     # ``NoDecode`` stops pydantic-settings from JSON-decoding the raw env value so
     # the validator below can split a plain comma-separated string.
     allowed_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173"],
+        default_factory=lambda: ["https://wishly.dev", "https://www.wishly.dev"],
         description="CORS allowlist for the API (comma-separated in the env).",
     )
     environment: Environment = Field(default="dev", description="Deployment environment.")
-    auth_dev_bypass: bool = Field(
-        default=False,
-        description="Skip Clerk verification and authenticate a fixed dev user. Never in prod.",
-    )
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
@@ -151,16 +148,6 @@ class Settings(BaseSettings):
     def sync_database_url(self) -> str:
         """The DSN rewritten to use the psycopg (v3) driver (for the worker/CLIs)."""
         return _with_driver(self.database_url, "postgresql+psycopg", ssl_param="sslmode")
-
-    @property
-    def dev_auth_bypass(self) -> bool:
-        """Whether to skip Clerk verification and authenticate a fixed dev user.
-
-        For running the UI against a real backend **without Clerk**. Requires
-        ``AUTH_DEV_BYPASS`` *and* a non-prod ``ENVIRONMENT``, so it can never
-        weaken a prod deployment even if the flag leaks into a prod env file.
-        """
-        return self.auth_dev_bypass and not self.is_prod
 
     @property
     def clerk_issuer(self) -> str | None:

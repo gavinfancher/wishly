@@ -4,7 +4,7 @@
  * Two implementations, chosen once at the top of the tree (main.tsx):
  *  - **Clerk** (default / production): bridges Clerk's hooks into context.
  *  - **Dev bypass** (`VITE_DEV_NO_AUTH=true`): a fixed local user, no Clerk —
- *    pair with the backend's `AUTH_DEV_BYPASS` to test the UI without Clerk.
+ *    The backend has no matching bypass: it verifies every request against Clerk.
  *
  * Components consume `useWishlyAuth()` / `useWishlyUser()` (from auth-context)
  * and never import `@clerk/clerk-react`, so the dev path renders no Clerk

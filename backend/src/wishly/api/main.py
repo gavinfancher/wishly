@@ -41,7 +41,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         extra={
             "environment": settings.environment,
             "allowed_origins": settings.allowed_origins,
-            "auth_dev_bypass": settings.dev_auth_bypass,
             "clerk_frontend_api": settings.clerk_frontend_api,
         },
     )
