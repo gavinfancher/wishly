@@ -36,7 +36,7 @@ if not _dsn.rsplit("/", 1)[-1].split("?")[0].endswith("_test"):
 from wishly.db.session import get_sync_engine  # noqa: E402
 
 # The production schema. Tests build their database from the very same file that
-# provisions RDS, so a model that has drifted from it fails here rather than in
+# the images bake in, so a model that has drifted from it fails here rather than in
 # production. There are no migrations to run first.
 SCHEMA_SQL = Path(__file__).resolve().parents[2] / "infra" / "sql" / "schema.sql"
 

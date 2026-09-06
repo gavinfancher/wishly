@@ -2,24 +2,19 @@
 #
 #   docker compose -f infra/compose.yaml --env-file infra/.env up -d
 #
-# Three long-lived containers and one one-shot. The database is NOT here: it is
-# PlanetScale Postgres, reached over the public internet via DATABASE_URL. For a
-# self-contained stack with a local Postgres, add the overlay:
+# Three long-lived containers. The database is NOT here: it is PlanetScale
+# Postgres, reached over the public internet via DATABASE_URL. Apply the schema
+# by hand with psql; there are no migrations.
 #
-#   docker compose -f infra/compose.yaml -f infra/compose.local.yaml \
-#     --env-file infra/.env up -d
+# CONFIGURATION. Nothing in this file carries application config. The api and
+# worker entrypoints load it from one AWS Secrets Manager secret at startup, so
+# `infra/.env` holds only what is needed to reach AWS. That is deliberately the
+# same shape an ECS task definition has — name the secret, let the credential
+# chain do the rest — so what runs here is what runs after a failover.
 #
 # Build context is the repo root (..) so the images can copy backend/.
 # No application port is published — inbound traffic arrives via cloudflared.
 services:
-  # One-shot: apply infra/sql/schema.sql, then exit. `create table if not exists`
-  # throughout, so running it on every boot is a no-op once the tables exist.
-  #
-  # It waits for the database itself rather than using `depends_on: healthy`,
-  # which cannot span hosts: with the database on PlanetScale there is no local
-  # container to depend on, and a compose restart while the database is still
-  # reachable-but-slow would otherwise start the API against an empty schema.
-
   api:
     build:
       context: ..
@@ -27,9 +22,13 @@ services:
     image: wishly-api:latest
     env_file:
       - .env
-    depends_on:
-      schema:
-        condition: service_completed_successfully
+    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY arrive via env_file above and
+    # are what boto3 authenticates with here. On ECS they are absent and the
+    # task role supplies temporary ones instead — the only difference between
+    # the two environments.
+    environment: &aws
+      WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     healthcheck:
       test:
         - CMD-SHELL
@@ -58,15 +57,13 @@ services:
     image: wishly-worker:latest
     env_file:
       - .env
-    depends_on:
-      schema:
-        condition: service_completed_successfully
+    environment: *aws
     restart: unless-stopped
     networks:
       - app_net
 
   cloudflared:
-    image: cloudflare/cloudflared:2025.4.0
+    image: cloudflare/cloudflared:2026.8.3
     command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}

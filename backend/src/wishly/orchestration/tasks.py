@@ -21,6 +21,7 @@ impossible, so retries (T5.4) update the existing row instead of duplicating.
 import datetime
 from dataclasses import dataclass
 
+import pendulum
 from prefect import get_run_logger, task
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -82,7 +83,7 @@ def compute_due_notifications(
     from the op so it is directly unit-testable against a real session.
     """
     # Step 1: users in their send window this run. Cheap to evaluate the window
-    # in Python so DST/zone math stays in zoneinfo rather than SQL.
+    # in Python so DST/zone math stays in pendulum rather than SQL.
     users = session.execute(select(User).where(User.deleted_at.is_(None))).scalars().all()
     windowed = [u for u in users if is_in_send_window(now_utc, u.timezone, u.send_hour)]
     if not windowed:
@@ -133,7 +134,7 @@ def compute_due_notifications(
 def find_due_notifications() -> list[DueNotification]:
     """Task: return the reminders due as of ``now`` (PLAN §7 steps 1-3)."""
     logger = get_run_logger()
-    now_utc = datetime.datetime.now(tz=datetime.UTC)
+    now_utc = pendulum.now("UTC")
     with session_scope() as session:
         due = compute_due_notifications(session, now_utc)
     logger.info("found %d due notification(s)", len(due))
@@ -188,7 +189,7 @@ def _mark(
     row.resend_id = resend_id
     row.error = error
     if status == "sent":
-        row.sent_at = datetime.datetime.now(tz=datetime.UTC)
+        row.sent_at = pendulum.now("UTC")
 
 
 def process_one(

@@ -16,10 +16,10 @@ and cannot call Clerk per send (PLAN §3).
 
 from __future__ import annotations
 
-import datetime as dt
 import json
 from typing import Any
 
+import pendulum
 from fastapi import APIRouter, Request
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,7 +89,7 @@ async def _upsert_user(
                 "first_name": insert_stmt.excluded.first_name,
                 "last_name": insert_stmt.excluded.last_name,
                 "deleted_at": None,
-                "updated_at": dt.datetime.now(tz=dt.UTC),
+                "updated_at": pendulum.now("UTC"),
             },
         )
     )
@@ -99,7 +99,7 @@ async def _soft_delete_user(session: AsyncSession, user_id: str) -> None:
     """Mark a user deleted (``user.deleted`` event). No-op if unknown."""
     user = await session.get(User, user_id)
     if user is not None and user.deleted_at is None:
-        user.deleted_at = dt.datetime.now(tz=dt.UTC)
+        user.deleted_at = pendulum.now("UTC")
 
 
 @router.post("/clerk", status_code=200)

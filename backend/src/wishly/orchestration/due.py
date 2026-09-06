@@ -4,6 +4,10 @@ Kept free of Prefect and the database so the riskiest logic in the app —
 timezone windowing, ``send_hour`` gating, year-boundary reminders, and the
 Feb 29 -> Feb 28 rule — is unit-testable in isolation.
 
+All instants and dates flow through :mod:`pendulum`: it is the project's single
+time library, so DST-aware conversion, date arithmetic, and leap-year checks all
+come from one place instead of being split across ``datetime``/``zoneinfo``.
+
 The matching strategy is **additive**: for a given local ``today`` and a lead
 time ``days_before``, compute ``target = today + days_before`` and check whether
 ``target`` lands on the event's month/day. Adding the lead time (rather than
@@ -14,28 +18,35 @@ occurrence.
 
 from __future__ import annotations
 
-import calendar
 import datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import pendulum
+from pendulum.tz.exceptions import InvalidTimezone
 
 
-def local_now(now_utc: datetime.datetime, timezone: str) -> datetime.datetime:
+def _zone(timezone: str) -> pendulum.Timezone:
+    """Resolve an IANA name, falling back to UTC.
+
+    An unknown name can't be allowed to crash a run: one bad row would stop
+    every other user's reminders for that hour.
+    """
+    try:
+        return pendulum.timezone(timezone)
+    except (InvalidTimezone, ValueError):
+        return pendulum.UTC
+
+
+def local_now(now_utc: datetime.datetime, timezone: str) -> pendulum.DateTime:
     """Convert an aware UTC instant to the user's local wall-clock time.
 
-    Uses :mod:`zoneinfo` exclusively (handles DST without manual offset math).
-    An unknown IANA name falls back to UTC so a single bad row can't crash a run.
+    DST is handled by pendulum's zone conversion — no manual offset math.
 
     Args:
         now_utc: A timezone-aware instant (assumed UTC if naive).
         timezone: An IANA timezone name, e.g. ``"America/New_York"``.
     """
-    if now_utc.tzinfo is None:
-        now_utc = now_utc.replace(tzinfo=datetime.UTC)
-    try:
-        tz = ZoneInfo(timezone)
-    except (ZoneInfoNotFoundError, ValueError):
-        tz = ZoneInfo("UTC")
-    return now_utc.astimezone(tz)
+    instant = pendulum.instance(now_utc, tz="UTC") if now_utc.tzinfo is None else now_utc
+    return pendulum.instance(instant).in_timezone(_zone(timezone))
 
 
 def is_in_send_window(now_utc: datetime.datetime, timezone: str, send_hour: int) -> bool:
@@ -46,7 +57,7 @@ def is_in_send_window(now_utc: datetime.datetime, timezone: str, send_hour: int)
     return local_now(now_utc, timezone).hour == send_hour
 
 
-def local_today(now_utc: datetime.datetime, timezone: str) -> datetime.date:
+def local_today(now_utc: datetime.datetime, timezone: str) -> pendulum.Date:
     """The user's local calendar date for ``now_utc`` (PLAN §7 step 2)."""
     return local_now(now_utc, timezone).date()
 
@@ -56,7 +67,7 @@ def occurrence_on(
     days_before: int,
     event_month: int,
     event_day: int,
-) -> datetime.date | None:
+) -> pendulum.Date | None:
     """Return the occurrence date if a reminder is due, else ``None`` (step 3).
 
     A reminder with lead time ``days_before`` is due when ``today + days_before``
@@ -73,7 +84,7 @@ def occurrence_on(
     Returns:
         ``target`` (= ``today + days_before``) when due, otherwise ``None``.
     """
-    target = today + datetime.timedelta(days=days_before)
+    target = pendulum.date(today.year, today.month, today.day).add(days=days_before)
 
     # Exact month/day match (the common case, including a real Feb 29 in a leap
     # target year).
@@ -84,7 +95,7 @@ def occurrence_on(
     if (
         (event_month, event_day) == (2, 29)
         and (target.month, target.day) == (2, 28)
-        and not calendar.isleap(target.year)
+        and not target.is_leap_year()
     ):
         return target
 

@@ -20,10 +20,10 @@ in the Prefect UI when you actually want the message delivered.
 
 from __future__ import annotations
 
-import calendar
 import datetime
 from dataclasses import dataclass
 
+import pendulum
 from prefect import flow, get_run_logger
 from prefect.artifacts import create_markdown_artifact
 from sqlalchemy import select
@@ -47,7 +47,7 @@ class PreviewError(RuntimeError):
     """
 
 
-def next_occurrence(today: datetime.date, event_month: int, event_day: int) -> datetime.date:
+def next_occurrence(today: datetime.date, event_month: int, event_day: int) -> pendulum.Date:
     """The next date on/after ``today`` that the event falls on.
 
     Mirrors the Feb 29 rule in :func:`wishly.orchestration.due.occurrence_on`: in
@@ -56,10 +56,10 @@ def next_occurrence(today: datetime.date, event_month: int, event_day: int) -> d
     even for an event 200 days out.
     """
 
-    def _on(year: int) -> datetime.date:
-        if (event_month, event_day) == (2, 29) and not calendar.isleap(year):
-            return datetime.date(year, 2, 28)
-        return datetime.date(year, event_month, event_day)
+    def _on(year: int) -> pendulum.Date:
+        if (event_month, event_day) == (2, 29) and not pendulum.date(year, 1, 1).is_leap_year():
+            return pendulum.date(year, 2, 28)
+        return pendulum.date(year, event_month, event_day)
 
     candidate = _on(today.year)
     return candidate if candidate >= today else _on(today.year + 1)
@@ -168,7 +168,7 @@ def preview_reminder(
     with session_scope() as session:
         target = resolve_target(session, user_email=user_email, event_id=event_id)
 
-        today = local_today(datetime.datetime.now(tz=datetime.UTC), target.timezone)
+        today = local_today(pendulum.now("UTC"), target.timezone)
         occurrence = next_occurrence(today, target.event_month, target.event_day)
         recipient = to or target.recipient_email or target.user_email
         greeting = target.recipient_name or target.user_first_name or "there"
@@ -245,7 +245,7 @@ def preview_reminder(
                 user_id=target.user_id,
                 status="sent",
                 resend_id=resend_id,
-                sent_at=datetime.datetime.now(tz=datetime.UTC),
+                sent_at=pendulum.now("UTC"),
             )
         )
         session.commit()

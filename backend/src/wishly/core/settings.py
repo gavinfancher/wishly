@@ -14,7 +14,7 @@ from functools import lru_cache
 from typing import Annotated, Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["dev", "prod"]
@@ -109,6 +109,33 @@ class Settings(BaseSettings):
             return None
         value = value.rstrip("/")
         return value if value.startswith("http") else f"https://{value}"
+
+    # Values with a harmless-looking default but a harmful one in production: a
+    # localhost URL that silently breaks CORS and email links, or an absent
+    # Clerk/Resend credential that 401s or drops mail while every health check
+    # stays green. The environment is assembled elsewhere (Infisical -> Secrets
+    # Manager), so the only place that can notice one is missing is here, at
+    # startup, by name.
+    @model_validator(mode="after")
+    def _require_production_values(self) -> Settings:
+        """Refuse to start a prod process that is missing configuration."""
+        if self.environment != "prod":
+            return self
+
+        required = ("clerk_secret_key", "clerk_frontend_api", "resend_api_key")
+        missing = [name for name in required if not getattr(self, name)]
+        if self.app_base_url.startswith("http://localhost"):
+            missing.append("app_base_url")
+        if any(o.startswith("http://localhost") for o in self.allowed_origins):
+            missing.append("allowed_origins")
+
+        if missing:
+            raise ValueError(
+                "ENVIRONMENT=prod but these are unset or still at their development "
+                f"default: {', '.join(sorted(missing))}. Add them to the secret this "
+                "process loads (see infra/secrets.md), or run with ENVIRONMENT=dev."
+            )
+        return self
 
     @property
     def is_prod(self) -> bool:

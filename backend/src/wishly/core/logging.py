@@ -11,11 +11,12 @@ log collectors.
 
 from __future__ import annotations
 
-import datetime as dt
 import json
 import logging
 import sys
 from typing import Any
+
+import pendulum
 
 from wishly.core.settings import settings
 
@@ -31,7 +32,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "timestamp": dt.datetime.fromtimestamp(record.created, tz=dt.UTC).isoformat(),
+            "timestamp": pendulum.from_timestamp(record.created, tz="UTC").isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

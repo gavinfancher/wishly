@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from html import unescape
 from urllib.parse import urlencode
 
+import pendulum
 from jinja2 import Environment, PackageLoader, StrictUndefined, select_autoescape
 from premailer import transform
 
@@ -108,13 +109,20 @@ def _countdown_label(days_before: int) -> str:
     return f"In {days_before} days"
 
 
+def _as_pendulum(occurrence_date: datetime.date) -> pendulum.Date:
+    """Accept any ``date`` (a pendulum one passes straight through)."""
+    if isinstance(occurrence_date, pendulum.Date):
+        return occurrence_date
+    return pendulum.date(occurrence_date.year, occurrence_date.month, occurrence_date.day)
+
+
 def _format_occurrence(occurrence_date: datetime.date) -> str:
     """Render the occurrence date as e.g. ``Monday, June 15``.
 
-    Avoids the platform-specific ``%-d`` directive so output is identical on
-    Linux and macOS.
+    Pendulum's tokens are used rather than ``strftime``: ``D`` is an unpadded day
+    on every platform, where ``strftime`` needs the non-portable ``%-d``.
     """
-    return f"{occurrence_date:%A, %B} {occurrence_date.day}"
+    return _as_pendulum(occurrence_date).format("dddd, MMMM D")
 
 
 def _html_to_text(html: str) -> str:
@@ -198,7 +206,7 @@ def render_email(
         "occurrence_date": _format_occurrence(occurrence_date),
         "days_phrase": _days_phrase(days_before),
         # Calendar-leaf face — the app's signature mark, mirrored in the email.
-        "leaf_month": f"{occurrence_date:%b}".upper(),
+        "leaf_month": _as_pendulum(occurrence_date).format("MMM").upper(),
         "leaf_day": occurrence_date.day,
         "countdown_label": _countdown_label(days_before),
         "message": message,

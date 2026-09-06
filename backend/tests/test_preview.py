@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 
+import pendulum
 import pytest
 
 from wishly.db.models import Event, User
@@ -103,7 +104,7 @@ class TestResolveTarget:
         _user(
             sync_session,
             "gone@example.com",
-            deleted_at=datetime.datetime.now(tz=datetime.UTC),
+            deleted_at=pendulum.now("UTC"),
         )
 
         with pytest.raises(PreviewError, match="no active users"):

@@ -15,6 +15,11 @@ We verify the token's **signature** against Clerk's JWKS (RS256), and check the
 **issuer** and **expiry**, then extract ``sub`` (the Clerk user id) plus the
 custom ``email`` / ``first_name`` / ``last_name`` claims.
 
+Transport. The JWKS fetch is the only outbound HTTP call the API makes itself,
+and it goes over :mod:`httpx` like everything else in the project —
+:class:`HttpxJWKClient` swaps PyJWT's ``urllib``-based fetch for an httpx one
+while keeping PyJWT's two-tier key caching.
+
 Testability. The public-key material is resolved through an injectable
 :class:`JWKSClient` protocol (``app.state.jwks_client``), so tests can supply a
 locally-generated RSA keypair and exercise the whole dependency offline — no
@@ -23,12 +28,15 @@ network and no real Clerk tenant required.
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any, Protocol, runtime_checkable
 
+import httpx
 import jwt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError, PyJWK, PyJWKClient
+from jwt.exceptions import PyJWKClientConnectionError
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +61,10 @@ _ALGORITHMS = ["RS256"]
 # ``auto_error=False`` so a *missing* credential yields our own 401 (with a
 # ``WWW-Authenticate`` header) rather than FastAPI's default 403.
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+# Clerk's JWKS endpoint is small and close; a token that cannot be verified
+# quickly is better rejected than left holding a worker thread.
+JWKS_TIMEOUT_SECONDS = 5.0
 
 
 class AuthedUser(BaseModel):
@@ -80,6 +92,39 @@ class JWKSClient(Protocol):
     def get_signing_key_from_jwt(self, token: str) -> PyJWK: ...
 
 
+class HttpxJWKClient(PyJWKClient):
+    """:class:`jwt.PyJWKClient` that fetches the JWK Set with ``httpx``.
+
+    PyJWT ships a ``urllib.request``-based fetch. Only that one method is
+    replaced, so the caching (JWK Set TTL + per-``kid`` LRU) and key parsing
+    still come from PyJWT; the URI scheme is validated by ``PyJWKClient``'s own
+    constructor before we ever issue a request.
+    """
+
+    def fetch_data(self) -> Any:
+        try:
+            response = httpx.get(
+                self.uri,
+                headers=self.headers,
+                timeout=self.timeout,
+                follow_redirects=True,
+            )
+            response.raise_for_status()
+            jwk_set = response.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            # Same exception type PyJWT raises, so callers (and the 401 mapping
+            # in ``_decode_claims``) do not have to care which transport ran.
+            raise PyJWKClientConnectionError(
+                f'Fail to fetch data from the url, err: "{exc}"'
+            ) from exc
+
+        # Mirrors PyJWT: only a *successful* fetch refreshes the cache, so a
+        # transient outage does not wipe a good JWK Set.
+        if self.jwk_set_cache is not None:
+            self.jwk_set_cache.put(jwk_set)
+        return jwk_set
+
+
 class _BypassJWKSClient:
     """Placeholder key resolver for the dev auth bypass (never invoked).
 
@@ -94,7 +139,7 @@ class _BypassJWKSClient:
 def get_jwks_client(request: Request) -> JWKSClient:
     """Return the JWKS client, preferring an override on ``app.state``.
 
-    Production uses a lazily-created, caching :class:`jwt.PyJWKClient` pointed at
+    Production uses a lazily-created, caching :class:`HttpxJWKClient` pointed at
     Clerk's JWKS endpoint. Tests set ``app.state.jwks_client`` to a fake.
     """
     override: JWKSClient | None = getattr(request.app.state, "jwks_client", None)
@@ -111,7 +156,7 @@ def get_jwks_client(request: Request) -> JWKSClient:
         # verify against; treat as an auth failure rather than crashing.
         raise unauthorized("Token verification is not configured.")
 
-    client = PyJWKClient(jwks_url, cache_keys=True)
+    client = HttpxJWKClient(jwks_url, cache_keys=True, timeout=JWKS_TIMEOUT_SECONDS)
     # Cache on app.state so we build one client per process.
     request.app.state.jwks_client = client
     return client

@@ -8,7 +8,7 @@ Validation rules enforced here (mirrored by the frontend per PLAN):
   sender — see PLAN §7).
 * ``days_before`` 0–365, unique per event (uniqueness enforced in the route).
 * ``send_hour`` 0–23.
-* ``timezone`` is a valid IANA name (validated via :mod:`zoneinfo`).
+* ``timezone`` is a valid IANA name (validated via :mod:`pendulum`).
 """
 
 from __future__ import annotations
@@ -17,8 +17,9 @@ import datetime as dt
 import uuid
 from enum import StrEnum
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import pendulum
+from pendulum.tz.exceptions import InvalidTimezone
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Max real days in each month (index 0 unused); February uses 29 so leap-day
@@ -37,8 +38,8 @@ class EventType(StrEnum):
 def _validate_iana_timezone(value: str) -> str:
     """Return ``value`` if it is a loadable IANA timezone, else raise."""
     try:
-        ZoneInfo(value)
-    except (ZoneInfoNotFoundError, ValueError) as exc:
+        pendulum.timezone(value)
+    except (InvalidTimezone, ValueError) as exc:
         raise ValueError(f"'{value}' is not a valid IANA timezone.") from exc
     return value
 

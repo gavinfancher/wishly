@@ -10,17 +10,18 @@ dependencies = [
     "fastapi>=0.136.3",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
+    "pendulum>=3.1.0",
     "premailer>=3.10.0",
     "prefect>=3.0.0",
     "psycopg[binary]>=3.3.4",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
     "pyjwt[crypto]>=2.13.0",
-    "python-dateutil>=2.9.0.post0",
     "resend>=2.30.1",
     "sqlalchemy[asyncio]>=2.0.50",
     "svix>=1.95.2",
     "uvicorn[standard]>=0.49.0",
+    "boto3>=1.43.89",
 ]
 
 [build-system]
@@ -86,6 +87,7 @@ addopts = "-ra"
 
 [dependency-groups]
 dev = [
+    "boto3-stubs>=1.43.89",
     "mypy>=2.1.0",
     "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",

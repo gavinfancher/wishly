@@ -17,7 +17,6 @@ Design goals:
 from __future__ import annotations
 
 import base64
-import datetime as dt
 import json
 import os
 import uuid
@@ -25,6 +24,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 import jwt
+import pendulum
 import pytest
 import pytest_asyncio
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -135,8 +135,8 @@ def make_token(rsa_key: rsa.RSAPrivateKey) -> Callable[..., str]:
         extra_claims: dict[str, Any] | None = None,
         sign_with: rsa.RSAPrivateKey | None = None,
     ) -> str:
-        now = dt.datetime.now(tz=dt.UTC)
-        exp = now - dt.timedelta(minutes=5) if expired else now + dt.timedelta(hours=1)
+        now = pendulum.now("UTC")
+        exp = now.subtract(minutes=5) if expired else now.add(hours=1)
         claims: dict[str, Any] = {
             "sub": sub,
             "iat": int(now.timestamp()),
@@ -259,7 +259,7 @@ def sign_webhook() -> Callable[[dict[str, Any]], tuple[bytes, dict[str, str]]]:
     def _sign(payload: dict[str, Any]) -> tuple[bytes, dict[str, str]]:
         body = json.dumps(payload).encode()
         msg_id = f"msg_{uuid.uuid4().hex}"
-        ts = dt.datetime.now(tz=dt.UTC)
+        ts = pendulum.now("UTC")
         signature = wh.sign(msg_id, ts, body.decode())
         headers = {
             "svix-id": msg_id,
@@ -280,7 +280,7 @@ def bad_webhook_headers() -> Iterator[Callable[[dict[str, Any]], tuple[bytes, di
         body = json.dumps(payload).encode()
         headers = {
             "svix-id": "msg_bad",
-            "svix-timestamp": str(int(dt.datetime.now(tz=dt.UTC).timestamp())),
+            "svix-timestamp": str(int(pendulum.now("UTC").timestamp())),
             "svix-signature": "v1,not-a-real-signature",
             "content-type": "application/json",
         }

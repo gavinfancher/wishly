@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import datetime as dt
-
+import pendulum
 from fastapi import APIRouter, HTTPException, status
 from starlette.concurrency import run_in_threadpool
 
@@ -47,7 +46,7 @@ async def update_me(body: UserUpdate, principal: CurrentUser, session: DBSession
     # Stamp once and never move it: this records *when* onboarding was finished,
     # so re-saving preferences later must not rewrite it.
     if body.onboarded and user.onboarded_at is None:
-        user.onboarded_at = dt.datetime.now(dt.UTC)
+        user.onboarded_at = pendulum.now("UTC")
 
     await session.flush()
     # Refresh so server-side ``onupdate`` columns (``updated_at``) are loaded before
@@ -84,7 +83,7 @@ async def send_test_email(principal: CurrentUser, session: DBSession) -> dict[st
         recipient_name=user.first_name or "there",
         title="A test reminder",
         days_before=7,
-        occurrence_date=dt.date.today() + dt.timedelta(days=7),
+        occurrence_date=pendulum.now("UTC").date().add(days=7),
         manage_url=build_manage_url(user.id),
         message="This is a test from Wishly — your reminder emails will look like this.",
     )
@@ -114,7 +113,7 @@ async def send_test_email(principal: CurrentUser, session: DBSession) -> dict[st
             user_id=user.id,
             status="sent",
             resend_id=resend_id,
-            sent_at=dt.datetime.now(dt.UTC),
+            sent_at=pendulum.now("UTC"),
         )
     )
     await session.flush()
