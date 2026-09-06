@@ -14,6 +14,7 @@ not require a configured ``DATABASE_URL`` (keeps imports cheap and test-friendly
 from __future__ import annotations
 
 import os
+import ssl
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -48,6 +49,28 @@ from wishly.core.settings import settings
 os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
 
+def _asyncpg_ssl() -> dict[str, object]:
+    """TLS for asyncpg, as an SSLContext rather than a URL parameter.
+
+    asyncpg cannot be told about TLS the way libpq is: it takes no
+    ``sslrootcert``, and a bare verify mode sends it looking for
+    ``~/.postgresql/root.crt``. Handing it a context built from certifi is the
+    only spelling that works, and it keeps the trust store identical to the one
+    psycopg uses via SSL_CERT_FILE above.
+    """
+    mode = settings.database_sslmode
+    if mode in (None, "disable", "allow", "prefer"):
+        # A local Postgres with no TLS. Forcing a context here would break it.
+        return {}
+    context = ssl.create_default_context(cafile=certifi.where())
+    if mode == "require":
+        # libpq's `require` encrypts without verifying. Match it exactly rather
+        # than silently strengthening what the DSN asked for.
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    return {"ssl": context}
+
+
 @lru_cache(maxsize=1)
 def get_async_engine() -> AsyncEngine:
     """Return the process-wide async engine (asyncpg) for the API."""
@@ -55,6 +78,7 @@ def get_async_engine() -> AsyncEngine:
         settings.async_database_url,
         pool_pre_ping=True,
         echo=False,
+        connect_args=_asyncpg_ssl(),
     )
 
 

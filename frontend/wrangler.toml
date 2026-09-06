@@ -4,8 +4,8 @@
 # route four hostnames onto one Worker. Wishly serves a single SPA, so asset
 # serving with SPA fallback covers it and there is no request-time code at all.
 #
-# The API is NOT here: it runs behind the Cloudflare Tunnel (api-dev.wishly.dev
-# while testing, api.wishly.dev later). This Worker is static files only.
+# The API is NOT here: it runs behind the Cloudflare Tunnel at api.wishly.dev.
+# This Worker is static files only.
 name = "wishly-prod"
 account_id = "2750df8a500fb8335c195bad8cccc14a"
 compatibility_date = "2026-06-13"

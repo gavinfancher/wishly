@@ -142,12 +142,22 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         """The DSN rewritten to use the asyncpg driver (for the FastAPI engine)."""
-        return _with_driver(self.database_url, "postgresql+asyncpg", ssl_param="ssl")
+        return _with_driver(
+            self.database_url, "postgresql+asyncpg", ssl_param="ssl", drop=_ASYNCPG_DROP
+        )
 
     @property
     def sync_database_url(self) -> str:
         """The DSN rewritten to use the psycopg (v3) driver (for the worker/CLIs)."""
         return _with_driver(self.database_url, "postgresql+psycopg", ssl_param="sslmode")
+
+    @property
+    def database_sslmode(self) -> str | None:
+        """The ``sslmode`` the DSN asks for, if any. Drives the asyncpg SSLContext."""
+        for key, value in parse_qsl(urlsplit(self.database_url).query):
+            if key in ("sslmode", "ssl"):
+                return value
+        return None
 
     @property
     def clerk_issuer(self) -> str | None:
@@ -168,7 +178,29 @@ class Settings(BaseSettings):
         return None
 
 
-def _with_driver(url: str, driver: str, *, ssl_param: str) -> str:
+# libpq connection parameters that asyncpg's connect() does not accept. Passed
+# through, each one raises `TypeError: got an unexpected keyword argument` at
+# connect time — on every request, because SQLAlchemy's asyncpg dialect turns
+# query parameters into connect() kwargs. psycopg keeps them: it *is* libpq.
+#
+# Dropping them costs nothing. asyncpg verifies through Python's ssl module,
+# which reads its trust store from SSL_CERT_FILE — set to certifi's bundle in
+# wishly.db.session — so `ssl=verify-full` still verifies with no root cert
+# named in the URL.
+_LIBPQ_ONLY = frozenset({"sslrootcert", "sslcert", "sslkey", "sslcrl", "sslcrldir"})
+
+# asyncpg gets NO TLS parameters in its URL. SQLAlchemy's asyncpg dialect turns
+# query parameters into connect() kwargs, and asyncpg accepts neither
+# `sslrootcert` (TypeError) nor a bare `ssl=verify-full` that it can satisfy:
+# given a verify mode with no root cert it looks for ~/.postgresql/root.crt and
+# fails, ignoring SSL_CERT_FILE. So wishly.db.session builds a real SSLContext
+# from certifi and passes it as connect_args instead.
+_ASYNCPG_DROP = _LIBPQ_ONLY | {"sslmode", "ssl"}
+
+
+def _with_driver(
+    url: str, driver: str, *, ssl_param: str, drop: frozenset[str] = frozenset()
+) -> str:
     """Return ``url`` with its scheme replaced by ``driver`` and TLS spelled right.
 
     Accepts a bare ``postgresql://`` (or ``postgres://``) DSN, or one that already
@@ -199,7 +231,10 @@ def _with_driver(url: str, driver: str, *, ssl_param: str) -> str:
     query = [
         (ssl_param if key in ("sslmode", "ssl") else key, value)
         for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key not in drop
     ]
+    if not query:
+        return urlunsplit(parts._replace(query=""))
     return urlunsplit(parts._replace(query=urlencode(query)))
 
 
