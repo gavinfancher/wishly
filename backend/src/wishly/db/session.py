@@ -13,10 +13,12 @@ not require a configured ``DATABASE_URL`` (keeps imports cheap and test-friendly
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
 
+import certifi
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -27,6 +29,23 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import Session, sessionmaker
 
 from wishly.core.settings import settings
+
+# Point OpenSSL at a CA bundle before any connection is made.
+#
+# The DSN carries PlanetScale's `sslmode=verify-full&sslrootcert=system`, and
+# `system` means "OpenSSL's default trust store". psycopg[binary] ships its own
+# OpenSSL whose compiled-in store is neither Debian's nor macOS's, so that store
+# is empty everywhere and every connection fails `certificate verify failed`.
+# asyncpg is unaffected — it verifies through Python's ssl module — which is why
+# the API worked while the worker did not.
+#
+# certifi rather than a platform path: /etc/ssl/certs/ca-certificates.crt is
+# Debian-only and /etc/ssl/cert.pem is macOS-only, so either one hardcodes a
+# guess about where this is running. This is one line that holds for the
+# container, a laptop, and a Lambda.
+#
+# setdefault, so a deployment that needs a private CA can still say so.
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
 
 @lru_cache(maxsize=1)

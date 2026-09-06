@@ -1960,6 +1960,7 @@ source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
     { name = "boto3" },
+    { name = "certifi" },
     { name = "clerk-backend-api" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1990,6 +1991,7 @@ dev = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "boto3", specifier = ">=1.43.89" },
+    { name = "certifi", specifier = ">=2026.5.20" },
     { name = "clerk-backend-api", specifier = ">=6.0.1" },
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "httpx", specifier = ">=0.28.1" },
