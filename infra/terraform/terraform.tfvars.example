@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars. Gitignored; this example is committed.
+#
+# The commit SHA infra/images.sh pushed. Bumping this and applying is how you
+# roll the failover target forward — ECR tags are immutable, so a tag always
+# means one image.
+image_tag = "f61f249"
