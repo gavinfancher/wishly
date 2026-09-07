@@ -14,3 +14,14 @@ variable "secrets_id" {
   type        = string
   default     = "wishly/prod"
 }
+
+variable "tailscale_device_id" {
+  description = "Tailscale device id of the app host to watch."
+  type        = string
+}
+
+variable "detector_enabled" {
+  description = "False stops the watchdog polling without destroying it (planned VM maintenance)."
+  type        = bool
+  default     = true
+}

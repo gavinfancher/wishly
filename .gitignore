@@ -46,3 +46,7 @@ infra/terraform/*.tfstate
 infra/terraform/*.tfstate.*
 infra/terraform/*.tfvars
 !infra/terraform/*.tfvars.example
+
+# Lambda build artefacts (build.sh regenerates them)
+infra/lambda/build/
+infra/lambda/*.zip

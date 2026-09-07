@@ -1,6 +1,14 @@
 # Copy to terraform.tfvars. Gitignored; this example is committed.
-#
-# The commit SHA infra/images.sh pushed. Bumping this and applying is how you
-# roll the failover target forward — ECR tags are immutable, so a tag always
-# means one image.
+
+# The commit SHA infra/images.sh pushed. Bumping this and applying rolls the
+# failover target forward — ECR tags are immutable, so a tag means one image.
 image_tag = "f61f249"
+
+# The app host the detector watches. Not a secret; it is an identifier.
+#   curl -H "Authorization: Bearer $TAILSCALE_API_KEY" \
+#     https://api.tailscale.com/api/v2/tailnet/-/devices
+tailscale_device_id = "3753644670956477"
+
+# Set false to stop the watchdog polling during planned VM maintenance, so it
+# does not fail over while you are the one who took the host down.
+detector_enabled = true
