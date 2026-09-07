@@ -24,10 +24,17 @@ git push                       # commit first
 
 ```bash
 ssh ubuntu@wishly-vm 'cd ~/wishly && git pull && \
+  ./infra/ecr-login.sh && \
   sed -i "s/^WISHLY_TAG=.*/WISHLY_TAG=<sha>/" infra/.env && \
   docker compose -f infra/compose.yaml --env-file infra/.env pull && \
   docker compose -f infra/compose.yaml --env-file infra/.env up -d'
 ```
+
+`ecr-login.sh` is not optional and not a one-time setup step: the ECR token it
+exchanges the IAM keys for lasts 12 hours, so a `pull` on a VM that has been
+idle since yesterday fails with `no basic auth credentials`. It reads the keys
+from `infra/.env`, the same file the containers use, so there is nothing extra
+to configure on the host.
 
 `git pull` is for compose.yaml and the schema, not the app code — the code
 arrives inside the image.

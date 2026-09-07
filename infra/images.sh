@@ -39,9 +39,11 @@ done
 
 $PUSH || { echo "built at $TAG (use --push to publish)"; exit 0; }
 
+# The VM runs this same script to authenticate, so the login lives in one place.
+./infra/ecr-login.sh
+
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 REGISTRY="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
-aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
 
 for svc in api worker; do
   docker tag "wishly-$svc:$TAG" "$REGISTRY/wishly-$svc:$TAG"
