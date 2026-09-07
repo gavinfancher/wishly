@@ -95,12 +95,11 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      # Every container in an awsvpc task shares one network namespace, so the
-      # name `api` does not resolve — but the Cloudflare dashboard route says
-      # http://api:8000 because that is what Docker Compose needs on the VM.
-      # This entry makes the one route string correct in both places, so a
-      # failover never requires editing a shared setting under pressure.
-      extraHosts = [{ hostname = "api", ipAddress = "127.0.0.1" }]
+      # No extraHosts: awsvpc forbids them. Not needed either — every container
+      # in the task shares one network namespace, so the API is on localhost.
+      # infra/compose.yaml gives cloudflared `network_mode: service:api` so the
+      # same http://localhost:8000 route works there too, which is why the
+      # Cloudflare dashboard needs exactly one hostname entry for both.
 
       dependsOn        = [{ containerName = "api", condition = "HEALTHY" }]
       logConfiguration = local.log_config

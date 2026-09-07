@@ -59,11 +59,21 @@ services:
     networks:
       - app_net
 
+  # network_mode: service:api puts this container inside the API's network
+  # namespace, which is exactly what an ECS task does — so cloudflared reaches
+  # the API on http://localhost:8000 in both places, and the Cloudflare
+  # dashboard needs ONE route rather than one per environment.
+  #
+  # It has to be this way round: awsvpc forbids extraHosts, so ECS cannot be
+  # taught to resolve the name `api`. Compose can be taught to share a
+  # namespace. Sharing one means no `networks:` key here and no ports of its
+  # own — it uses the API container's.
   cloudflared:
     image: cloudflare/cloudflared:2026.8.3
     command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    network_mode: "service:api"
     depends_on:
       api:
         condition: service_healthy
@@ -74,8 +84,6 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
-    networks:
-      - app_net
 
 networks:
   app_net:
