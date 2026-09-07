@@ -19,6 +19,10 @@ WORKDIR /app/backend
 
 # Layer 1: dependencies only (cached unless the lockfile changes). --no-install-project
 # skips building wishly itself so this layer is independent of source changes.
+#
+# No --group worker: Prefect (106 MB) belongs to the send pipeline and nothing
+# the API imports touches it. A scale-to-zero Fargate task re-pulls this image on
+# every cold start, so what is not here is recovery time saved.
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project

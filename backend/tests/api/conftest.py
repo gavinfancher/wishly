@@ -35,6 +35,8 @@ from svix.webhooks import Webhook
 # Ensure settings can instantiate before importing app modules.
 os.environ.setdefault("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly_test")
 
+from wishly.core.settings import get_settings  # noqa: E402
+
 os.environ.setdefault("ENVIRONMENT", "dev")
 
 
@@ -137,6 +139,12 @@ def make_token(rsa_key: rsa.RSAPrivateKey) -> Callable[..., str]:
             "iat": int(now.timestamp()),
             "exp": int(exp.timestamp()),
         }
+        # Real Clerk tokens carry `iss`, and the API verifies it whenever an
+        # issuer is configured. Minting tokens without one meant verification
+        # was quietly skipped for the whole suite.
+        issuer = get_settings().clerk_issuer
+        if issuer is not None:
+            claims["iss"] = issuer
         if email is not None:
             claims["email"] = email
         if first_name is not None:

@@ -1966,7 +1966,6 @@ dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "pendulum" },
-    { name = "prefect" },
     { name = "premailer" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -1982,9 +1981,13 @@ dependencies = [
 dev = [
     { name = "boto3-stubs" },
     { name = "mypy" },
+    { name = "prefect" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+]
+worker = [
+    { name = "prefect" },
 ]
 
 [package.metadata]
@@ -1997,7 +2000,6 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pendulum", specifier = ">=3.1.0" },
-    { name = "prefect", specifier = ">=3.0.0" },
     { name = "premailer", specifier = ">=3.10.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "pydantic", specifier = ">=2.13.4" },
@@ -2013,10 +2015,12 @@ requires-dist = [
 dev = [
     { name = "boto3-stubs", specifier = ">=1.43.89" },
     { name = "mypy", specifier = ">=2.1.0" },
+    { name = "prefect", specifier = ">=3.0.0" },
     { name = "pytest", specifier = ">=9.1.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "ruff", specifier = ">=0.15.17" },
 ]
+worker = [{ name = "prefect", specifier = ">=3.0.0" }]
 
 [[package]]
 name = "wrapt"

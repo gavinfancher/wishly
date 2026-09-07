@@ -12,7 +12,6 @@ dependencies = [
     "jinja2>=3.1.6",
     "pendulum>=3.1.0",
     "premailer>=3.10.0",
-    "prefect>=3.0.0",
     "psycopg[binary]>=3.3.4",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
@@ -87,7 +86,21 @@ asyncio_mode = "auto"
 addopts = "-ra"
 
 [dependency-groups]
+# Prefect is the send pipeline's, not the API's. It is 106 MB installed and
+# nothing under api/, db/, email/ or core/ imports it — only orchestration/ does.
+# Splitting it out takes that weight out of the API image, which matters because
+# a scale-to-zero Fargate service re-pulls the image on every cold start, so
+# image size is recovery time.
+#
+#   API image     uv sync --no-dev
+#   worker image  uv sync --no-dev --group worker
+#
+# dev includes it: the test suite imports wishly.orchestration.preview.
+worker = [
+    "prefect>=3.0.0",
+]
 dev = [
+    { include-group = "worker" },
     "boto3-stubs>=1.43.89",
     "mypy>=2.1.0",
     "pytest>=9.1.0",

@@ -18,12 +18,13 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app/backend
 
 COPY backend/pyproject.toml backend/uv.lock ./
+# --group worker adds Prefect, which the API image deliberately does without.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --group worker --no-install-project
 
 COPY backend/ ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --group worker
 
 # ---- runtime -----------------------------------------------------------------
 FROM python:3.12-slim AS runtime
