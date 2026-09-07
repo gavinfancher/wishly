@@ -25,3 +25,9 @@ variable "detector_enabled" {
   type        = bool
   default     = true
 }
+
+variable "github_repo" {
+  description = "owner/name of the repository whose main branch may assume the CI role."
+  type        = string
+  default     = "gavinfancher/wishly"
+}

@@ -22,3 +22,8 @@ output "logs" {
   description = "Tail the task."
   value       = "aws logs tail ${aws_cloudwatch_log_group.app.name} --follow --region ${var.region}"
 }
+
+output "github_ci_role_arn" {
+  description = "Put this in .github/workflows/build.yml as role-to-assume."
+  value       = aws_iam_role.github_ci.arn
+}

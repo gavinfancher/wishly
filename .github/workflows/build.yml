@@ -1,0 +1,68 @@
+# Build both images and publish them to ECR, tagged with the commit.
+#
+# Runs on a self-hosted runner on the Proxmox host: native x86_64, a persistent
+# layer cache, and — because the runner dials out to GitHub — no inbound path
+# into the home network. Nothing here holds an AWS credential; the role is
+# assumed through OIDC and the credentials expire in an hour.
+name: build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "infra/Dockerfile.*"
+      - "infra/images.sh"
+      - "infra/ecr-login.sh"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+# Two pushes in quick succession would otherwise race to write the same layers.
+# Not cancel-in-progress: a half-pushed image is worse than a slow queue.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # required to request the OIDC token
+  contents: read
+
+jobs:
+  images:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+        # images.sh tags with `git rev-parse --short HEAD` and refuses a dirty
+        # tree, so it needs a real checkout — not an export.
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::809000566572:role/wishly-ci
+          aws-region: us-east-1
+
+      - name: Build and push
+        id: push
+        shell: bash
+        run: |
+          ./infra/images.sh --push | tee /tmp/push.log
+          echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### \`${{ steps.push.outputs.tag }}\`"
+            echo
+            echo '```'
+            cat /tmp/push.log 2>/dev/null || echo "(no output)"
+            echo '```'
+            echo "Roll the VM:"
+            echo '```'
+            echo "ssh ubuntu@wishly-vm 'cd ~/wishly && git pull && ./infra/deploy-vm.sh ${{ steps.push.outputs.tag }}'"
+            echo '```'
+            echo "Then point the ECS standby at it (from your laptop — see infra/deploy.md):"
+            echo '```'
+            echo "cd infra/terraform && terraform apply -var image_tag=${{ steps.push.outputs.tag }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

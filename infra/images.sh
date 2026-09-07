@@ -46,6 +46,18 @@ ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 REGISTRY="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
 
 for svc in api worker; do
+  # ECR tags are IMMUTABLE, so pushing a tag that already exists is a hard error.
+  # That is the correct behaviour for the tag, but it should not fail the build:
+  # re-running a CI job on an unchanged commit is a normal thing to do, and the
+  # bytes it would push are the bytes already there.
+  if digest="$(aws ecr describe-images --repository-name "wishly-$svc" \
+      --image-ids "imageTag=$TAG" --region "$REGION" \
+      --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)"; then
+    echo "==> wishly-$svc:$TAG already in ECR, not re-pushing"
+    echo "$digest"
+    continue
+  fi
+
   docker tag "wishly-$svc:$TAG" "$REGISTRY/wishly-$svc:$TAG"
   docker push "$REGISTRY/wishly-$svc:$TAG"
   aws ecr describe-images --repository-name "wishly-$svc" --image-ids "imageTag=$TAG" \

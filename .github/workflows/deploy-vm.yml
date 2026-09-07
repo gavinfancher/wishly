@@ -1,0 +1,48 @@
+# Roll the VM to an already-published tag. Manual on purpose.
+#
+# This is workflow_dispatch only — never automatic on push. The detector Lambda
+# fails over to ECS after ~3 minutes of an unreachable host, so a deploy is a
+# thing you should be watching, not something that happens while you are asleep
+# because a README typo landed on main.
+#
+# OPTIONAL. Everything here is equally available as one ssh command, and the
+# runbook keeps that spelling. Enabling it means putting a private key that can
+# reach the production VM into GitHub secrets — a real decision, not a default.
+name: deploy-vm
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (the short SHA build.yml pushed)"
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64]
+    # A GitHub Environment with yourself as a required reviewer turns this into
+    # a two-step action: dispatch, then approve. Create `production` in repo
+    # settings to arm that; without it the job simply runs.
+    environment: production
+    steps:
+      - name: Roll the VM
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_HOST: ${{ vars.VM_HOST || 'wishly-vm' }}
+          VM_USER: ${{ vars.VM_USER || 'ubuntu' }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          key="$(mktemp)"; trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$key"; chmod 600 "$key"
+          ssh -i "$key" -o StrictHostKeyChecking=accept-new \
+            "${VM_USER}@${VM_HOST}" \
+            "cd ~/wishly && git pull --ff-only && ./infra/deploy-vm.sh '${TAG}'"
