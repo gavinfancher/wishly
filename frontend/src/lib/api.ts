@@ -21,6 +21,9 @@ export class ApiError extends Error {
   }
 }
 
+/** How long to wait before calling the API unreachable. See apiFetch. */
+export const REQUEST_TIMEOUT_MS = 5_000
+
 type TokenGetter = () => Promise<string | null>
 
 /** Perform an authenticated request against the Wishly API. */
@@ -46,7 +49,16 @@ export async function apiFetch<T>(
 
   let response: Response
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, { ...init, headers })
+    // Five seconds, then give up and treat it as unreachable. Without this the
+    // browser's own timeout applies — often a minute or more — so a failover
+    // would leave the user staring at a spinner for far longer than the
+    // failover itself takes. A healthy API answers these calls in tens of
+    // milliseconds, so 5s only ever fires when something is genuinely wrong.
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...init,
+      headers,
+      signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
   } catch {
     // fetch() rejects (rather than resolving with a status) when the request never
     // reached a server at all: the tunnel is down, the host is offline, DNS fails.

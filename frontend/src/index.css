@@ -2197,10 +2197,17 @@ input[type='number'] {
 }
 
 .service-down-card p {
-  margin: 0 0 1.5rem;
+  margin: 0 0 1rem;
   color: var(--ink-soft);
   font-size: 0.95rem;
   line-height: 1.55;
+}
+
+/* The reassurance line: present, but quieter than the status it sits under. */
+.service-down-card .service-down-note {
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  opacity: 0.8;
 }
 
 /* Marks a history row as a test reminder the user sent themselves. */

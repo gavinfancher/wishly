@@ -1,16 +1,41 @@
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 /**
- * Shown when the API cannot be reached at all — the tunnel is down, the host
- * machine is asleep, or there is no network.
+ * Shown when the API cannot be reached at all — no answer within five seconds.
  *
  * This is deliberately distinct from an API error: a 500 means Wishly answered
- * and something is broken; no answer at all usually means the backend simply
- * isn't running right now. Telling the user to "refresh" in that case is wrong —
- * refreshing changes nothing until the host is back.
+ * and something is broken; no answer at all means the backend is not there
+ * right now. Telling the user to "refresh" in that case is wrong — refreshing
+ * changes nothing until a server is back.
+ *
+ * It is also not a dead end. When the primary host goes dark a watchdog scales
+ * a standby up on AWS, so the right thing for this screen to do is wait and
+ * retry on the user's behalf rather than make them keep clicking. It polls
+ * every five seconds and disappears by itself the moment a request succeeds.
  */
+
+const RETRY_INTERVAL_MS = 5_000
+
+/** Roughly how long a failover takes end to end: detection, then the standby starting. */
+const EXPECTED_RECOVERY_SECONDS = 300
+
 export default function ServiceUnavailable() {
   const queryClient = useQueryClient()
+  const [waited, setWaited] = useState(0)
+
+  useEffect(() => {
+    // Retry in the background. react-query dedupes and the fetch itself has a
+    // 5s timeout, so these cannot pile up.
+    const id = setInterval(() => {
+      setWaited((s) => s + RETRY_INTERVAL_MS / 1000)
+      void queryClient.refetchQueries()
+    }, RETRY_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [queryClient])
+
+  const remaining = Math.max(0, EXPECTED_RECOVERY_SECONDS - waited)
+  const minutes = Math.ceil(remaining / 60)
 
   return (
     <div className="service-down" role="status" aria-live="polite">
@@ -24,10 +49,16 @@ export default function ServiceUnavailable() {
           </svg>
         </span>
 
-        <h2>Wishly is offline right now</h2>
+        <h2>Our primary server is down</h2>
         <p>
-          The app can&rsquo;t reach its server. Your occasions and reminders are safe — nothing
-          has been lost, and scheduled emails resume automatically once it&rsquo;s back.
+          We&rsquo;re bringing the backup online now.{' '}
+          {remaining > 0
+            ? `Service should be restored in under ${minutes} minute${minutes === 1 ? '' : 's'}.`
+            : 'This is taking longer than usual — it should be back shortly.'}
+        </p>
+        <p className="service-down-note">
+          Your occasions and reminders are safe. Nothing has been lost, and scheduled emails
+          resume automatically. This page will refresh itself.
         </p>
 
         <button
@@ -35,7 +66,7 @@ export default function ServiceUnavailable() {
           className="btn-primary"
           onClick={() => void queryClient.refetchQueries()}
         >
-          Try again
+          Try now
         </button>
       </div>
     </div>
