@@ -3,6 +3,7 @@
 # SIZING is measured, not guessed. At rest: api 89 MiB, prefect's import 80 MiB
 # before any flow run, cloudflared ~40 MiB. 0.5 vCPU / 2 GB leaves room for the
 # subprocess Prefect forks per flow run, which pays that 80 MiB again.
+# On x86 Fargate that is $0.04048/vCPU-hr + $0.004445/GB-hr = $0.0291/hr.
 #
 # ONE TASK rather than two services: at this size nothing wants to scale the API
 # independently of the worker, and a single task means the failover action is
@@ -50,7 +51,10 @@ resource "aws_ecs_task_definition" "app" {
   task_role_arn            = aws_iam_role.task.arn
 
   runtime_platform {
-    cpu_architecture        = "ARM64" # Graviton: cheaper, and what images.sh builds
+    # X86_64, not Graviton. The PVE VM is x86_64, and matching it means both
+    # runtimes pull the same image digest instead of running two builds of the
+    # same source. Graviton would save ~$0.11/month; parity is worth more.
+    cpu_architecture        = "X86_64"
     operating_system_family = "LINUX"
   }
 

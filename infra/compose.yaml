@@ -11,14 +11,20 @@
 # WISHLY_SECRETS_ID, so `infra/.env` holds only what is needed to reach AWS:
 # that name and an IAM user's keys.
 #
-# Build context is the repo root (..) so the images can copy backend/.
+# IMAGES ARE PULLED, NOT BUILT. Both this host and ECS run the same amd64 image
+# from ECR at the same tag, so what you test here is what fails over — same
+# digest, not just the same source. Update with:
+#
+#   ./infra/images.sh --push          (from a checkout, tags with the commit)
+#   docker compose ... pull && up -d  (here)
+#
+# To build locally instead — debugging a change before pushing it — add the
+# overlay: -f infra/compose.build.yaml
+#
 # No application port is published — inbound traffic arrives via cloudflared.
 services:
   api:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.api
-    image: wishly-api:latest
+    image: ${WISHLY_REGISTRY:-809000566572.dkr.ecr.us-east-1.amazonaws.com}/wishly-api:${WISHLY_TAG:?set WISHLY_TAG in infra/.env to the commit images.sh pushed}
     env_file:
       - .env
     # Which secret the entrypoint loads. Unset it and the entrypoint does
@@ -47,10 +53,7 @@ services:
   # control plane survives this host going away — which is the whole point of
   # keeping the scheduler off the machine it schedules.
   worker:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.worker
-    image: wishly-worker:latest
+    image: ${WISHLY_REGISTRY:-809000566572.dkr.ecr.us-east-1.amazonaws.com}/wishly-worker:${WISHLY_TAG:?set WISHLY_TAG in infra/.env to the commit images.sh pushed}
     env_file:
       - .env
     environment:

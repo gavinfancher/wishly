@@ -1,0 +1,18 @@
+# Overlay: build the images here instead of pulling them from ECR.
+#
+#   docker compose -f infra/compose.yaml -f infra/compose.build.yaml \
+#     --env-file infra/.env up -d --build
+#
+# For iterating on a change before it is committed and pushed. The base file
+# pulls, so that normal deploys run the exact image ECS will run — this is the
+# deliberate escape hatch from that, and what it builds is NOT what fails over
+# until images.sh has pushed it.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+  worker:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.worker
