@@ -51,6 +51,9 @@ digests. Same script whether you run it, the runbook does, or CI does.
 `git pull` is for compose.yaml and the schema, not the app code — the code
 arrives inside the image.
 
+Provisioning a *new* VM — Docker, the aws CLI, `infra/.env`, and the ECR login
+that has to happen before any of this works — is `vm-setup.md`.
+
 ## 3. Roll the ECS standby
 
 ```bash
