@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build the Wishly images and push them to ECR, tagged with the commit.
+# Build the Wishly image and push it to ECR, tagged with the commit.
 #
-#   ./infra/images.sh              # build both, tag with the short SHA
+#   ./infra/images.sh              # build, tag with the short SHA
 #   ./infra/images.sh --push       # build, then push
 #
 # The tag is the commit so "which source is this?" needs nobody's memory, and
@@ -29,7 +29,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
   TAG="${TAG}-dirty"
 fi
 
-for svc in api worker; do
+for svc in api; do
   echo "==> building wishly-$svc:$TAG"
   # --provenance=false: the default attestation makes a manifest list, which
   # some ECS/ECR tooling reports as "image not found" for the platform it wants.
@@ -45,7 +45,7 @@ $PUSH || { echo "built at $TAG (use --push to publish)"; exit 0; }
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 REGISTRY="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
 
-for svc in api worker; do
+for svc in api; do
   # ECR tags are IMMUTABLE, so pushing a tag that already exists is a hard error.
   # That is the correct behaviour for the tag, but it should not fail the build:
   # re-running a CI job on an unchanged commit is a normal thing to do, and the

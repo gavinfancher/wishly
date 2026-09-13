@@ -1,5 +1,7 @@
 """Wishly backend package.
 
-A shared Python package powering two entrypoints (FastAPI API and Prefect
-orchestration) over one PostgreSQL database. See ``docs/PLAN.md``.
+The FastAPI API and the reminder send pipeline over one PostgreSQL database.
+One process runs both: the send is a background task started by an hourly
+EventBridge rule POSTing to ``/internal/runs/send-reminders``. See
+``docs/PLAN.md``.
 """

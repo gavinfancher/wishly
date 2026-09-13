@@ -1,10 +1,15 @@
 """Manually-triggered preview of the reminder pipeline.
 
-The hourly flow (:mod:`wishly.orchestration.flows`) only sends when a reminder
+The hourly send (:mod:`wishly.orchestration.runner`) only sends when a reminder
 is genuinely due, which makes it useless for checking your work: the next real
-send may be months away. This flow exercises the same path on demand — load a
-user and event from Postgres, render the real template, and optionally hand it
-to Resend — so you can see exactly what lands in the inbox.
+send may be months away. This exercises the same path on demand — load a user
+and event from Postgres, render the real template, and optionally hand it to
+Resend — so you can see exactly what lands in the inbox.
+
+Reached over HTTP at ``POST /internal/runs/preview``, which is what replaced the
+"run deployment with parameters" button in the Prefect UI. It runs inline rather
+than in the background: a human is waiting for the rendered subject line, and no
+5-second API-destination timeout applies to a curl.
 
 **It never writes to ``notification_log``.** That table is the idempotency
 ledger: the sender only sends after winning
@@ -13,9 +18,9 @@ so a synthetic row there would make a *real* reminder for the same occurrence
 look already-sent and silently suppress it. Sends are recorded in
 ``test_email_log`` instead, exactly as the ``/me/test-email`` endpoint does.
 
-``send`` defaults to **False** so triggering the deployment with stock
-parameters renders and shows the email without touching Resend. Flip it to True
-in the Prefect UI when you actually want the message delivered.
+``send`` defaults to **False** so calling this with stock parameters renders and
+returns the email without touching Resend. Pass ``send=true`` when you actually
+want the message delivered.
 """
 
 from __future__ import annotations
@@ -24,11 +29,10 @@ import datetime
 from dataclasses import dataclass
 
 import pendulum
-from prefect import flow, get_run_logger
-from prefect.artifacts import create_markdown_artifact
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from wishly.core.logging import get_logger
 from wishly.db.models import Event, TestEmailLog, User
 from wishly.db.session import session_scope
 from wishly.email.render import build_manage_url, render_email
@@ -38,12 +42,14 @@ from wishly.orchestration.due import local_today
 # Matches the default lead time the /me/test-email endpoint previews with.
 DEFAULT_DAYS_BEFORE = 7
 
+logger = get_logger("wishly.orchestration.preview")
+
 
 class PreviewError(RuntimeError):
     """Raised when the requested user/event cannot be resolved.
 
-    Carries an operator-facing message: this flow is triggered by a human in the
-    Prefect UI, so the failure text is the whole diagnostic.
+    Carries an operator-facing message: this is triggered by a human with curl,
+    so the failure text is the whole diagnostic and the route returns it verbatim.
     """
 
 
@@ -90,7 +96,7 @@ def resolve_target(
 
     Both arguments are optional so the deployment can be triggered with no
     parameters at all on a single-user development database. Split out from the
-    flow so the resolution rules are unit-testable without a Prefect context.
+    route so the resolution rules are unit-testable without an HTTP client.
     """
     user_stmt = select(User).where(User.deleted_at.is_(None))
     if user_email is not None:
@@ -140,7 +146,6 @@ def resolve_target(
     )
 
 
-@flow(name="preview-reminder")
 def preview_reminder(
     user_email: str | None = None,
     event_id: str | None = None,
@@ -163,8 +168,6 @@ def preview_reminder(
     Returns:
         A summary dict: resolved recipient, subject, occurrence date, and outcome.
     """
-    logger = get_run_logger()
-
     with session_scope() as session:
         target = resolve_target(session, user_email=user_email, event_id=event_id)
 
@@ -191,23 +194,11 @@ def preview_reminder(
             days_before,
         )
 
-        # The plaintext body is the readable half; publish it as an artifact so
-        # the rendered email is visible in the run page without opening an inbox.
-        create_markdown_artifact(
-            key="reminder-preview",
-            markdown=(
-                f"**To:** {recipient}\n\n"
-                f"**Subject:** {rendered.subject}\n\n"
-                f"**Occurrence:** {occurrence.isoformat()} "
-                f"({days_before} days before)\n\n"
-                f"**Sent via Resend:** {send}\n\n"
-                "---\n\n"
-                f"```\n{rendered.text}\n```"
-            ),
-            description=f"Reminder preview for {target.title}",
-        )
-
+        # Prefect published the plaintext body as a run artifact so you could
+        # read it without opening an inbox. The route returns it in the response
+        # instead, which is the same thing one indirection shorter.
         summary: dict[str, object] = {
+            "text": rendered.text,
             "user_email": target.user_email,
             "event_id": target.event_id,
             "title": target.title,

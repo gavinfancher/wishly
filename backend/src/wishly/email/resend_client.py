@@ -3,7 +3,7 @@
 Exposes a single :class:`ResendClient` with :meth:`~ResendClient.send_email`,
 which builds the Resend payload, sends, and returns the provider message id.
 Any failure is normalised to a typed :class:`EmailSendError` so callers (the
-Prefect send task) never have to know Resend's exception taxonomy.
+send pipeline) never have to know Resend's exception taxonomy.
 
 Configuration (``RESEND_API_KEY``, ``EMAIL_FROM``) is read from
 :data:`wishly.core.settings.settings`; nothing is hard-coded. The key is read
@@ -26,8 +26,10 @@ import resend.exceptions
 
 from wishly.core.settings import settings
 
-# Resend is a hop away over the internet; without a bound the Prefect send task
-# (and the API's threadpool call) could hang for as long as the socket stays open.
+# Resend is a hop away over the internet; without a bound a send could hang for
+# as long as the socket stays open — and it now hangs a threadpool worker inside
+# the API process, which is also why the hourly trigger answers 202 rather than
+# waiting for the run (an EventBridge API destination gives it 5 seconds).
 RESEND_TIMEOUT_SECONDS = 30.0
 
 
@@ -67,8 +69,8 @@ class EmailSendError(RuntimeError):
     """Raised when sending an email via Resend fails.
 
     ``transient`` marks errors worth retrying (rate limits / upstream 5xx);
-    the Prefect task's retry policy can use it to avoid retrying, say, a hard
-    validation error forever.
+    ``wishly.orchestration.tasks._send_with_retry`` uses it to avoid retrying,
+    say, a hard validation error forever.
     """
 
     def __init__(self, message: str, *, transient: bool = False) -> None:

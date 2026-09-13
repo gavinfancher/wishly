@@ -1,0 +1,56 @@
+# Local Postgres for development and the test suite.
+#
+#   docker compose -f infra/compose.local.yaml up -d
+#
+# STANDALONE, not an overlay on compose.yaml. It was an overlay once, which meant
+# `-f` twice and — because the base file pins the API image to `${WISHLY_TAG:?}`
+# — refusing to start a database until you had a pushed image tag. Nothing about
+# a local Postgres depends on which commit is deployed, so it no longer asks.
+#
+# In production the database is PlanetScale (see database-choice.md) and this
+# file is not used. Run the API itself with uvicorn while developing:
+#
+#   cd backend && uv run uvicorn wishly.api.main:app --reload
+#
+# TWO DATABASES, AND THE DIFFERENCE MATTERS. `wishly` holds development data.
+# `wishly_test` is created alongside it by ./local/initdb and is the only one the
+# test suite may touch: tests/conftest.py truncates every table between tests,
+# and pointing it at the development database once destroyed live data. The suite
+# defaults to `wishly_test` and refuses any database whose name does not end in
+# `_test`, so the mistake is not available rather than merely discouraged.
+services:
+  postgres:
+    image: postgres:18.4
+    container_name: wishly-postgres
+    # Defaults rather than required variables: a throwaway local database is not
+    # worth a configuration step, and infra/.env carries only what is needed to
+    # reach AWS. These match the DSN tests/conftest.py falls back to, so
+    # `docker compose -f infra/compose.local.yaml up -d && uv run pytest` works
+    # with nothing else set.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wishly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wishly}
+      POSTGRES_DB: ${POSTGRES_DB:-wishly}
+    volumes:
+      # Postgres 18 keeps PGDATA in a versioned subdirectory; mounting the parent
+      # is what the official image recommends so pg_upgrade --link stays possible.
+      - wishly_pgdata:/var/lib/postgresql
+      # Runs only on first init of an empty volume. To pick up a change here,
+      # `docker compose -f infra/compose.local.yaml down -v` first — otherwise it
+      # is silently skipped and wishly_test never appears.
+      - ./local/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wishly} -d ${POSTGRES_DB:-wishly}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Loopback only — a development database has no business being reachable
+    # from the network.
+    ports:
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+
+volumes:
+  wishly_pgdata:
+    name: wishly_pgdata_local

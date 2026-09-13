@@ -1,7 +1,7 @@
 [project]
 name = "wishly"
 version = "0.1.0"
-description = "Wishly backend — birthday/anniversary reminder emails (FastAPI + Prefect over Postgres)."
+description = "Wishly backend — birthday/anniversary reminder emails (FastAPI over Postgres)."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -75,8 +75,6 @@ module = [
     "svix.*",
     "clerk_backend_api",
     "clerk_backend_api.*",
-    "prefect",
-    "prefect.*",
 ]
 ignore_missing_imports = true
 
@@ -86,21 +84,12 @@ asyncio_mode = "auto"
 addopts = "-ra"
 
 [dependency-groups]
-# Prefect is the send pipeline's, not the API's. It is 106 MB installed and
-# nothing under api/, db/, email/ or core/ imports it — only orchestration/ does.
-# Splitting it out takes that weight out of the API image, which matters because
-# a scale-to-zero Fargate service re-pulls the image on every cold start, so
-# image size is recovery time.
-#
-#   API image     uv sync --no-dev
-#   worker image  uv sync --no-dev --group worker
-#
-# dev includes it: the test suite imports wishly.orchestration.preview.
-worker = [
-    "prefect>=3.0.0",
-]
+# No `worker` group any more. It existed to keep Prefect (106 MB installed, and
+# imported by nothing outside orchestration/) out of the API image, which needed
+# two images to build and two containers to run. The hourly send is now an
+# EventBridge rule POSTing to /internal/runs/send-reminders, so orchestration/
+# imports nothing the API does not already have and there is one image.
 dev = [
-    { include-group = "worker" },
     "boto3-stubs>=1.43.89",
     "mypy>=2.1.0",
     "pytest>=9.1.0",

@@ -16,8 +16,8 @@
 --
 -- The app connects as `wishly`, never as the admin role. That admin need not be
 -- a true superuser — creating a role and a database is all this requires, which
--- is the most a managed provider will hand you. Prefect keeps its own state in
--- Prefect Cloud, so there is no second tenant here.
+-- is the most a managed provider will hand you. The send pipeline runs inside
+-- the API process against this same database, so there is no second tenant here.
 
 \set ON_ERROR_STOP on
 

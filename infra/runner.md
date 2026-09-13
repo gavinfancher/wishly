@@ -1,7 +1,19 @@
 # The build runner
 
-A GitHub Actions self-hosted runner on a Proxmox VM. It builds both images and
-pushes them to ECR whenever `backend/` or the image definitions change on `main`.
+> **Out of date — the image build no longer runs here.** `build.yml` now builds
+> on a GitHub-hosted `ubuntu-latest` and pushes to
+> `ghcr.io/gavinfancher/wishly:<sha>`, because the repository is public: the
+> minutes are free, and a self-hosted runner on a public repo would execute fork
+> PR code on the home network — the risk this page's own threat model is about.
+>
+> Still true and still used: `deploy-vm.yml` runs here (`runs-on: [self-hosted,
+> …]`), so the runner is not decommissioned. Everything below describes the ECR
+> build that moved; the `wishly-ci` OIDC role in `terraform/oidc.tf` is what
+> that build used and nothing assumes it any more. The rest of this page has not
+> been rewritten.
+
+A GitHub Actions self-hosted runner on a Proxmox VM. It built both images and
+pushed them to ECR whenever `backend/` or the image definitions changed on `main`.
 
 ## Why self-hosted, and why it does not open a port
 

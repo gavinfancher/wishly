@@ -1,6 +1,6 @@
-"""Prefect tasks for the hourly send pipeline (T5.2 + T5.3).
+"""The hourly send pipeline (T5.2 + T5.3).
 
-Two tasks, wired together in :mod:`wishly.orchestration.flows`:
+Two steps, wired together in :mod:`wishly.orchestration.runner`:
 
 #. :func:`find_due_notifications` — implements PLAN §7 steps 1-3: select the
    users in their send window (local hour == ``send_hour``), then, for each
@@ -15,27 +15,43 @@ Two tasks, wired together in :mod:`wishly.orchestration.flows`:
 
 The claim-before-send protocol is what makes double-sends structurally
 impossible, so retries (T5.4) update the existing row instead of duplicating.
+It is also what makes the HTTP trigger safe: EventBridge delivering the same
+tick twice, or the VM and the ECS standby both answering, costs a wasted query
+and nothing else.
 
+**No Prefect.** This used to be two ``@task``-decorated functions whose retries
+came from the flow runner. The retry now lives in :func:`_send_with_retry`,
+which is a straight improvement: it retries the one send that failed instead of
+re-walking the whole batch, and it consults ``EmailSendError.transient`` so a
+hard validation error fails immediately rather than three times.
 """
 
 import datetime
+import random
+import time
 from dataclasses import dataclass
 
 import pendulum
-from prefect import get_run_logger, task
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from wishly.core.logging import get_logger
 from wishly.db.models import Event, NotificationLog, Suppression, User
 from wishly.db.session import session_scope
 from wishly.email.render import build_manage_url, render_email
-from wishly.email.resend_client import ResendClient
+from wishly.email.resend_client import EmailSendError, ResendClient
 from wishly.orchestration.due import is_in_send_window, local_today, occurrence_on
+
+logger = get_logger("wishly.orchestration")
 
 # Transient Resend failures (rate limits, upstream 5xx, network) are worth a few
 # quick retries; the claim row already exists, so a retry updates it in place.
 # Exponential backoff, jittered so concurrent retries do not align.
+#
+# The whole budget is bounded at 2 + 4 + 8 = 14s plus jitter, per notification.
+# That matters now that the send runs in the API process rather than a Prefect
+# subprocess: it is a threadpool worker being held, so it must end on its own.
 SEND_RETRIES = 3
 SEND_RETRY_DELAYS = [2.0, 4.0, 8.0]
 SEND_RETRY_JITTER = 0.5
@@ -130,10 +146,8 @@ def compute_due_notifications(
     return due
 
 
-@task
 def find_due_notifications() -> list[DueNotification]:
-    """Task: return the reminders due as of ``now`` (PLAN §7 steps 1-3)."""
-    logger = get_run_logger()
+    """Return the reminders due as of ``now`` (PLAN §7 steps 1-3)."""
     now_utc = pendulum.now("UTC")
     with session_scope() as session:
         due = compute_due_notifications(session, now_utc)
@@ -192,6 +206,49 @@ def _mark(
         row.sent_at = pendulum.now("UTC")
 
 
+def _send_with_retry(
+    resend_client: ResendClient,
+    *,
+    to: str,
+    subject: str,
+    html: str,
+    text: str,
+) -> str:
+    """Send one email, retrying only errors that might succeed next time.
+
+    Replaces Prefect's task-level retry policy. Two differences, both deliberate:
+
+    * The unit of retry is **one email**, not the whole batch. A rate limit on
+      the third of five reminders no longer re-walks the first two.
+    * ``EmailSendError.transient`` decides. A 422 for a malformed address is not
+      going to become valid in four seconds, so it fails on the first attempt
+      instead of burning the full backoff.
+
+    Raises the last error once the budget is exhausted; the caller records it.
+    """
+    attempts = SEND_RETRIES + 1
+    for attempt in range(attempts):
+        try:
+            return resend_client.send_email(to=to, subject=subject, html=html, text=text)
+        except EmailSendError as exc:
+            last = attempt == attempts - 1
+            if last or not exc.transient:
+                raise
+            # Jitter so several reminders failing on the same rate limit do not
+            # come back in lockstep and trip it again.
+            delay = SEND_RETRY_DELAYS[attempt]
+            delay += random.uniform(0, delay * SEND_RETRY_JITTER)  # noqa: S311 — not crypto
+            logger.warning(
+                "resend attempt %d/%d failed (%s); retrying in %.1fs",
+                attempt + 1,
+                attempts,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+    raise AssertionError("unreachable")  # pragma: no cover — loop always returns or raises
+
+
 def process_one(
     session: Session,
     resend_client: ResendClient,
@@ -202,8 +259,13 @@ def process_one(
     Returns a short status string (``sent`` | ``failed`` | ``skipped`` |
     ``duplicate``) for logging/metrics. Each call commits its own row so that
     one failure cannot roll back already-sent siblings, and a retry resumes
-    cleanly. Raises :class:`EmailSendError` after recording ``failed`` so the
-    op's retry policy can re-run it (the claim row already exists, so no dup).
+    cleanly.
+
+    A send that fails every attempt is recorded as ``failed`` and **returned**,
+    not raised. Under Prefect the raise was the retry signal; now that the batch
+    is a plain loop, raising would abandon everyone queued behind a single bad
+    recipient. The failure is durable in ``notification_log`` either way, which
+    is where ``GET /notifications`` reads it from.
     """
     claim_id = _claim(session, item)
     if claim_id is None:
@@ -228,39 +290,42 @@ def process_one(
     )
 
     try:
-        resend_id = resend_client.send_email(
+        resend_id = _send_with_retry(
+            resend_client,
             to=recipient,
             subject=rendered.subject,
             html=rendered.html,
             text=rendered.text,
         )
-    except Exception as exc:
-        # Record the failure on the claimed row and re-raise so Prefect retries.
-        # The claim persists, so the retry updates this same row (no duplicate).
+    except Exception as exc:  # noqa: BLE001 — one bad send must not stop the batch
+        # Record the failure on the claimed row. The claim persists, so the next
+        # hour's tick sees this occurrence as already handled and will not send
+        # a duplicate — a failed reminder stays failed until someone looks.
         _mark(session, claim_id, status="failed", error=str(exc))
         session.commit()
-        raise
+        logger.error(
+            "send failed for %s/%s/%s: %s",
+            item.event_id,
+            item.days_before,
+            item.occurrence_date.isoformat(),
+            exc,
+        )
+        return "failed"
 
     _mark(session, claim_id, status="sent", resend_id=resend_id)
     session.commit()
     return "sent"
 
 
-@task(
-    retries=SEND_RETRIES,
-    retry_delay_seconds=SEND_RETRY_DELAYS,
-    retry_jitter_factor=SEND_RETRY_JITTER,
-)
 def send_due_notifications(due: list[DueNotification]) -> dict[str, int]:
-    """Task: claim + send + record every due notification (PLAN §7 steps 4-6).
+    """Claim + send + record every due notification (PLAN §7 steps 4-6).
 
-    Returns a tally of outcomes by status. On the first hard send error this task
-    raises (after recording ``failed``), letting Prefect retry it; already-processed
-    items are skipped as ``duplicate`` on the retry, so retries never double-send.
+    Returns a tally of outcomes by status. Every item is attempted: a failure is
+    recorded against its claimed row and counted, and the loop continues. The
+    per-send retry lives in :func:`_send_with_retry`.
     """
-    logger = get_run_logger()
     client = ResendClient()
-    tally: dict[str, int] = {"sent": 0, "skipped": 0, "duplicate": 0}
+    tally: dict[str, int] = {"sent": 0, "skipped": 0, "duplicate": 0, "failed": 0}
 
     # One session for the op; ``process_one`` commits each item independently so
     # a later failure cannot roll back an already-sent sibling.
@@ -282,6 +347,8 @@ def send_due_notifications(due: list[DueNotification]) -> dict[str, int]:
 
 __all__ = [
     "SEND_RETRIES",
+    "SEND_RETRY_DELAYS",
+    "SEND_RETRY_JITTER",
     "DueNotification",
     "compute_due_notifications",
     "find_due_notifications",

@@ -1,1 +1,1 @@
-"""FastAPI route modules (me, events, reminders)."""
+"""FastAPI route modules (me, events, reminders, notifications, internal)."""

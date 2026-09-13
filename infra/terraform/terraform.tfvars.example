@@ -4,11 +4,22 @@
 # failover target forward — ECR tags are immutable, so a tag means one image.
 image_tag = "f61f249"
 
-# The app host the detector watches. Not a secret; it is an identifier.
-#   curl -H "Authorization: Bearer $TAILSCALE_API_KEY" \
-#     https://api.tailscale.com/api/v2/tailnet/-/devices
-tailscale_device_id = "3753644670956477"
+# Shared secret for the X-Wishly-Trigger header. EventBridge sends it on the
+# hourly tick and the detector Lambda sends it on every probe; the API compares
+# it with TRIGGER_TOKEN from Secrets Manager.
+#
+# NOT RECONCILED AUTOMATICALLY. Infisical owns the value the API reads and this
+# file owns the value AWS sends. They must be set to the same string by hand, and
+# a mismatch looks like: no reminders going out, and the detector logging
+# "trigger token mismatch" once a minute while never failing over.
+#
+#   openssl rand -hex 32
+trigger_token = "replace-me"
 
-# Set false to stop the watchdog polling during planned VM maintenance, so it
+# Set false to stop the hourly send without destroying the rule — e.g. while
+# testing a template change you do not want emailed to real people.
+send_enabled = true
+
+# Set false to stop the watchdog probing during planned VM maintenance, so it
 # does not fail over while you are the one who took the host down.
 detector_enabled = true

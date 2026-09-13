@@ -11,9 +11,9 @@ can call her.
 - **Frontend** — static site on Cloudflare Pages.
 - **Auth** — user accounts through Clerk.
 - **API** — FastAPI (Python) in a container, exposed via a Cloudflare Tunnel.
-- **Orchestration** — Prefect, using Prefect Cloud.
-- **Host** — Proxmox Ubuntu VM running Docker Compose for cloudflared, the API, and the
-  Prefect worker.
+- **Orchestration** — an hourly EventBridge rule calling an endpoint on the API. No
+  scheduler of its own.
+- **Host** — Proxmox Ubuntu VM running Docker Compose for cloudflared and the API.
 - **Email** — Resend.
 - **Database** — PlanetScale micro instance for production data. Banking on it not going
   offline, which is fine — I have 2 users.

@@ -4,8 +4,8 @@ All configuration is supplied through the environment (never hard-coded). The
 canonical list of variables lives in the ``.env.example`` files. Required values
 raise a clear validation error the first time :func:`get_settings` runs.
 
-This is the *only* place the environment is read. Everything the API, the worker,
-and the CLIs need is a field or a property on :class:`Settings`.
+This is the *only* place the environment is read. Everything the API and the
+CLIs need is a field or a property on :class:`Settings`.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Database (API uses asyncpg; worker/CLIs use sync psycopg) -----------
+    # --- Database (requests use asyncpg; the send pipeline/CLIs use psycopg) -
     database_url: str = Field(
         ...,
         description="PostgreSQL DSN, e.g. postgresql://wishly:wishly@localhost:5432/wishly",
@@ -90,6 +90,17 @@ class Settings(BaseSettings):
     )
     environment: Environment = Field(default="dev", description="Deployment environment.")
 
+    # --- Internal trigger (EventBridge -> /internal/*) ------------------------
+    #
+    # A machine credential, not a user one: the hourly send is started by an
+    # EventBridge API destination and the liveness probe by the detector Lambda,
+    # neither of which has a Clerk session. Compared with `hmac.compare_digest`
+    # in `wishly.api.routes.internal`.
+    trigger_token: str | None = Field(
+        default=None,
+        description="Shared secret for the X-Wishly-Trigger header on /internal routes.",
+    )
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -119,7 +130,15 @@ class Settings(BaseSettings):
         if self.environment != "prod":
             return self
 
-        required = ("clerk_secret_key", "clerk_frontend_api", "resend_api_key")
+        # trigger_token included deliberately: without it every /internal route
+        # rejects, so the hourly send never runs and the detector reads the
+        # rejection as "unknown" forever — a silent stop with a green /health.
+        required = (
+            "clerk_secret_key",
+            "clerk_frontend_api",
+            "resend_api_key",
+            "trigger_token",
+        )
         missing = [name for name in required if not getattr(self, name)]
         if self.app_base_url.startswith("http://localhost"):
             missing.append("app_base_url")
@@ -148,7 +167,7 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        """The DSN rewritten to use the psycopg (v3) driver (for the worker/CLIs)."""
+        """The DSN rewritten to use the psycopg (v3) driver (send pipeline/CLIs)."""
         return _with_driver(self.database_url, "postgresql+psycopg", ssl_param="sslmode")
 
     @property
@@ -209,7 +228,7 @@ def _with_driver(
     The two drivers disagree about how to ask for TLS, and neither tolerates the
     other's spelling:
 
-    * **psycopg** (worker, schema, psql) uses libpq's ``sslmode``. Given ``ssl``
+    * **psycopg** (send pipeline, schema, psql) uses libpq's ``sslmode``. Given ``ssl``
       it raises ``invalid connection option "ssl"``.
     * **asyncpg** (the API) takes ``ssl``. Given ``sslmode`` it raises
       ``TypeError: connect() got an unexpected keyword argument 'sslmode'`` — on

@@ -4,22 +4,37 @@ One image, one architecture (amd64), one tag. The VM and the ECS standby pull
 the **same digest**, so what you test is what fails over.
 
 ```
-  git push          runner (CI)            ECR              VM                ECS
-  --------          -----------            ---              --                ---
-  main  ──────▶  images.sh --push  ──▶  :<sha>  ──▶  deploy-vm.sh  ──▶  terraform apply
-                                        (immutable)     (manual)          (manual)
-                                                                     registers a task def;
-                                                                     nothing starts (count 0)
+  git push        CI (GitHub-hosted)          GHCR
+  --------        ------------------          ----
+  main  ──────▶  build.yml  ──────────▶  wishly:<sha>        nothing pulls this yet
+                                                                       │
+  ─────────────────────────────────────────────────────────────────────┘
+  your laptop           ECR              VM                ECS
+  -----------           ---              --                ---
+  images.sh --push ▶ :<sha>  ──▶  deploy-vm.sh  ──▶  terraform apply
+                   (immutable)      (manual)           (manual)
+                                                  registers a task def;
+                                                  nothing starts (count 0)
 ```
 
-## 0. What CI already did
+## 0. Two registries, mid-migration
 
-Pushing to `main` triggers `.github/workflows/build.yml`, which builds both
-images on the self-hosted runner and pushes them to ECR at the commit SHA. The
-run summary prints the digests and the exact commands for steps 2 and 3.
+**CI no longer produces the image you run.** `.github/workflows/build.yml` builds
+on a GitHub-hosted runner and pushes to `ghcr.io/gavinfancher/wishly:<sha>`,
+which is free, holds no long-lived credential, and does not run fork code on the
+home network (see `runner.md`). But the VM's `compose.yaml` and the ECS task
+definition still name ECR, and nothing yet pulls from GHCR.
 
-So in normal operation you skip step 1 — it is what to do when the runner is
-down, or when you want to publish from a branch. See `runner.md`.
+So **step 1 is no longer a fallback — it is the deploy.** Until ECR is retired or
+ECS and compose are pointed at GHCR, a commit is only deployable after you have
+run `images.sh --push` from a checkout yourself.
+
+The trap this sets: `terraform apply -var image_tag=<sha>` succeeds whether or
+not that tag exists in ECR. Terraform does not check, and the service sits at
+desired-count 0, so nothing tries to pull until a real failover does — and then
+it cannot start. **Confirm the tag is in ECR before you apply it** (step 3 has
+the command). Pointing ECS at the now-public GHCR package is a one-line change
+that removes this whole class of mistake; it has not been made yet.
 
 **CI stops at the registry.** It does not roll the VM (that is a manual
 `workflow_dispatch`, because the watchdog fails over on ~3 minutes of downtime)
@@ -27,15 +42,19 @@ and it cannot touch ECS at all — Terraform state is local to your laptop and
 gitignored, so there is nothing for a runner to apply against. Moving that to an
 S3 backend is the prerequisite for automating step 3, and it has not been done.
 
-## 1. Build and push (manual fallback)
+## 1. Build and push to ECR (required)
 
 From a clean checkout — the script refuses a dirty tree, because a tag naming a
 commit that does not describe the bytes is worse than no tag:
 
 ```bash
 git push                       # commit first
-./infra/images.sh --push       # tags with the short SHA, prints each digest
+./infra/images.sh --push       # tags with the short SHA, prints the digest
 ```
+
+One image now, not two. The Prefect worker container is gone — the hourly send
+is an EventBridge rule POSTing to `/internal/runs/send-reminders` on the API, so
+there is nothing else to build. See `terraform/schedule.tf`.
 
 ## 2. Roll the VM
 

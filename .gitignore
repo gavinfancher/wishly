@@ -26,10 +26,6 @@ yarn-error.log*
 !.env.example
 .claude
 
-# --- Dagster --------------------------------------------------------------
-dagster_home/
-tmp_dagster_home_*/
-
 # --- OS / editor ----------------------------------------------------------
 .DS_Store
 Thumbs.db

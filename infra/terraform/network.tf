@@ -1,7 +1,7 @@
 # The network the failover tasks run in.
 #
 # PUBLIC SUBNETS, DELIBERATELY. Fargate needs outbound internet to reach
-# PlanetScale, Prefect Cloud, Resend, Clerk and Cloudflare's edge. From a
+# PlanetScale, Resend, Clerk and Cloudflare's edge. From a
 # private subnet that means a NAT gateway at roughly $32/month — billed while
 # idle, which is exactly what a scale-to-zero design exists to avoid. It would
 # cost more per month than every failover this service will ever run.
@@ -71,7 +71,7 @@ resource "aws_security_group" "tasks" {
   vpc_id      = aws_vpc.main.id
 
   egress {
-    description = "All outbound: PlanetScale, Prefect Cloud, Resend, Clerk, Cloudflare"
+    description = "All outbound: PlanetScale, Resend, Clerk, Cloudflare"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

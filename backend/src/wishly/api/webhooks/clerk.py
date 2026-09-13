@@ -10,7 +10,7 @@ signature, then:
 Any other event type is acknowledged with ``200`` and ignored. An invalid or
 missing signature returns ``400``.
 
-This keeps Postgres current for the send-time path (the worker), which has no JWT
+This keeps Postgres current for the send-time path, which has no JWT
 and cannot call Clerk per send (PLAN §3).
 """
 

@@ -4,8 +4,14 @@ Two runtimes share one database:
 
 * **FastAPI** uses an *async* engine (``asyncpg``) and yields an
   :class:`~sqlalchemy.ext.asyncio.AsyncSession` per request via :func:`get_session`.
-* **The worker** uses a *sync* engine (``psycopg`` v3) and a plain
-  :class:`~sqlalchemy.orm.Session`.
+* **The send pipeline and the CLIs** use a *sync* engine (``psycopg`` v3) and a
+  plain :class:`~sqlalchemy.orm.Session`. The send runs in a FastAPI background
+  task these days, so both engines live in the same process — they still do not
+  share a connection pool.
+
+Two runtimes, one process. That is not a contradiction: the API's request path is
+async all the way down, and the send pipeline is synchronous code Starlette hands
+to a threadpool.
 
 Engines are created lazily and cached so that merely importing this module does
 not require a configured ``DATABASE_URL`` (keeps imports cheap and test-friendly).
@@ -38,7 +44,7 @@ from wishly.core.settings import settings
 # OpenSSL whose compiled-in store is neither Debian's nor macOS's, so that store
 # is empty everywhere and every connection fails `certificate verify failed`.
 # asyncpg is unaffected — it verifies through Python's ssl module — which is why
-# the API worked while the worker did not.
+# the request path worked while the send pipeline did not.
 #
 # certifi rather than a platform path: /etc/ssl/certs/ca-certificates.crt is
 # Debian-only and /etc/ssl/cert.pem is macOS-only, so either one hardcodes a
@@ -94,7 +100,7 @@ def get_async_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 @lru_cache(maxsize=1)
 def get_sync_engine() -> Engine:
-    """Return the process-wide sync engine (psycopg) for the worker/CLIs."""
+    """Return the process-wide sync engine (psycopg) for the send pipeline/CLIs."""
     return create_engine(
         settings.sync_database_url,
         pool_pre_ping=True,

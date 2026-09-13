@@ -1,8 +1,8 @@
 """FastAPI application entrypoint (PLAN T2.2 / T8.2).
 
 Wires together CORS (from ``ALLOWED_ORIGINS``), structured logging, health
-probes, and every router (``/me``, ``/events``, reminders, and the Clerk +
-Resend webhooks). Run locally with::
+probes, and every router (``/me``, ``/events``, reminders, the Clerk + Resend
+webhooks, and the machine-triggered ``/internal`` routes). Run locally with::
 
     uv run uvicorn wishly.api.main:app --reload
 """
@@ -20,6 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from wishly.api.middleware import RequestLoggingMiddleware
 from wishly.api.routes import events as events_routes
+from wishly.api.routes import internal as internal_routes
 from wishly.api.routes import me as me_routes
 from wishly.api.routes import notifications as notification_routes
 from wishly.api.routes import reminders as reminders_routes
@@ -42,6 +43,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "environment": settings.environment,
             "allowed_origins": settings.allowed_origins,
             "clerk_frontend_api": settings.clerk_frontend_api,
+            # Which deployment this is, and whether the hourly EventBridge tick
+            # can get in at all. Both are things you want in the first log line
+            # after a failover, not after an hour of no reminders going out.
+            "host": internal_routes.host_id(),
+            "trigger_configured": bool(settings.trigger_token),
         },
     )
     try:
@@ -95,6 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(events_routes.router)
     app.include_router(reminders_routes.router)
     app.include_router(notification_routes.router)
+    app.include_router(internal_routes.router)
     app.include_router(clerk_webhook.router)
     app.include_router(resend_webhook.router)
 

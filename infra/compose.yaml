@@ -2,14 +2,21 @@
 #
 #   docker compose -f infra/compose.yaml --env-file infra/.env up -d
 #
-# Three long-lived containers. The database is NOT here: it is PlanetScale
+# Two long-lived containers. The database is NOT here: it is PlanetScale
 # Postgres, reached over the public internet via DATABASE_URL. Apply the schema
 # by hand with psql; there are no migrations.
 #
-# CONFIGURATION. Nothing in this file carries application config. The api and
-# worker entrypoints load it from the AWS Secrets Manager secret named by
+# CONFIGURATION. Nothing in this file carries application config. The api
+# entrypoint loads it from the AWS Secrets Manager secret named by
 # WISHLY_SECRETS_ID, so `infra/.env` holds only what is needed to reach AWS:
 # that name and an IAM user's keys.
+#
+# THE HOURLY SEND IS NOT A CONTAINER. It used to be a third service running
+# Prefect's serve(). It is now an EventBridge rule POSTing to
+# /internal/runs/send-reminders on the api service, arriving through the same
+# cloudflared tunnel as browser traffic — so it reaches whichever of this host
+# and the ECS standby is actually serving, with no scheduler to fail over.
+# See infra/terraform/schedule.tf.
 #
 # IMAGES ARE PULLED, NOT BUILT. Both this host and ECS run the same amd64 image
 # from ECR at the same tag, so what you test here is what fails over — same
@@ -40,24 +47,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    restart: unless-stopped
-    networks:
-      - app_net
-
-  # The send pipeline. `python -m wishly.orchestration.flows` calls Prefect's
-  # serve(), which registers both deployments with their schedules and then runs
-  # their flow runs in subprocesses of this container. One process does the whole
-  # job — there is no work pool, no separate worker, and no prefect.yaml.
-  #
-  # Scheduling lives in Prefect Cloud (PREFECT_API_URL + PREFECT_API_KEY), so the
-  # control plane survives this host going away — which is the whole point of
-  # keeping the scheduler off the machine it schedules.
-  worker:
-    image: ${WISHLY_REGISTRY:-809000566572.dkr.ecr.us-east-1.amazonaws.com}/wishly-worker:${WISHLY_TAG:?set WISHLY_TAG in infra/.env to the commit images.sh pushed}
-    env_file:
-      - .env
-    environment:
-      WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID:-}
     restart: unless-stopped
     networks:
       - app_net

@@ -1,4 +1,4 @@
-# Overlay: build the images here instead of pulling them from ECR.
+# Overlay: build the image here instead of pulling it from ECR.
 #
 #   docker compose -f infra/compose.yaml -f infra/compose.build.yaml \
 #     --env-file infra/.env up -d --build
@@ -12,7 +12,3 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
-  worker:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.worker

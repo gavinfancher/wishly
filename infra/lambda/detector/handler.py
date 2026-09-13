@@ -1,18 +1,31 @@
-"""Tailscale staleness detector. One check per invocation; the counter lives in DynamoDB.
+"""Liveness detector. One probe per invocation; the counter lives in DynamoDB.
 
-EventBridge Scheduler runs this every minute. It asks Tailscale when the app
-host was last seen, and after THRESHOLD consecutive stale readings it scales the
-ECS failover service up from zero and posts to Slack.
+EventBridge runs this every minute. It asks the Wishly API whether it is serving
+and which deployment answered, and after THRESHOLD consecutive misses it scales
+the ECS failover service up from zero and posts to Slack.
+
+WHY NOT TAILSCALE ANY MORE. This used to ask Tailscale when the VM's daemon last
+checked in, which answers "is the host powered on" — not "is Wishly working".
+Tailscale stays green while the API crashloops, the tunnel token expires, or
+cloudflared dies, and all three are outages. Probing GET /internal/liveness
+measures the path users actually take: Cloudflare's edge, the tunnel, and the
+API process. It is also one fewer third-party API and one fewer credential.
+
+WHY THE RESPONSE NAMES A HOST. api.wishly.dev is served by whichever cloudflared
+is connected, so after a failover the ECS task answers and the probe succeeds
+while the VM is still dead. Without `host` in the body, the very next minute
+would look like a recovery.
 
 WHY THE COUNTER IS IN DYNAMODB. The original was a loop holding `misses` in
 memory. Lambda invocations share nothing, so the count has to outlive the
 process. One item, read and written once per minute.
 
-THE RULE THAT MATTERS: a failed Tailscale API call is NOT a miss. If their API
-is down or the key expired we cannot tell whether the device is healthy, and
-that is not the same as knowing it is down — conflating them would let a
-Tailscale outage fail over your own infrastructure. On any error this returns
-without touching the counter.
+THE RULE THAT MATTERS, UNCHANGED: a failed check is NOT a miss. It is only a
+miss when we have positive evidence that nothing is serving — Cloudflare
+answering 502/503/530, which means its edge is healthy and found no tunnel
+origin. If we cannot reach Cloudflare at all, or the token is wrong, we do not
+know anything, and failing over on "do not know" would let a problem on this
+side of the connection spend money to fix nothing.
 
 Failback is deliberately manual. Nothing here ever scales back to zero.
 """
@@ -30,15 +43,23 @@ from botocore.exceptions import ClientError
 REGION = "us-east-1"
 SECRET_ID = os.environ.get("WISHLY_SECRETS_ID", "wishly/prod")
 TABLE = os.environ["STATE_TABLE"]
-DEVICE_ID = os.environ["TAILSCALE_DEVICE_ID"]
+API_URL = os.environ["WISHLY_API_URL"].rstrip("/")
 CLUSTER = os.environ["ECS_CLUSTER"]
 SERVICE = os.environ["ECS_SERVICE"]
 
-# Seconds since lastSeen beyond which a reading counts as stale. lastSeen is
-# maintained by Tailscale's coordination server; nothing contracts it to update
-# inside any particular window, so 60s is the conservative floor.
-FRESH_WITHIN = int(os.environ.get("FRESH_WITHIN_SECONDS", "60"))
+# Must match TRIGGER_HEADER in wishly.api.routes.internal.
+TRIGGER_HEADER = "X-Wishly-Trigger"
+
+# Comfortably longer than a healthy round trip to Cloudflare's edge and back
+# through the tunnel, and comfortably shorter than the one-minute schedule.
+PROBE_TIMEOUT = float(os.environ.get("PROBE_TIMEOUT_SECONDS", "10"))
 THRESHOLD = int(os.environ.get("THRESHOLD", "3"))
+
+# Cloudflare's "the edge is fine, the origin is not" family. 530 is its
+# tunnel-specific one (no cloudflared connected); 502/503/504 cover an origin
+# that accepted the connection and then failed. These are positive evidence of
+# an outage, which is what separates them from a timeout.
+NO_ORIGIN_STATUSES = frozenset({502, 503, 504, 520, 521, 522, 523, 524, 530})
 
 _ddb = boto3.client("dynamodb", region_name=REGION)
 _ecs = boto3.client("ecs", region_name=REGION)
@@ -61,16 +82,56 @@ def log(msg: str) -> None:
     print(f"{pendulum.now('UTC').to_iso8601_string()} {msg}", flush=True)
 
 
-def age_seconds() -> float:
-    """Seconds since the device was last seen. Raises on any API problem."""
-    response = httpx.get(
-        f"https://api.tailscale.com/api/v2/device/{DEVICE_ID}",
-        headers={"Authorization": f"Bearer {config()['TAILSCALE_API_KEY']}"},
-        timeout=15,
-    )
-    response.raise_for_status()
-    last_seen = pendulum.parse(response.json()["lastSeen"])
-    return float((pendulum.now("UTC") - last_seen).total_seconds())
+class Unknown(Exception):
+    """We could not determine anything. Never counts as a miss."""
+
+
+def probe() -> str:
+    """Which deployment is serving: ``"vm"``, ``"ecs"``, or ``"none"``.
+
+    Raises :class:`Unknown` for everything that does not answer that question,
+    so the caller can leave the counter alone. The split is the whole point of
+    this function:
+
+    * A **5xx from Cloudflare** means its edge is up and no tunnel origin is
+      connected. That is an outage, and it returns ``"none"``.
+    * A **connect error, DNS failure, or timeout** means we could not reach
+      Cloudflare. That says nothing about the VM, and failing over would not help
+      if Cloudflare itself were the problem.
+    * A **403** means the trigger token is wrong. The app may be perfectly
+      healthy; scaling ECS up would not fix a bad secret, and the fix is a
+      deploy, not a failover.
+    """
+    try:
+        token = config()["TRIGGER_TOKEN"]
+    except Exception as exc:  # noqa: BLE001 — no secret means no verdict
+        raise Unknown(f"could not read TRIGGER_TOKEN: {exc}") from exc
+
+    try:
+        response = httpx.get(
+            f"{API_URL}/internal/liveness",
+            headers={TRIGGER_HEADER: token},
+            timeout=PROBE_TIMEOUT,
+            follow_redirects=False,
+        )
+    except httpx.HTTPError as exc:
+        raise Unknown(f"could not reach {API_URL}: {exc}") from exc
+
+    if response.status_code in NO_ORIGIN_STATUSES:
+        return "none"
+    if response.status_code == 403:
+        raise Unknown("403 from the API — trigger token mismatch, not an outage")
+    if response.status_code != 200:
+        raise Unknown(f"unexpected status {response.status_code}")
+
+    try:
+        host = str(response.json()["host"])
+    except Exception as exc:  # noqa: BLE001 — a body we cannot read is not a verdict
+        raise Unknown(f"unreadable liveness body: {exc}") from exc
+
+    if host not in ("vm", "ecs"):
+        raise Unknown(f"unrecognised host {host!r}")
+    return host
 
 
 def slack(text: str) -> None:
@@ -85,15 +146,21 @@ def slack(text: str) -> None:
         log(f"slack alert failed: {exc}")
 
 
-def record(misses: int, age: float, state: str) -> None:
+def record(misses: int, serving: str, state: str) -> None:
+    """Persist the counter and what the last probe saw.
+
+    ``last_seen_host`` replaces the old ``last_age_seconds``: there is no age to
+    report now, and "who answered the last probe" is the thing you actually want
+    when reading this item during an incident.
+    """
     _ddb.update_item(
         TableName=TABLE,
         Key={"id": {"S": "detector"}},
-        UpdateExpression="SET misses = :m, last_age_seconds = :a, updated_at = :t, #s = :st",
+        UpdateExpression="SET misses = :m, last_seen_host = :h, updated_at = :t, #s = :st",
         ExpressionAttributeNames={"#s": "state"},
         ExpressionAttributeValues={
             ":m": {"N": str(misses)},
-            ":a": {"N": f"{age:.0f}"},
+            ":h": {"S": serving},
             ":t": {"S": pendulum.now("UTC").to_iso8601_string()},
             ":st": {"S": state},
         },
@@ -129,31 +196,43 @@ def claim_failover() -> bool:
 
 def handler(event: object, context: object) -> dict[str, object]:
     try:
-        age = age_seconds()
-    except Exception as exc:  # noqa: BLE001 — any failure means "unknown", not "down"
-        log(f"check failed: {exc}")
+        serving = probe()
+    except Unknown as exc:
+        # Not a miss. See the module docstring: we only count what we can prove.
+        log(f"probe inconclusive: {exc}")
         return {"status": "unknown", "error": str(exc)}
 
     misses, state = current()
 
-    if age < FRESH_WITHIN:
+    if serving == "vm":
         if misses or state != "OK":
-            log(f"ok ({age:.0f}s) — resetting")
-        record(0, age, "OK")
-        return {"status": "ok", "age": age}
+            log("vm is serving again — resetting")
+        record(0, serving, "OK")
+        return {"status": "ok", "host": serving}
 
+    if serving == "ecs":
+        # Already failed over. The VM has not come back — the standby is simply
+        # answering for it — so neither count this nor clear the counter, and
+        # never scale a service that is already up. Failback stays manual.
+        log("ecs is serving — already failed over, leaving state alone")
+        return {"status": "already_failed_over", "host": serving}
+
+    # serving == "none": Cloudflare's edge answered and found no tunnel origin.
     misses += 1
-    log(f"stale {age:.0f}s ({misses}/{THRESHOLD})")
-    record(misses, age, state)
+    log(f"no origin serving ({misses}/{THRESHOLD})")
+    record(misses, serving, state)
 
     if misses < THRESHOLD:
-        return {"status": "stale", "misses": misses}
+        return {"status": "missing", "misses": misses}
 
     if not claim_failover():
         log("already DOWN, not failing over again")
         return {"status": "already_down"}
 
-    log(f"DOWN after {THRESHOLD} stale checks — scaling {SERVICE} to 1")
+    log(f"DOWN after {THRESHOLD} failed probes — scaling {SERVICE} to 1")
     _ecs.update_service(cluster=CLUSTER, service=SERVICE, desiredCount=1)
-    slack(f":red_circle: {DEVICE_ID} is DOWN (last seen {age:.0f}s ago) — scaled {SERVICE} to 1")
-    return {"status": "failed_over", "age": age}
+    slack(
+        f":red_circle: {API_URL} has no origin serving after {THRESHOLD} probes "
+        f"— scaled {SERVICE} to 1"
+    )
+    return {"status": "failed_over"}

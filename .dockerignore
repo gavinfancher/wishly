@@ -1,13 +1,12 @@
-# Build context is the repo root (infra/docker-compose.yml uses context: ..).
-# Only backend/ is needed by the API/Dagster images — exclude everything noisy.
+# Build context is the repo root (infra/compose.yaml uses context: ..).
+# Only backend/ is needed by the image — exclude everything noisy.
 frontend/
 docs/
-# Exclude infra/ except the Dagster instance config the image bakes in.
-infra/*
-!infra/dagster
-infra/dagster/*
-!infra/dagster/dagster.yaml
-!infra/dagster/workspace.yaml
+# Nothing under infra/ enters the image. The exceptions that used to live here
+# baked a Dagster instance config in; that orchestrator is long gone, and so is
+# the Prefect worker that replaced it. The send pipeline is now a route in the
+# API, so the image is just backend/.
+infra/
 .git/
 .github/
 **/.venv/

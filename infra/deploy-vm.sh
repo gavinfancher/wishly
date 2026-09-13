@@ -55,7 +55,7 @@ done
 # running so a deploy that silently kept the old container is visible here
 # rather than during a failover.
 echo "==> running digests"
-for svc in api worker; do
+for svc in api; do
   docker inspect --format "{{index .RepoDigests 0}}" \
     "$(compose ps -q "$svc")" 2>/dev/null || echo "  $svc: no digest (locally built?)"
 done

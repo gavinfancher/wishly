@@ -16,11 +16,30 @@ def test_settings_reads_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     # without them, which is the point of it.
     monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_x")
     monkeypatch.setenv("RESEND_API_KEY", "re_x")
+    monkeypatch.setenv("TRIGGER_TOKEN", "trg_x")
     s = Settings(_env_file=None)  # type: ignore[call-arg]
 
     assert s.environment == "prod"
     assert s.is_prod is True
     assert s.allowed_origins == ["https://wishly.dev", "https://www.wishly.dev"]
+
+
+def test_prod_requires_the_trigger_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without it the hourly send cannot be triggered at all.
+
+    Every /internal route rejects an absent token, so a prod API missing this
+    serves browser traffic perfectly, passes /health and /ready, and quietly
+    never sends another reminder. Startup is the only place that can notice.
+    """
+    monkeypatch.setenv("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly")
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://wishly.dev")
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_x")
+    monkeypatch.setenv("RESEND_API_KEY", "re_x")
+    monkeypatch.delenv("TRIGGER_TOKEN", raising=False)
+
+    with pytest.raises(ValidationError, match="trigger_token"):
+        Settings(_env_file=None)  # type: ignore[call-arg]
 
 
 def test_async_and_sync_urls(monkeypatch: pytest.MonkeyPatch) -> None:

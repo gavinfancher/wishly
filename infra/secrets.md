@@ -61,9 +61,19 @@ clerk_secret_key, resend_api_key. Add them to the secret this process loads
 (see infra/secrets.md), or run with ENVIRONMENT=dev.
 ```
 
-Delete `PREFECT_SERVER_DATABASE_CONNECTION_URL` and `PREFECT_WORK_POOL` — leftovers
-from self-hosted Prefect. `TAILSCALE_API_KEY` and `SLACK_WEBHOOK_URL` stay: nothing
-reads them today, but the failover detector is coming back as a Lambda.
+`TRIGGER_TOKEN` is required in production. It is the shared secret on the
+`X-Wishly-Trigger` header: EventBridge sends it on the hourly tick and the
+detector Lambda sends it on every liveness probe. **It is also set independently
+in `infra/terraform/terraform.tfvars`, and nothing reconciles the two.** Set them
+to the same string; a mismatch stops every reminder and the only symptom is a
+403 a minute in the detector's log.
+
+`TAILSCALE_API_KEY` is no longer read by anything — the detector probes our own
+API now — and can go. `SLACK_WEBHOOK_URL` stays: the detector still posts there
+when it fails over.
+
+`PREFECT_API_URL`, `PREFECT_API_KEY`, `PREFECT_SERVER_DATABASE_CONNECTION_URL`
+and `PREFECT_WORK_POOL` can all go with it.
 
 ## How a container gets it
 

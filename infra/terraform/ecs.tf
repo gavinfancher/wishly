@@ -1,13 +1,15 @@
-# The failover target: one task, three containers, normally not running.
+# The failover target: one task, two containers, normally not running.
 #
 # SIZING is measured, not guessed. At rest: api 89 MiB, prefect's import 80 MiB
-# before any flow run, cloudflared ~40 MiB. 0.5 vCPU / 2 GB leaves room for the
-# subprocess Prefect forks per flow run, which pays that 80 MiB again.
+# before any flow run, cloudflared ~40 MiB. 0.5 vCPU / 2 GB left room for the
+# subprocess Prefect forked per flow run, which paid that 80 MiB again.
 # On x86 Fargate that is $0.04048/vCPU-hr + $0.004445/GB-hr = $0.0291/hr.
 #
-# ONE TASK rather than two services: at this size nothing wants to scale the API
-# independently of the worker, and a single task means the failover action is
-# one API call instead of two that can disagree.
+# OVERPROVISIONED NOW, DELIBERATELY. The Prefect worker container is gone — the
+# hourly send is an EventBridge rule POSTing to the api container — so both the
+# 80 MiB import and the forked subprocess left with it, and 2 GB is roughly
+# double what this needs. Resizing is part of the failover pass, not this
+# change: it wants a measurement under a real run, not a guess minus a guess.
 
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/wishly"
@@ -60,7 +62,13 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([
     {
-      name             = "api"
+      name = "api"
+      # ECR, while CI now publishes to ghcr.io/gavinfancher/wishly. Nothing
+      # reconciles the two: `terraform apply -var image_tag=<sha>` is accepted
+      # whether or not that tag was ever pushed HERE, and because desired_count
+      # is 0 nothing attempts the pull until a real failover — which then cannot
+      # start. Run `infra/images.sh --push` for every tag you apply, or point
+      # this at the (public) GHCR package and delete the ECR path entirely.
       image            = "${local.registry}/wishly-api:${var.image_tag}"
       essential        = true
       environment      = local.app_env
@@ -73,15 +81,6 @@ resource "aws_ecs_task_definition" "app" {
         retries     = 5
         startPeriod = 30
       }
-    },
-    {
-      name  = "worker"
-      image = "${local.registry}/wishly-worker:${var.image_tag}"
-      # NOT essential: the send pipeline dying should not take the API and the
-      # tunnel down with it. ECS restarts the container; the task survives.
-      essential        = false
-      environment      = local.app_env
-      logConfiguration = local.log_config
     },
     {
       name      = "cloudflared"

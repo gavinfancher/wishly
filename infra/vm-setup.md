@@ -123,12 +123,13 @@ landing on the machine you are still building. Start the stack without the
 tunnel first:
 
 ```bash
-docker compose -f infra/compose.yaml --env-file infra/.env up -d api worker
+docker compose -f infra/compose.yaml --env-file infra/.env up -d api
 ```
 
 Then stop the old host and bring up `cloudflared` here. Budget the failover
-watchdog into the gap: it promotes ECS after roughly three minutes of a missing
-host and does not know the outage was deliberate.
+watchdog into the gap: it promotes ECS after roughly three minutes with nothing
+serving the tunnel and does not know the outage was deliberate. Set
+`detector_enabled = false` and apply if the gap will be a long one.
 
 ## Optional: stop logging in by hand
 

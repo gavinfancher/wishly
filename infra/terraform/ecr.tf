@@ -4,6 +4,12 @@
 # these sit in the same region as the tasks — a cross-region pull would be paid
 # for in recovery time.
 
+# "worker" is retained deliberately. The Prefect worker image is no longer built
+# — the hourly send is an endpoint on the API — but this repository still holds
+# the immutable tags every pre-EventBridge task definition names, so dropping it
+# from here would make terraform destroy the only copy of those images. Removing
+# it is a deliberate `state rm` plus `delete-repository --force`, not a side
+# effect of this apply. It costs a few cents a month until then.
 locals {
   images = toset(["api", "worker"])
 }

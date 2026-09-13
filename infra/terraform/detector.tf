@@ -1,5 +1,11 @@
 # The failover trigger: a Lambda on a one-minute schedule, its counter in
-# DynamoDB, scaling the ECS service up when the app host stops being seen.
+# DynamoDB, scaling the ECS service up when nothing is serving any more.
+#
+# It probes GET /internal/liveness on our own API rather than asking Tailscale
+# when the VM last checked in. Tailscale answered "is the host powered on";
+# this answers "is Wishly working", which is the question the failover exists
+# for — and it covers the API crashlooping or the tunnel dying, neither of
+# which moves a Tailscale lastSeen timestamp.
 
 resource "aws_dynamodb_table" "detector" {
   name         = "wishly-failover-state"
@@ -76,13 +82,13 @@ resource "aws_lambda_function" "detector" {
 
   environment {
     variables = {
-      STATE_TABLE          = aws_dynamodb_table.detector.name
-      TAILSCALE_DEVICE_ID  = var.tailscale_device_id
-      ECS_CLUSTER          = aws_ecs_cluster.main.name
-      ECS_SERVICE          = aws_ecs_service.app.name
-      WISHLY_SECRETS_ID    = var.secrets_id
-      FRESH_WITHIN_SECONDS = "60"
-      THRESHOLD            = "3"
+      STATE_TABLE           = aws_dynamodb_table.detector.name
+      WISHLY_API_URL        = var.api_base_url
+      ECS_CLUSTER           = aws_ecs_cluster.main.name
+      ECS_SERVICE           = aws_ecs_service.app.name
+      WISHLY_SECRETS_ID     = var.secrets_id
+      PROBE_TIMEOUT_SECONDS = "10"
+      THRESHOLD             = "3"
     }
   }
 }
@@ -93,12 +99,14 @@ resource "aws_cloudwatch_log_group" "detector" {
 }
 
 # --- Schedule -------------------------------------------------------------
-# Detection latency is INTERVAL x THRESHOLD plus however long Tailscale's
-# control plane takes to stop refreshing lastSeen — about three minutes at these
-# settings, before ECS even starts pulling images.
+# Detection latency is now just INTERVAL x THRESHOLD — three minutes, before ECS
+# starts pulling images. Sharper than before: the old path also waited on
+# Tailscale's control plane to stop refreshing lastSeen, which it makes no
+# promise about, and which is why FRESH_WITHIN had to be a conservative 60s on
+# top of the three ticks.
 resource "aws_cloudwatch_event_rule" "detector" {
   name                = "wishly-detector"
-  description         = "Poll the Tailscale device every minute"
+  description         = "Probe the Wishly API's liveness endpoint every minute"
   schedule_expression = "rate(1 minute)"
   # Disable this to stop the watchdog without deleting anything — the switch to
   # flip during planned VM maintenance so it does not fail over on you.

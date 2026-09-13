@@ -1,7 +1,7 @@
 """Structured (JSON) logging setup for Wishly.
 
 Uses only the standard library so it works identically under FastAPI/uvicorn and
-under the Prefect worker. Call :func:`configure_logging` once at process startup; obtain
+under uvicorn. Call :func:`configure_logging` once at process startup; obtain
 loggers via :func:`get_logger`.
 
 In ``dev`` the level defaults to ``DEBUG`` and in ``prod`` to ``INFO``. Logs are
