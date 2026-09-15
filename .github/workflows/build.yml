@@ -62,7 +62,11 @@ jobs:
           # A single-platform manifest rather than a list; see infra/images.sh.
           provenance: false
           push: true
-          tags: ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+          # The commit tag is the permanent record; latest moves to each new build
+          # so compose can track main without editing .env.
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE }}:latest
           # Links the package to this repository on GitHub.
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}

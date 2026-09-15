@@ -31,14 +31,14 @@
 # No application port is published — inbound traffic arrives via cloudflared.
 services:
   api:
-    image: ${WISHLY_REGISTRY:-809000566572.dkr.ecr.us-east-1.amazonaws.com}/wishly-api:${WISHLY_TAG:?set WISHLY_TAG in infra/.env to the commit images.sh pushed}
+    image: $/wishly-api:${WISHLY_TAG:?set WISHLY_TAG in infra/.env to the commit images.sh pushed}
     env_file:
       - .env
     # Which secret the entrypoint loads. Unset it and the entrypoint does
     # nothing, leaving .env as the whole configuration. The credentials boto3
     # uses arrive via env_file above; the region is fixed in the code.
     environment:
-      WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID:-}
+      WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID}
     healthcheck:
       test:
         - CMD-SHELL
