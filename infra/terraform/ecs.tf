@@ -26,8 +26,6 @@ resource "aws_ecs_cluster" "main" {
 }
 
 locals {
-  registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
-
   # Shared by both application containers: same image config path as compose.
   app_env = [
     { name = "WISHLY_SECRETS_ID", value = var.secrets_id },
@@ -63,18 +61,24 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name = "api"
-      # ECR, while CI now publishes to ghcr.io/gavinfancher/wishly. Nothing
-      # reconciles the two: `terraform apply -var image_tag=<sha>` is accepted
-      # whether or not that tag was ever pushed HERE, and because desired_count
-      # is 0 nothing attempts the pull until a real failover — which then cannot
-      # start. Run `infra/images.sh --push` for every tag you apply, or point
-      # this at the (public) GHCR package and delete the ECR path entirely.
-      image            = "${local.registry}/wishly-api:${var.image_tag}"
-      essential        = true
-      environment      = local.app_env
-      portMappings     = [{ containerPort = 8000, protocol = "tcp" }]
-      logConfiguration = local.log_config
-      healthCheck = {
+      # The same GHCR package CI publishes and the VM runs. It must be PUBLIC:
+      # a private one would need a GitHub PAT in Secrets Manager plus
+      # repositoryCredentials, a long-lived credential this design otherwise
+      # has none of.
+      #
+      # `latest` by default, so a failover starts whatever main last built —
+      # the image the VM is already running. Pin a commit via image_tag to roll
+      # back; commit tags are never overwritten.
+      image = "ghcr.io/gavinfancher/wishly:${var.image_tag}"
+      # ECS otherwise resolves the tag to a digest once per deployment. With
+      # desired_count 0 the service can sit on one deployment for months, and a
+      # failover would start that old digest instead of the current `latest`.
+      versionConsistency = "disabled"
+      essential          = true
+      environment        = local.app_env
+      portMappings       = [{ containerPort = 8000, protocol = "tcp" }]
+      logConfiguration   = local.log_config
+      healthCheck        = {
         command     = ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
         interval    = 15
         timeout     = 5
@@ -131,7 +135,7 @@ resource "aws_ecs_service" "app" {
     subnets         = [for s in aws_subnet.public : s.id]
     security_groups = [aws_security_group.tasks.id]
     # Required in a public subnet with no NAT: without a public IP the task
-    # cannot reach ECR to pull its own image, and fails before it starts.
+    # cannot reach GHCR to pull its own image, and fails before it starts.
     assign_public_ip = true
   }
 

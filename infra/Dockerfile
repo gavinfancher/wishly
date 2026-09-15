@@ -1,15 +1,7 @@
-# syntax=docker/dockerfile:1.7
-#
-# FastAPI / uvicorn image. Multi-stage, uv-based, runs as non-root.
-# Build context is the repo root so the backend package is copied from backend/:
-#   docker build -f infra/Dockerfile.api -t wishly-api ..
-# (docker-compose.yml uses context: .. and dockerfile: infra/Dockerfile.api).
 
-# ---- builder: resolve and install deps into a self-contained .venv -----------
 FROM python:3.12-slim AS builder
 
-# uv is copied from its official image (pinned tag) — no pip anywhere.
-COPY --from=ghcr.io/astral-sh/uv:0.12.10 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.12 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

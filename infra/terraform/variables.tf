@@ -5,8 +5,9 @@ variable "region" {
 }
 
 variable "image_tag" {
-  description = "Commit SHA to run, as pushed by infra/images.sh."
+  description = "GHCR tag the failover task runs: latest, or a 7-char commit SHA to pin/roll back."
   type        = string
+  default     = "latest"
 }
 
 variable "secrets_id" {
@@ -44,7 +45,7 @@ variable "send_schedule_expression" {
 }
 
 variable "send_enabled" {
-  description = "False stops the hourly send without destroying the rule (see detector_enabled)."
+  description = "False stops the hoursly sends without destroying the rule (see detector_enabled)."
   type        = bool
   default     = true
 }
@@ -53,10 +54,4 @@ variable "detector_enabled" {
   description = "False stops the watchdog polling without destroying it (planned VM maintenance)."
   type        = bool
   default     = true
-}
-
-variable "github_repo" {
-  description = "owner/name of the repository whose main branch may assume the CI role."
-  type        = string
-  default     = "gavinfancher/wishly"
 }

@@ -44,7 +44,7 @@ resource "aws_iam_role" "execution" {
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
 }
 
-# ECR pull + CloudWatch Logs. AWS maintains this one; there is no value in
+# CloudWatch Logs (and ECR pull, unused now that the image is on GHCR). AWS maintains this one; there is no value in
 # hand-writing the same statements and then keeping them current.
 resource "aws_iam_role_policy_attachment" "execution_managed" {
   role       = aws_iam_role.execution.name
