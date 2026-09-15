@@ -14,7 +14,7 @@ on:
     branches: [main]
     paths:
       - "backend/**"
-      - "infra/Dockerfile.api"
+      - "infra/Dockerfile"
       - ".dockerignore"
       - ".github/workflows/build.yml"
   workflow_dispatch:
