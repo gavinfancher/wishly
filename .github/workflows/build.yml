@@ -56,7 +56,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: infra/Dockerfile.api
+          file: infra/Dockerfile
           # amd64 only: the VM and the cluster nodes are x86_64.
           platforms: linux/amd64
           # A single-platform manifest rather than a list; see infra/images.sh.
