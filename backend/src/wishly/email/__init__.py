@@ -1,1 +1,0 @@
-"""Email rendering and delivery."""
