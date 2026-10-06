@@ -13,7 +13,8 @@ infra/sql/        the database schema, one readable SQL file
 infra/terraform/  PlanetScale, Cloudflare Tunnel + DNS, the hourly EventBridge trigger
 infra/ansible/    turns a fresh VM into a Wishly host + GitHub Actions runner
 infra/compose.yaml  what runs on that VM: the API + cloudflared
-docs/design.md    how it works
+docs/design.md    how the app works
+docs/infrastructure.md  how it runs: every piece, secret, and failure mode
 ```
 
 ## How the pieces connect

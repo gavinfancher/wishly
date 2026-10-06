@@ -2,12 +2,12 @@
 # The database is PlanetScale, not a container here.
 #
 # Ansible copies this file to /opt/wishly on the VM. Every value below comes from
-# Infisical (Terraform wrote most of them), so start it with deploy.sh, which runs:
+# Infisical, so start it with deploy.sh, which runs:
 #
 #   infisical run --env=prod -- docker compose up -d
 services:
   api:
-    image: ${WISHLY_IMAGE:?missing - run via infisical run, where Terraform sets it}
+    image: ${WISHLY_IMAGE:?missing - start this with deploy.sh so Infisical provides it}
     # Names only, no values: compose copies each one from the environment
     # `infisical run` started it with. Nothing secret is written to disk.
     environment:
@@ -27,7 +27,7 @@ services:
   # tunnel's route is http://localhost:8000 here and on ECS alike. No ports are
   # published: all inbound traffic arrives through the tunnel.
   cloudflared:
-    image: cloudflare/cloudflared:2026.8.3
+    image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN
