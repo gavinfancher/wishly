@@ -1,0 +1,39 @@
+[project]
+name = "wishly"
+version = "0.1.0"
+description = "Wishly API: yearly event reminders over email."
+authors = [
+    { name = "Gavin Fancher", email = "gavinfancher02@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.142.2",
+    "pydantic-settings>=2.15.0",
+    "uvicorn>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# E/F: pyflakes + pycodestyle basics. I: import sorting. UP: modern syntax.
+# B: bugbear (likely bugs). S: bandit (security smells).
+select = ["E", "F", "I", "UP", "B", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert is how pytest works.
+"tests/**" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
