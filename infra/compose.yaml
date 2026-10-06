@@ -1,82 +1,38 @@
-# Wishly application stack.
+# Production stack on the VM: the API image from GHCR + a Cloudflare Tunnel.
+# The database is PlanetScale, not a container here.
 #
-#   docker compose -f infra/compose.yaml --env-file infra/.env up -d
+# Ansible copies this file to /opt/wishly on the VM. Every value below comes from
+# Infisical (Terraform wrote most of them), so start it with deploy.sh, which runs:
 #
-# Two long-lived containers. The database is NOT here: it is PlanetScale
-# Postgres, reached over the public internet via DATABASE_URL. Apply the schema
-# by hand with psql; there are no migrations.
-#
-# CONFIGURATION. Nothing in this file carries application config. The api
-# entrypoint loads it from the AWS Secrets Manager secret named by
-# WISHLY_SECRETS_ID, so `infra/.env` holds only what is needed to reach AWS:
-# that name and an IAM user's keys.
-#
-# THE HOURLY SEND IS NOT A CONTAINER. It used to be a third service running
-# Prefect's serve(). It is now an EventBridge rule POSTing to
-# /internal/runs/send-reminders on the api service, arriving through the same
-# cloudflared tunnel as browser traffic — so it reaches whichever of this host
-# and the ECS standby is actually serving, with no scheduler to fail over.
-# See infra/terraform/schedule.tf.
-#
-# IMAGES ARE PULLED, NOT BUILT. Both this host and ECS run the same amd64 image
-# from ECR at the same tag, so what you test here is what fails over — same
-# digest, not just the same source. Update with:
-#
-#   ./infra/images.sh --push          (from a checkout, tags with the commit)
-#   docker compose ... pull && up -d  (here)
-#
-# To build locally instead — debugging a change before pushing it — add the
-# overlay: -f infra/compose.build.yaml
-#
-# No application port is published — inbound traffic arrives via cloudflared.
+#   infisical run --env=prod -- docker compose up -d
 services:
   api:
-    image: $/wishly-api:${WISHLY_TAG:?set WISHLY_TAG in infra/.env to the commit images.sh pushed}
-    env_file:
-      - .env
-    # Which secret the entrypoint loads. Unset it and the entrypoint does
-    # nothing, leaving .env as the whole configuration. The credentials boto3
-    # uses arrive via env_file above; the region is fixed in the code.
+    image: ${WISHLY_IMAGE:?missing - run via infisical run, where Terraform sets it}
+    # Names only, no values: compose copies each one from the environment
+    # `infisical run` started it with. Nothing secret is written to disk.
     environment:
-      WISHLY_SECRETS_ID: ${WISHLY_SECRETS_ID}
+      - WISHLY_DATABASE_URL
+      - WISHLY_CLERK_ISSUER
+      - WISHLY_CORS_ORIGINS
+      - WISHLY_RUN_TOKEN
+      - WISHLY_RESEND_API_KEY
     healthcheck:
-      test:
-        - CMD-SHELL
-        - python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 3
     restart: unless-stopped
-    networks:
-      - app_net
 
-  # network_mode: service:api puts this container inside the API's network
-  # namespace, which is exactly what an ECS task does — so cloudflared reaches
-  # the API on http://localhost:8000 in both places, and the Cloudflare
-  # dashboard needs ONE route rather than one per environment.
-  #
-  # It has to be this way round: awsvpc forbids extraHosts, so ECS cannot be
-  # taught to resolve the name `api`. Compose can be taught to share a
-  # namespace. Sharing one means no `networks:` key here and no ports of its
-  # own — it uses the API container's.
+  # Shares the API's network namespace (as containers in one ECS task do), so the
+  # tunnel's route is http://localhost:8000 here and on ECS alike. No ports are
+  # published: all inbound traffic arrives through the tunnel.
   cloudflared:
     image: cloudflare/cloudflared:2026.8.3
-    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
+    command: tunnel --no-autoupdate run
     environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
-    network_mode: "service:api"
+      - TUNNEL_TOKEN
+    network_mode: service:api
     depends_on:
       api:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "cloudflared", "--version"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
     restart: unless-stopped
-
-networks:
-  app_net:
-    driver: bridge

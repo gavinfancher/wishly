@@ -1,57 +1,69 @@
-variable "region" {
-  description = "Every Wishly resource lives here. Hardcoded in bootstrap.py too."
+# --- AWS ---------------------------------------------------------------------
+
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
+}
+
+# --- PlanetScale -------------------------------------------------------------
+
+variable "planetscale_org" {
   type        = string
-  default     = "us-east-1"
+  description = "Your PlanetScale organization name."
 }
 
-variable "image_tag" {
-  description = "GHCR tag the failover task runs: latest, or a 7-char commit SHA to pin/roll back."
+variable "database_name" {
+  type    = string
+  default = "wishly"
+}
+
+variable "planetscale_region" {
   type        = string
-  default     = "latest"
+  description = "PlanetScale region slug. null = your organization's default."
+  default     = null
 }
 
-variable "secrets_id" {
-  description = "Secrets Manager secret holding the app environment (Infisical owns its contents)."
+variable "planetscale_cluster_size" {
   type        = string
-  default     = "wishly/prod"
+  description = "PlanetScale cluster size, e.g. PS_10_AWS_ARM. null = PlanetScale's default."
+  default     = null
 }
 
-variable "api_base_url" {
-  description = "Public origin of the API, through the Cloudflare Tunnel. Probed and triggered."
+# --- Cloudflare --------------------------------------------------------------
+
+variable "cloudflare_account_id" {
+  type = string
+}
+
+variable "cloudflare_zone_id" {
   type        = string
-  default     = "https://api.wishly.dev"
+  description = "Zone ID of the domain the API is served under."
 }
 
-variable "trigger_token" {
-  description = <<-EOT
-    Shared secret for the X-Wishly-Trigger header on the API's /internal routes.
-    Must equal TRIGGER_TOKEN in the Secrets Manager secret Infisical owns — the
-    API compares them and nothing reconciles the two automatically.
-  EOT
+variable "domain" {
   type        = string
-  sensitive   = true
+  description = "The domain that zone serves, e.g. wishly.dev."
 }
 
-variable "send_schedule_expression" {
-  description = <<-EOT
-    When the reminder send runs. cron, not rate(1 hour), on purpose: a rate
-    expression ticks relative to when the rule was created, so delivery jitter
-    can drift a tick across an hour boundary and leave one clock hour with two
-    ticks and another with none. A skipped hour is a skipped reminder — the send
-    window is `local hour == send_hour` and there is no second chance that day.
-  EOT
+variable "api_subdomain" {
+  type    = string
+  default = "api"
+}
+
+# --- The app -----------------------------------------------------------------
+
+variable "clerk_issuer" {
   type        = string
-  default     = "cron(0 * * * ? *)"
+  description = "Clerk Frontend API URL, e.g. https://clerk.wishly.dev."
 }
 
-variable "send_enabled" {
-  description = "False stops the hoursly sends without destroying the rule (see detector_enabled)."
-  type        = bool
-  default     = true
+variable "frontend_origin" {
+  type        = string
+  description = "Where the frontend is served, e.g. https://wishly.dev. Allowed by CORS."
 }
 
-variable "detector_enabled" {
-  description = "False stops the watchdog polling without destroying it (planned VM maintenance)."
-  type        = bool
-  default     = true
+variable "image" {
+  type        = string
+  description = "The API image the VM runs."
+  default     = "ghcr.io/gavinfancher/wishly:latest"
 }

@@ -14,8 +14,7 @@ type DeliveryFormProps = {
 }
 
 /**
- * Timezone + send-hour form (PATCH /me), shared by the Account page and the
- * email-linked preferences page.
+ * Timezone + send-hour form (PATCH /me), used on the Account page.
  */
 export default function DeliveryForm({
   initialTimezone,

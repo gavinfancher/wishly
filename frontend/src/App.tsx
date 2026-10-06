@@ -6,11 +6,8 @@ import WaitlistPage from './routes/WaitlistPage.tsx'
 import ProtectedLayout from './routes/ProtectedLayout.tsx'
 import OnboardingGate from './routes/OnboardingGate.tsx'
 import OnboardingPage from './routes/OnboardingPage.tsx'
-import EventsPage from './routes/EventsPage.tsx'
-import CalendarPage from './routes/CalendarPage.tsx'
-import HistoryPage from './routes/HistoryPage.tsx'
+import RemindersPage from './routes/RemindersPage.tsx'
 import AccountPage from './routes/AccountPage.tsx'
-import PreferencesPage from './routes/PreferencesPage.tsx'
 
 export default function App() {
   return (
@@ -28,16 +25,11 @@ export default function App() {
       <Route path="/signup" element={<Navigate to="/sign-up" replace />} />
       <Route path="/join" element={<Navigate to="/waitlist" replace />} />
 
-      {/* Public preferences page (linked from emails); auth optional */}
-      <Route path="/preferences" element={<PreferencesPage />} />
-
       {/* Protected app shell — all child routes require auth */}
       <Route element={<ProtectedLayout />}>
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route element={<OnboardingGate />}>
-          <Route path="/app" element={<EventsPage />} />
-          <Route path="/app/calendar" element={<CalendarPage />} />
-          <Route path="/app/history" element={<HistoryPage />} />
+          <Route path="/app" element={<RemindersPage />} />
           <Route path="/app/account" element={<AccountPage />} />
         </Route>
       </Route>

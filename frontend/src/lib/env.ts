@@ -12,7 +12,7 @@ const REQUIRED_ENV: EnvVar[] = [
   },
   {
     name: 'VITE_API_BASE_URL',
-    hint: 'FastAPI base URL, e.g. http://localhost:8000',
+    hint: 'API base URL including /v1, e.g. http://localhost:8000/v1',
   },
 ]
 

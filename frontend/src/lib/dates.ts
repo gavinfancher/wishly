@@ -42,19 +42,6 @@ export function countdownLabel(days: number): string {
   return `In ${days} days`
 }
 
-/** Years since the origin year at the next occurrence (e.g. the age they turn). */
-export function yearsAtNext(
-  eventYear: number | null,
-  month: number,
-  day: number,
-  from: Date = new Date()
-): number | null {
-  if (!eventYear) return null
-  const next = nextOccurrence(month, day, from)
-  const years = next.getFullYear() - eventYear
-  return years > 0 ? years : null
-}
-
 const MONTH_ABBR = [
   'Jan',
   'Feb',

@@ -1,17 +1,9 @@
 /**
- * Client-side validation mirroring backend schemas (T3.1 / T6.4).
+ * Client-side validation mirroring backend/src/wishly/api.py.
  * Feb 29 is always allowed; the sender observes it on Feb 28 in non-leap years.
  */
 
-import type { EventType } from './api.ts'
-
 const MAX_DAY_IN_MONTH = [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const
-
-export const EVENT_TYPES: { value: EventType; label: string }[] = [
-  { value: 'birthday', label: 'Birthday' },
-  { value: 'anniversary', label: 'Anniversary' },
-  { value: 'custom', label: 'Custom' },
-]
 
 export const MONTH_NAMES = [
   'January',
@@ -55,24 +47,9 @@ export function validateMonthDay(month: number, day: number): string | null {
   return null
 }
 
-export function validateEventYear(year: string): string | null {
-  const trimmed = year.trim()
-  if (!trimmed) return null
-  // Digits only, and at most four of them. `Number()` alone is too permissive
-  // here: it happily reads "1e3" as 1000 and " 12 " as 12, both of which would
-  // pass a range check while being nothing the user meant to type.
-  if (!/^\d{1,4}$/.test(trimmed)) {
-    return 'Year must be 4 digits or fewer, numbers only.'
-  }
-  const parsed = Number(trimmed)
-  if (parsed < 1 || parsed > 9999) {
-    return 'Year must be between 0001 and 9999.'
-  }
-  return null
-}
-
 export function validateReminders(days: number[]): string | null {
-  if (days.length === 0) return 'Add at least one reminder lead time.'
+  if (days.length === 0) return 'Pick at least one day to be reminded.'
+  if (days.length > 10) return 'At most 10 reminders per date.'
   const seen = new Set<number>()
   for (const day of days) {
     if (!Number.isInteger(day) || day < 0 || day > 365) {
@@ -82,12 +59,6 @@ export function validateReminders(days: number[]): string | null {
     seen.add(day)
   }
   return null
-}
-
-export function formatEventDate(month: number, day: number, year: number | null): string {
-  const monthName = MONTH_NAMES[month - 1] ?? String(month)
-  if (year) return `${monthName} ${day}, ${year}`
-  return `${monthName} ${day}`
 }
 
 export function formatReminderLabel(days: number): string {

@@ -1,8 +1,8 @@
 /**
- * Authenticated fetch wrapper for the Wishly FastAPI backend (T6.2).
+ * Authenticated fetch wrapper for the Wishly FastAPI backend.
  *
  * Attaches the Clerk session JWT as a Bearer token and targets
- * ``VITE_API_BASE_URL``. All business logic lives server-side; the SPA
+ * ``VITE_API_BASE_URL`` (which includes the ``/v1`` prefix). All business logic lives server-side; the SPA
  * only talks to the world through these helpers.
  */
 
@@ -80,19 +80,16 @@ export async function apiFetch<T>(
   return body as T
 }
 
-// --- Response types (mirror backend schemas) -------------------------------- //
+// --- Response types (mirror backend/src/wishly/api.py) ---------------------- //
 
 export type User = {
   id: string
   email: string
-  first_name: string | null
-  last_name: string | null
   timezone: string
   send_hour: number
   /** ISO timestamp, or null if onboarding has not been completed. */
   onboarded_at: string | null
   created_at: string
-  updated_at: string
 }
 
 export type UserUpdate = {
@@ -102,59 +99,17 @@ export type UserUpdate = {
   send_hour?: number
 }
 
-export type EventType = 'birthday' | 'anniversary' | 'custom'
-
-export type Event = {
-  id: string
-  user_id: string
+/** What the form sends: a yearly date, and how many days before it to email. */
+export type ReminderInput = {
   title: string
-  event_type: EventType
-  event_month: number
-  event_day: number
-  event_year: number | null
-  message: string | null
-  recipient_email: string | null
-  recipient_name: string | null
-  template_id: string | null
-  is_active: boolean
-  created_at: string
-  updated_at: string
-  reminders: number[]
+  month: number
+  day: number
+  /** e.g. [7, 1, 0]. The server dedupes and sorts furthest-first. */
+  days_before: number[]
 }
 
-export type EventCreate = {
-  title: string
-  event_type: EventType
-  event_month: number
-  event_day: number
-  event_year?: number | null
-  message?: string | null
-  is_active?: boolean
-}
-
-export type EventUpdate = Partial<EventCreate>
-
-/**
- * Mirrors notification_log.status exactly. The API returns the ledger's own value
- * rather than translating it, so the UI and the table you'd query when debugging
- * never disagree. ('skipped' is what a suppressed recipient records.)
- */
-export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped'
-
-/** One row of the send log (notification_log), enriched with event details. */
-export type Notification = {
+export type Reminder = ReminderInput & {
   id: string
-  /** Null for test reminders, which belong to no event. */
-  event_id: string | null
-  event_title: string
-  event_type: EventType
-  days_before: number
-  occurrence_date: string
-  status: NotificationStatus
-  /** True for a test reminder sent from the Account page. */
-  is_test: boolean
-  /** Null unless the send actually succeeded. */
-  sent_at: string | null
   created_at: string
 }
 

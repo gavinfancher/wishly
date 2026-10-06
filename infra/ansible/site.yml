@@ -1,0 +1,214 @@
+# Turn a fresh Ubuntu/Debian VM into a Wishly host. Safe to re-run: every task
+# checks the current state first and only changes what's different.
+#
+#   cd infra/ansible
+#   ansible-playbook site.yml
+#
+# Assumes Tailscale is already on the VM (that's how we reach it) and that you
+# can SSH in as a user with sudo.
+#
+# Needs these environment variables (an Infisical machine identity with read
+# access to the project — see the README):
+#   INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID
+# and the `gh` CLI logged in as an admin of the GitHub repo, to register the
+# Actions runner. GITHUB_REPOSITORY picks the repo (default gavinfancher/wishly).
+
+- name: Configure the Wishly host
+  hosts: wishly
+  become: true
+
+  vars:
+    app_dir: /opt/wishly
+    deploy_user: "{{ ansible_user }}"
+    infisical_env: prod
+    infisical_client_id: "{{ lookup('env', 'INFISICAL_CLIENT_ID') }}"
+    infisical_client_secret: "{{ lookup('env', 'INFISICAL_CLIENT_SECRET') }}"
+    infisical_project_id: "{{ lookup('env', 'INFISICAL_PROJECT_ID') }}"
+    # Docker publishes packages per distro and CPU architecture.
+    distro: "{{ ansible_distribution | lower }}"
+    arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    # GitHub Actions runner, pinned. Checksums from the release notes at
+    # https://github.com/actions/runner/releases
+    github_repo: "{{ lookup('env', 'GITHUB_REPOSITORY') or 'gavinfancher/wishly' }}"
+    runner_version: "2.338.0"
+    runner_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'x64' }}"
+    runner_sha256:
+      x64: af4b794c1bc41d73d40535e3fe092a39f9679cd8d965954c2aca25a05ca41d32
+      arm64: 628b4a7258487b80c1d3c221095a7ded349f5ae0175fd3dfab708d07428f041b
+    runner_dir: /opt/actions-runner
+
+  pre_tasks:
+    - name: Fail early if the Infisical identity isn't set
+      ansible.builtin.assert:
+        that:
+          - infisical_client_id | length > 0
+          - infisical_client_secret | length > 0
+          - infisical_project_id | length > 0
+        fail_msg: Export INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET and INFISICAL_PROJECT_ID first.
+
+  tasks:
+    # --- Base system -----------------------------------------------------------
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, git, gnupg, unattended-upgrades]
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install security updates automatically
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        mode: "0644"
+
+    # --- Docker (from Docker's own repository, not the older distro package) ---
+
+    - name: Add Docker's apt repository (and its signing key)
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: deb
+        uris: "https://download.docker.com/linux/{{ distro }}"
+        suites: "{{ ansible_distribution_release }}"
+        components: stable
+        architectures: "{{ arch }}"
+        signed_by: "https://download.docker.com/linux/{{ distro }}/gpg"
+
+    - name: Install Docker Engine and the Compose plugin
+      ansible.builtin.apt:
+        name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin]
+        update_cache: true
+
+    - name: Cap container log size, so logs can't fill the disk
+      ansible.builtin.copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          { "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "3" } }
+        mode: "0644"
+      notify: Restart Docker
+
+    - name: Let the deploy user run docker without sudo
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        groups: docker
+        append: true
+
+    # --- Infisical CLI -----------------------------------------------------------
+
+    - name: Check whether Infisical's apt repository is set up
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/infisical-infisical-cli.list
+      register: infisical_repo
+
+    - name: Add Infisical's apt repository
+      ansible.builtin.shell: curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash
+      when: not infisical_repo.stat.exists
+      changed_when: true
+
+    - name: Install the Infisical CLI
+      ansible.builtin.apt:
+        name: infisical
+        update_cache: true
+
+    # --- The app -------------------------------------------------------------------
+
+    - name: Create the app directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ deploy_user }}"
+        mode: "0750"
+
+    - name: Copy the compose file and deploy script
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ app_dir }}/{{ item.dest }}"
+        owner: "{{ deploy_user }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: ../compose.yaml, dest: compose.yaml, mode: "0644" }
+        - { src: files/deploy.sh, dest: deploy.sh, mode: "0755" }
+
+    - name: Write the Infisical machine identity (readable by the deploy user only)
+      ansible.builtin.template:
+        src: templates/infisical.env.j2
+        dest: "{{ app_dir }}/infisical.env"
+        owner: "{{ deploy_user }}"
+        mode: "0600"
+
+    # --- GitHub Actions runner ----------------------------------------------------
+    # Runs deploy jobs from .github/workflows/api.yml (runs-on: [self-hosted, wishly-vm]).
+    # It runs as the deploy user, who is in the docker group, which is
+    # root-equivalent on this VM. Only trusted workflows may target it; see README.
+
+    - name: Create the runner directory
+      ansible.builtin.file:
+        path: "{{ runner_dir }}"
+        state: directory
+        owner: "{{ deploy_user }}"
+        mode: "0755"
+
+    - name: Download the runner (checksum-verified)
+      ansible.builtin.get_url:
+        url: "https://github.com/actions/runner/releases/download/v{{ runner_version }}/actions-runner-linux-{{ runner_arch }}-{{ runner_version }}.tar.gz"
+        dest: "{{ runner_dir }}/runner-{{ runner_version }}.tar.gz"
+        checksum: "sha256:{{ runner_sha256[runner_arch] }}"
+        owner: "{{ deploy_user }}"
+        mode: "0644"
+
+    - name: Unpack the runner
+      ansible.builtin.unarchive:
+        src: "{{ runner_dir }}/runner-{{ runner_version }}.tar.gz"
+        dest: "{{ runner_dir }}"
+        remote_src: true
+        owner: "{{ deploy_user }}"
+        creates: "{{ runner_dir }}/config.sh"
+
+    - name: Install the runner's system dependencies
+      ansible.builtin.command: ./bin/installdependencies.sh
+      args:
+        chdir: "{{ runner_dir }}"
+      changed_when: false
+
+    - name: Check whether the runner is already registered
+      ansible.builtin.stat:
+        path: "{{ runner_dir }}/.runner"
+      register: runner_registered
+
+    - name: Register the runner with GitHub
+      when: not runner_registered.stat.exists
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.command:
+        argv:
+          - ./config.sh
+          - --unattended
+          - --url
+          - "https://github.com/{{ github_repo }}"
+          # A one-hour registration token, fetched on your laptop with `gh`.
+          - --token
+          - "{{ lookup('pipe', 'gh api -X POST repos/' + github_repo + '/actions/runners/registration-token --jq .token') }}"
+          - --name
+          - "{{ inventory_hostname }}"
+          - --labels
+          - wishly-vm
+          - --replace
+        chdir: "{{ runner_dir }}"
+
+    - name: Install the runner as a systemd service
+      ansible.builtin.command: ./svc.sh install {{ deploy_user }}
+      args:
+        chdir: "{{ runner_dir }}"
+        creates: "{{ runner_dir }}/.service"
+
+    - name: Start the runner service
+      ansible.builtin.command: ./svc.sh start
+      args:
+        chdir: "{{ runner_dir }}"
+      changed_when: false
+
+  handlers:
+    - name: Restart Docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted

@@ -1,72 +1,91 @@
-"""Shared test fixtures for non-API tests."""
+"""Shared test fixtures.
 
-from __future__ import annotations
+Database tests run against the local Postgres from compose.yaml, in its
+separate wishly_test database. Start it first:  docker compose up -d
+"""
 
 import os
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
+import psycopg
 import pytest
-from sqlalchemy import text
-from sqlalchemy.orm import Session, sessionmaker
+from fastapi import Request
+from fastapi.testclient import TestClient
+from psycopg.rows import dict_row
 
-os.environ.setdefault("DATABASE_URL", "postgresql://wishly:wishly@localhost:5432/wishly_test")
+from wishly.auth import verified_claims
+from wishly.main import create_app
+from wishly.settings import Settings
 
-os.environ.setdefault("ENVIRONMENT", "dev")
-
-
-# SAFETY INTERLOCK. These fixtures TRUNCATE every table, so they must never point
-# at a real database. A previous configuration defaulted to the development
-# database and silently wiped live data on every test run; refusing to start is
-# the only reliable prevention, because the damage is invisible until someone
-# notices their rows are gone.
-_dsn = os.environ["DATABASE_URL"]
-if not _dsn.rsplit("/", 1)[-1].split("?")[0].endswith("_test"):
-    raise RuntimeError(
-        f"Refusing to run: DATABASE_URL must name a database ending in '_test', got {_dsn!r}. "
-        "These tests truncate every table."
-    )
-
-
-from wishly.db.session import get_sync_engine  # noqa: E402
-
-# The production schema. Tests build their database from the very same file that
-# the images bake in, so a model that has drifted from it fails here rather than in
-# production. There are no migrations to run first.
-SCHEMA_SQL = Path(__file__).resolve().parents[2] / "infra" / "sql" / "schema.sql"
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _create_schema() -> None:
-    """Apply infra/sql/schema.sql to the test database (idempotent)."""
-    engine = get_sync_engine()
-    with engine.begin() as conn:
-        conn.exec_driver_sql(SCHEMA_SQL.read_text())
-
-
-_TABLES = (
-    "notification_log",
-    "event_reminders",
-    "events",
-    "templates",
-    "suppressions",
-    "users",
+TEST_DATABASE_URL = os.environ.get(
+    "WISHLY_TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/wishly_test"
 )
+RUN_TOKEN = "test-run-token"
+SCHEMA_SQL = Path(__file__).parents[2] / "infra" / "sql" / "schema.sql"
+
+# The fixtures below drop and empty every table. Refuse to point them at
+# anything that isn't obviously a throwaway test database.
+if not psycopg.conninfo.conninfo_to_dict(TEST_DATABASE_URL).get("dbname", "").endswith("_test"):
+    raise RuntimeError(f"Refusing to run: database name must end in _test: {TEST_DATABASE_URL}")
+
+
+def make_settings(**overrides: Any) -> Settings:
+    values = {
+        "env": "test",
+        "database_url": TEST_DATABASE_URL,
+        "clerk_issuer": "https://clerk.example.test",
+        "run_token": RUN_TOKEN,
+    }
+    return Settings(**(values | overrides))
+
+
+@pytest.fixture(scope="session")
+def database_url() -> str:
+    """A test database built from infra/sql/schema.sql. Built once per test run."""
+    try:
+        conn = psycopg.connect(TEST_DATABASE_URL, autocommit=True, connect_timeout=3)
+    except psycopg.OperationalError as exc:
+        pytest.fail(f"Test database unreachable — is `docker compose up -d` running?\n{exc}")
+
+    with conn:
+        # Start from nothing, so the tests prove schema.sql builds the database.
+        conn.execute("drop schema public cascade")
+        conn.execute("create schema public")
+        conn.execute(SCHEMA_SQL.read_text())
+    return TEST_DATABASE_URL
 
 
 @pytest.fixture
-def sync_session() -> Iterator[Session]:
-    """A sync session against local Postgres with clean tables."""
-    engine = get_sync_engine()
-    with engine.begin() as conn:
-        conn.execute(text(f"truncate {', '.join(_TABLES)} restart identity cascade"))
+def db(database_url: str) -> Iterator[psycopg.Connection]:
+    """A connection for one test. Every table is emptied afterwards."""
+    with psycopg.connect(database_url, autocommit=True, row_factory=dict_row) as conn:
+        yield conn
+        conn.execute("truncate users, reminders, sends cascade")
 
-    factory = sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
-    session = factory()
-    try:
-        yield session
-    finally:
-        session.close()
-        with engine.begin() as conn:
-            conn.execute(text(f"truncate {', '.join(_TABLES)} restart identity cascade"))
-        engine.dispose()
+
+@pytest.fixture
+def emails() -> list[dict[str, str]]:
+    """Every email the app 'sent' during a test."""
+    return []
+
+
+@pytest.fixture
+def client(db: psycopg.Connection, emails: list) -> Iterator[TestClient]:
+    """The app, signed in as user_a. Pass `as_user` headers to switch users."""
+    app = create_app(make_settings())
+    app.state.send_email = lambda **email: emails.append(email)
+
+    # Skip real Clerk token verification: the Bearer token *is* the user ID.
+    def fake_claims(request: Request) -> dict[str, str]:
+        user_id = request.headers["Authorization"].removeprefix("Bearer ")
+        return {"sub": user_id, "email": f"{user_id}@example.com"}
+
+    app.dependency_overrides[verified_claims] = fake_claims
+    with TestClient(app, headers={"Authorization": "Bearer user_a"}) as client:
+        yield client
+
+
+def as_user(user_id: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {user_id}"}
