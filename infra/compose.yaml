@@ -1,0 +1,39 @@
+# Production stack on the Proxmox VM: the API image from GHCR + a Cloudflare Tunnel.
+# The database is PlanetScale, not a container here.
+#
+# Every secret comes from Infisical, which runs compose with them in its environment:
+#
+#   infisical run --env=prod -- docker compose -f infra/compose.yaml pull
+#   infisical run --env=prod -- docker compose -f infra/compose.yaml run --rm api python -m wishly.migrate
+#   infisical run --env=prod -- docker compose -f infra/compose.yaml up -d
+services:
+  api:
+    image: ghcr.io/gavinfancher/wishly:${WISHLY_TAG:-latest}
+    # Names only, no values: compose copies each one from the environment
+    # `infisical run` started it with. Nothing secret is written to disk.
+    environment:
+      - WISHLY_DATABASE_URL
+      - WISHLY_CLERK_ISSUER
+      - WISHLY_CORS_ORIGINS
+      - WISHLY_RUN_TOKEN
+      - WISHLY_RESEND_API_KEY
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Shares the API's network namespace (as containers in one ECS task do), so the
+  # tunnel's route is http://localhost:8000 here and on ECS alike. No ports are
+  # published: all inbound traffic arrives through the tunnel.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.3
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

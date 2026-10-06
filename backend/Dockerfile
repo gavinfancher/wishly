@@ -32,4 +32,4 @@ EXPOSE 8000
 
 # Exec form (JSON array): uvicorn is PID 1 and receives SIGTERM directly, so
 # `docker stop` shuts down gracefully instead of killing it after 10s.
-CMD ["uvicorn", "wishly.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "wishly.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

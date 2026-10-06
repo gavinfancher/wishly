@@ -39,9 +39,7 @@ if (setupMissing.length > 0) {
       {DEV_NO_AUTH ? (
         appTree
       ) : (
-        <ThemedClerkProvider publishableKey={publishableKey!}>
-          {appTree}
-        </ThemedClerkProvider>
+        <ThemedClerkProvider publishableKey={publishableKey!}>{appTree}</ThemedClerkProvider>
       )}
     </StrictMode>
   )

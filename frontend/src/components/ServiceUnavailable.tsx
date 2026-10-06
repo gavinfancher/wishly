@@ -41,8 +41,16 @@ export default function ServiceUnavailable() {
     <div className="service-down" role="status" aria-live="polite">
       <div className="service-down-card">
         <span className="service-down-mark" aria-hidden="true">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 3a9 9 0 1 0 9 9" />
             <path d="M12 8v5" />
             <circle cx="12" cy="16.5" r="0.6" fill="currentColor" stroke="none" />
@@ -57,8 +65,8 @@ export default function ServiceUnavailable() {
             : 'This is taking longer than usual — it should be back shortly.'}
         </p>
         <p className="service-down-note">
-          Your occasions and reminders are safe. Nothing has been lost, and scheduled emails
-          resume automatically. This page will refresh itself.
+          Your occasions and reminders are safe. Nothing has been lost, and scheduled emails resume
+          automatically. This page will refresh itself.
         </p>
 
         <button

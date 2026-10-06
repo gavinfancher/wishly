@@ -41,8 +41,8 @@ export default function RemindersEditor({ value, onChange, error }: RemindersEdi
 
   return (
     <fieldset className="reminders-editor">
-      <legend>Reminder lead times</legend>
-      <p className="field-hint">Pick when the emails go out. Choose as many as you like.</p>
+      <legend>Email me</legend>
+      <p className="field-hint">How many days before the date. Choose as many as you like.</p>
 
       <div className="reminder-presets">
         {options.map((days) => (
@@ -60,7 +60,7 @@ export default function RemindersEditor({ value, onChange, error }: RemindersEdi
 
       <div className="reminder-custom">
         <label className="reminder-custom-label" htmlFor="custom-lead-time">
-          Another lead time
+          Another number of days
         </label>
         <div className="reminder-custom-row">
           <input
