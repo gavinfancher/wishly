@@ -25,13 +25,17 @@ flowchart LR
   clerk[Clerk]
   db[(PlanetScale Postgres)]
   eb[AWS EventBridge: hourly]
+  lam[Lambda: hourly-run]
+  ntfy([ntfy: your phone])
   resend[Resend]
   gh[GitHub Actions] --> ghcr[(GHCR image)]
   inf[Infisical]
 
   user --> pages
   user -- "Clerk JWT" --> edge
-  eb -- "POST /internal/run + run token" --> edge
+  eb --> lam
+  lam -- "POST /internal/run + run token" --> edge
+  lam -- "failed, or sent emails" --> ntfy
   edge --> cfd --> api
   api -- "verify JWTs (cached keys)" --> clerk
   api --> db
@@ -48,7 +52,8 @@ flowchart LR
 | **API image** | The FastAPI app, one image on GHCR, tagged by commit SHA and `latest`. | `backend/Dockerfile`, `.github/workflows/api.yml` |
 | **PlanetScale Postgres** | The only stateful piece. Postgres 18, two roles. | `infra/terraform/database.tf`, `infra/sql/schema.sql` |
 | **Cloudflare Tunnel + DNS** | Public HTTPS for `api.<domain>` with no open ports or public IP on the VM. | `infra/terraform/tunnel.tf` |
-| **EventBridge** | Calls `POST /internal/run` at minute 0 of every hour. The app has no scheduler of its own. | `infra/terraform/schedule.tf` |
+| **EventBridge + Lambda** | At minute 0 of every hour, EventBridge invokes a small Lambda that calls `POST /internal/run`, logs the result, and notifies your phone. The app has no scheduler of its own. | `infra/terraform/schedule.tf`, `infra/terraform/lambda/hourly_run.py` |
+| **ntfy.sh** | Push notifications to your phone from the hourly run. | `ntfy_topic` Terraform variable |
 | **Infisical** | The one place secrets live. The VM reads them at container start. | Set up by hand |
 | **Terraform state** | S3 bucket, versioned, S3-native locking. | Created by hand (see README step 2) |
 | **Clerk, Resend** | Sign-in and email. SaaS, configured in their dashboards. | — |
@@ -62,12 +67,16 @@ tunnel's route is `localhost:8000` wherever it runs. The API checks the Clerk
 JWT's signature against Clerk's public keys (cached, so no per-request call),
 then queries PlanetScale as `wishly_app`.
 
-**The hourly run.** EventBridge → the same public hostname, with
-`Authorization: Bearer <run token>`. For each reminder whose send time falls in
-this hour or the last, the API inserts a row into `sends` (the primary key lets
-exactly one run win), then emails it through Resend. A failed send deletes its
-row, so the next run retries it. EventBridge retries for up to 10 minutes;
-duplicates can't happen because of the `sends` key.
+**The hourly run.** EventBridge → the `wishly-hourly-run` Lambda → the same
+public hostname, with `Authorization: Bearer <run token>`. For each reminder
+whose send time falls in this hour or the last, the API inserts a row into
+`sends` (the primary key lets exactly one run win), then emails it through
+Resend. A failed send deletes its row, so the next run retries it.
+
+The Lambda writes one JSON line per run to CloudWatch (see *Watching it*
+below) and pushes a notification when the run failed or sent emails. If the
+API call fails, the Lambda raises, and Lambda retries it twice within 10
+minutes; duplicates can't happen because of the `sends` key.
 
 **A deploy.** Merge to `main` → GitHub-hosted runner runs the tests and pushes
 `ghcr.io/<owner>/wishly:<sha>` and `:latest` → the self-hosted runner on the VM
@@ -88,7 +97,8 @@ a config file on the VM.
 |---|---|---|
 | `WISHLY_DATABASE_URL` (`wishly_app` role) | Terraform (`terraform output -json infisical_values`) | The API |
 | `WISHLY_SCHEMA_DATABASE_URL` (`wishly_schema` role) | Terraform | You, when applying `schema.sql` |
-| `WISHLY_RUN_TOKEN` | Terraform (`random_password`) | The API; EventBridge holds its own copy |
+| `WISHLY_RUN_TOKEN` | Terraform (`random_password`) | The API; the Lambda gets its own copy as an environment variable |
+| `ntfy_topic` | You (`terraform.tfvars`) | The Lambda. Anyone with the name can read the topic, so keep it long and random. |
 | `TUNNEL_TOKEN` | Terraform (Cloudflare) | cloudflared |
 | `WISHLY_RESEND_API_KEY` | Resend dashboard | The API |
 | `WISHLY_CLERK_ISSUER`, `WISHLY_CORS_ORIGINS`, `WISHLY_IMAGE` | Terraform (plain config, not secret) | The API / Compose |
@@ -109,7 +119,8 @@ state bucket is private, versioned, and blocks all public access.
   (`pg_read_all_data` + `pg_write_all_data`): it can read and write rows but
   cannot create, alter, or drop tables. Only `wishly_schema` (inherits
   `postgres`) can change the schema, and only a person uses it.
-- **EventBridge's IAM role** may call exactly one API destination, nothing else.
+- **The Lambda's IAM role** may write to its own log group, nothing else, and
+  only the hourly EventBridge rule may invoke it.
 - **The run token** only opens `/internal/run`. User endpoints need a Clerk JWT.
 - **The VM** has no inbound ports. The tunnel dials out to Cloudflare, and you
   reach the box over Tailscale.
@@ -154,21 +165,49 @@ breaks.
 | VM down | Cloudflare can't reach the tunnel | Site is down. Reminders more than an hour late are dropped. |
 | Resend down | The send fails, its `sends` row is deleted | Retried next hour if still within the one-hour window. |
 | EventBridge fires twice | Both runs try to claim each reminder | One email; the second insert finds the row and skips. |
+| Hourly run fails (API down, tunnel down, 500) | Lambda logs it, notifies your phone (high priority), raises; Lambda retries twice in 10 min | Nothing, if a retry succeeds inside the hour. |
 | A deploy ships a broken image | `up --wait` fails its healthcheck | The deploy job fails in GitHub. Roll back by deploying the previous `:<sha>`. |
 | Terraform state lost | — | Prevented: state is in versioned S3, never on a laptop. |
+
+## Watching it
+
+Every hourly run writes one JSON line to the `/aws/lambda/wishly-hourly-run`
+log group (kept 30 days):
+
+```json
+{"at": "2026-10-12T13:00:01+00:00", "url": "https://api.wishly.dev/internal/run",
+ "status": 200, "sent": 1, "failed": 0, "duration_ms": 412, "ok": true}
+```
+
+Tail it live:
+
+```bash
+aws logs tail /aws/lambda/wishly-hourly-run --follow
+```
+
+Or query history in CloudWatch → Logs Insights:
+
+```
+fields at, status, sent, failed, duration_ms, error
+| filter ispresent(status) or ispresent(error)
+| sort @timestamp desc
+```
+
+Your phone gets a ntfy notification when a run fails (high priority) or sends
+emails (low priority). Quiet hours, with nothing due and nothing wrong, stay
+quiet.
 
 ## Known gaps
 
 - **No failover.** If the VM is down, so is Wishly. The planned fix is a
   zero-count ECS Fargate service plus a watchdog that scales it up when
   `/healthz` stops answering.
-- **No alerting.** Nothing tells you when a run fails or the VM goes down.
+- **Partial alerting.** A failed hourly run reaches your phone, so a dead VM
+  is noticed within the hour, but nothing watches it between runs.
 - **Clerk deletions don't propagate.** A user deleted in Clerk's dashboard keeps
   their rows until removed by hand (fix: a `user.deleted` webhook).
 - **Deploys track `:latest`.** Rolling back means setting `WISHLY_IMAGE` to an
   older `:<sha>` in Infisical and running `deploy.sh`.
-- **EventBridge's 5-second timeout** on `/internal/run`. Fine for a handful of
-  users; at scale the endpoint would queue the work and return immediately.
 
 ## History: v1's lost Terraform state
 

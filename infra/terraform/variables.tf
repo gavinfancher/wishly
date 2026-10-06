@@ -50,6 +50,15 @@ variable "api_subdomain" {
   default = "api"
 }
 
+# --- Notifications ------------------------------------------------------------
+
+variable "ntfy_topic" {
+  type        = string
+  description = "ntfy.sh topic for hourly-run alerts on your phone. Empty = no alerts. Anyone who knows the name can read it, so use a long random one."
+  default     = ""
+  sensitive   = true
+}
+
 # --- The app -----------------------------------------------------------------
 
 variable "clerk_issuer" {

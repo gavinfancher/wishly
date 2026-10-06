@@ -10,6 +10,7 @@ terraform {
     cloudflare  = { source = "cloudflare/cloudflare", version = "~> 5.8" }
     planetscale = { source = "planetscale/planetscale", version = "~> 1.3" }
     random      = { source = "hashicorp/random", version = "~> 3.6" }
+    archive     = { source = "hashicorp/archive", version = "~> 2.7" }
   }
 }
 

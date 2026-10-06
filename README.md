@@ -10,7 +10,8 @@ run them. Following this page, you can bring up your own copy from nothing.
 backend/          FastAPI app → one Docker image on GHCR
 frontend/         React app → Cloudflare Pages
 infra/sql/        the database schema, one readable SQL file
-infra/terraform/  PlanetScale, Cloudflare Tunnel + DNS, the hourly EventBridge trigger
+infra/terraform/  PlanetScale, Cloudflare Tunnel + DNS, the hourly trigger (EventBridge →
+                  Lambda, logged to CloudWatch, alerts by ntfy)
 infra/ansible/    turns a fresh VM into a Wishly host + GitHub Actions runner
 infra/compose.yaml  what runs on that VM: the API + cloudflared
 docs/design.md    how the app works
@@ -20,7 +21,8 @@ docs/infrastructure.md  how it runs: every piece, secret, and failure mode
 ## How the pieces connect
 
 - **Terraform** creates the database, its two roles, the tunnel, DNS and the
-  hourly trigger, and prints the credentials it made.
+  hourly trigger (a Lambda that logs every run and pings your phone through
+  ntfy), and prints the credentials it made.
 - **You** paste those into **Infisical**, which is the one place secrets live.
 - **Ansible** installs Docker, the Infisical CLI and a GitHub Actions runner on
   the VM, and drops in `compose.yaml` plus `deploy.sh`.

@@ -35,7 +35,8 @@ idempotent (`if not exists`) and runs in a transaction. The API connects as
 
 ## The hourly run
 
-EventBridge calls `POST /internal/run` at the top of every hour. A reminder is
+EventBridge invokes a small Lambda at the top of every hour, which calls
+`POST /internal/run`, logs the result, and notifies by ntfy. A reminder is
 **due** when its send moment — `send_hour` local time, `days_before` days before
 the date — falls in this hour or the previous one. So a missed run sends up to
 one hour late; after that the reminder is dropped.
@@ -61,7 +62,7 @@ See the README for the full bring-up. In short:
 
 - **Image:** `backend/Dockerfile`, published to GHCR by `.github/workflows/api.yml`.
 - **Infra:** `infra/terraform` creates PlanetScale (database + two roles), the
-  Cloudflare Tunnel and DNS, and the hourly EventBridge trigger. Its credentials
+  Cloudflare Tunnel and DNS, and the hourly trigger (EventBridge → Lambda). Its credentials
   are copied into Infisical by hand.
 - **Host:** `infra/ansible` prepares the VM and registers a self-hosted GitHub
   Actions runner. Merging to `main` deploys: the runner runs `deploy.sh`, i.e.
