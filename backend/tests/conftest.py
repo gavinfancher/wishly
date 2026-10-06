@@ -6,6 +6,7 @@ separate wishly_test database. Start it first:  docker compose up -d
 
 import os
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -16,13 +17,18 @@ from psycopg.rows import dict_row
 
 from wishly.auth import verified_claims
 from wishly.main import create_app
-from wishly.migrate import migrate
 from wishly.settings import Settings
 
 TEST_DATABASE_URL = os.environ.get(
     "WISHLY_TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/wishly_test"
 )
 RUN_TOKEN = "test-run-token"
+SCHEMA_SQL = Path(__file__).parents[2] / "infra" / "sql" / "schema.sql"
+
+# The fixtures below drop and empty every table. Refuse to point them at
+# anything that isn't obviously a throwaway test database.
+if not psycopg.conninfo.conninfo_to_dict(TEST_DATABASE_URL).get("dbname", "").endswith("_test"):
+    raise RuntimeError(f"Refusing to run: database name must end in _test: {TEST_DATABASE_URL}")
 
 
 def make_settings(**overrides: Any) -> Settings:
@@ -37,17 +43,17 @@ def make_settings(**overrides: Any) -> Settings:
 
 @pytest.fixture(scope="session")
 def database_url() -> str:
-    """A freshly migrated test database. Built once per test run."""
+    """A test database built from infra/sql/schema.sql. Built once per test run."""
     try:
         conn = psycopg.connect(TEST_DATABASE_URL, autocommit=True, connect_timeout=3)
     except psycopg.OperationalError as exc:
         pytest.fail(f"Test database unreachable — is `docker compose up -d` running?\n{exc}")
 
     with conn:
-        # Start from nothing, so the tests prove the migrations build the schema.
+        # Start from nothing, so the tests prove schema.sql builds the database.
         conn.execute("drop schema public cascade")
         conn.execute("create schema public")
-        migrate(conn)
+        conn.execute(SCHEMA_SQL.read_text())
     return TEST_DATABASE_URL
 
 

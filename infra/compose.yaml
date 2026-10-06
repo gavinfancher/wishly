@@ -1,14 +1,13 @@
-# Production stack on the Proxmox VM: the API image from GHCR + a Cloudflare Tunnel.
+# Production stack on the VM: the API image from GHCR + a Cloudflare Tunnel.
 # The database is PlanetScale, not a container here.
 #
-# Every secret comes from Infisical, which runs compose with them in its environment:
+# Ansible copies this file to /opt/wishly on the VM. Every value below comes from
+# Infisical (Terraform wrote most of them), so start it with deploy.sh, which runs:
 #
-#   infisical run --env=prod -- docker compose -f infra/compose.yaml pull
-#   infisical run --env=prod -- docker compose -f infra/compose.yaml run --rm api python -m wishly.migrate
-#   infisical run --env=prod -- docker compose -f infra/compose.yaml up -d
+#   infisical run --env=prod -- docker compose up -d
 services:
   api:
-    image: ghcr.io/gavinfancher/wishly:${WISHLY_TAG:-latest}
+    image: ${WISHLY_IMAGE:?missing - run via infisical run, where Terraform sets it}
     # Names only, no values: compose copies each one from the environment
     # `infisical run` started it with. Nothing secret is written to disk.
     environment:

@@ -1,7 +1,9 @@
-# Test the API, then publish its image to GHCR.
+# Test the API, publish its image to GHCR, then deploy it to the VM.
 #
-#   ghcr.io/gavinfancher/wishly:<short sha>   permanent, one per commit
-#   ghcr.io/gavinfancher/wishly:latest        moves to each new build on main
+#   ghcr.io/<owner>/wishly:<short sha>   permanent, one per commit
+#   ghcr.io/<owner>/wishly:latest        moves to each new build on main
+#
+# test runs everywhere (GitHub-hosted). image and deploy run only for main.
 name: api
 
 on:
@@ -42,8 +44,8 @@ jobs:
 
   image:
     needs: test
-    # Only main publishes. Pull requests just run the tests.
-    if: github.event_name != 'pull_request'
+    # Only main publishes. Pull requests and other branches just run the tests.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -70,3 +72,16 @@ jobs:
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # The self-hosted runner Ansible installed on the VM.
+    runs-on: [self-hosted, wishly-vm]
+    # One deploy at a time; a newer one waits rather than cancelling a half-done one.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - name: Pull the new image and restart, with secrets from Infisical
+        run: /opt/wishly/deploy.sh

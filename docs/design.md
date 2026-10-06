@@ -28,9 +28,10 @@ reminders  id · user_id → users · title · month · day · days_before int[]
 sends      PK (reminder_id → reminders, days_before, occurrence_date) · sent_at
 ```
 
-Plain SQL through psycopg. Schema changes are numbered files in
-`backend/src/wishly/migrations/`, applied by `python -m wishly.migrate` (one
-transaction, advisory-locked, recorded in `schema_migrations`).
+Plain SQL through psycopg. The whole schema is `infra/sql/schema.sql`: one
+file you read, then apply with `psql` as the `wishly_schema` role. It's
+idempotent (`if not exists`) and runs in a transaction. The API connects as
+`wishly_app`, which can read and write rows but can't create or drop tables.
 
 ## The hourly run
 
@@ -56,9 +57,12 @@ For each due reminder:
 
 ## Running it
 
-- **Image:** one Dockerfile (`backend/`), published to `ghcr.io/gavinfancher/wishly`
-  by `.github/workflows/api.yml` after tests pass.
-- **Host:** `infra/compose.yaml` — the API plus cloudflared on the Proxmox VM.
-- **Secrets:** Infisical. `infisical run --env=prod -- docker compose … up -d`;
-  compose passes the variable names through, nothing is written to disk.
-- **Database:** PlanetScale Postgres. Local dev and CI use `postgres:18.4`.
+See the README for the full bring-up. In short:
+
+- **Image:** `backend/Dockerfile`, published to GHCR by `.github/workflows/api.yml`.
+- **Infra:** `infra/terraform` creates PlanetScale (database + two roles), the
+  Cloudflare Tunnel and DNS, and the hourly EventBridge trigger. Its credentials
+  are copied into Infisical by hand.
+- **Host:** `infra/ansible` prepares the VM and registers a self-hosted GitHub
+  Actions runner. Merging to `main` deploys: the runner runs `deploy.sh`, i.e.
+  `infisical run -- docker compose up -d --wait` with `infra/compose.yaml`.
