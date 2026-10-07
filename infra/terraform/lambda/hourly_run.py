@@ -21,13 +21,20 @@ RUN_URL = os.environ["RUN_URL"]
 RUN_TOKEN = os.environ["RUN_TOKEN"]
 NTFY_URL = os.environ.get("NTFY_URL", "")  # https://ntfy.sh/<topic>, or empty for none
 
+# Name ourselves. Cloudflare's Browser Integrity Check rejects Python's default
+# "Python-urllib/3.x" user agent with a 403 (error 1010) before the request
+# ever reaches the API.
+USER_AGENT = "wishly-hourly-run/1.0"
+
 
 def handler(event, context):
     started = time.monotonic()
     record = {"at": datetime.now(UTC).isoformat(timespec="seconds"), "url": RUN_URL}
 
     request = urllib.request.Request(
-        RUN_URL, method="POST", headers={"Authorization": f"Bearer {RUN_TOKEN}"}
+        RUN_URL,
+        method="POST",
+        headers={"Authorization": f"Bearer {RUN_TOKEN}", "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(request, timeout=50) as response:
@@ -71,7 +78,7 @@ def notify(record):
         NTFY_URL,
         data=json.dumps(record, indent=1).encode(),
         method="POST",
-        headers={"Title": title, "Priority": priority, "Tags": tags},
+        headers={"Title": title, "Priority": priority, "Tags": tags, "User-Agent": USER_AGENT},
     )
     try:
         urllib.request.urlopen(request, timeout=5).close()
