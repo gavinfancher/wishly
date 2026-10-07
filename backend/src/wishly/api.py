@@ -5,11 +5,13 @@ another user's reminders. Someone else's reminder ID gets a 404, not a 403,
 so we never confirm that it exists.
 """
 
+import logging
 from datetime import datetime
 from typing import Annotated
+from uuid import uuid4
 from zoneinfo import available_timezones
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from psycopg import Connection
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -17,6 +19,7 @@ from wishly.auth import CurrentUser, User
 from wishly.db import get_conn
 from wishly.schedule import is_valid_month_day
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
 Conn = Annotated[Connection, Depends(get_conn)]
 
@@ -85,6 +88,26 @@ def update_me(body: UserUpdate, user: CurrentUser, conn: Conn) -> User:
         {**body.model_dump(), "id": user["id"]},
     ).fetchone()
     return User(**row)
+
+
+@router.post("/me/test-email", status_code=202)
+def send_test_email(request: Request, user: CurrentUser) -> dict[str, str]:
+    """Email the signed-in user a sample reminder, to check delivery works."""
+    try:
+        request.app.state.send_email(
+            to=user["email"],
+            subject="Test: Wishly reminders reach you",
+            text=(
+                "This is a test from Wishly. Real reminders look just like this:\n"
+                "a subject saying what's coming up, and one line with the date.\n\n— Wishly"
+            ),
+            # Unique per click: a deliberate second test isn't a duplicate to suppress.
+            idempotency_key=f"test/{user['id']}/{uuid4()}",
+        )
+    except Exception as exc:
+        log.exception("test email to user %s failed", user["id"])
+        raise HTTPException(status_code=502, detail="the email service didn't accept it") from exc
+    return {"status": "sent"}
 
 
 # --- /v1/reminders -----------------------------------------------------------------

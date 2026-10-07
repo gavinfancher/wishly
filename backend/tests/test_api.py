@@ -54,3 +54,20 @@ def test_users_cannot_touch_each_others_reminders(client: TestClient) -> None:
     assert client.put(url, json=MOM, headers=user_b).status_code == 404
     assert client.delete(url, headers=user_b).status_code == 404
     assert len(client.get("/v1/reminders").json()) == 1  # still there for user_a
+
+
+def test_test_email_goes_to_the_signed_in_user(client: TestClient, emails: list) -> None:
+    response = client.post("/v1/me/test-email")
+
+    assert response.status_code == 202
+    assert [e["to"] for e in emails] == ["a@example.com"]
+    assert emails[0]["subject"].startswith("Test:")
+
+
+def test_test_email_reports_a_failed_send(client: TestClient) -> None:
+    def broken(**_: str) -> None:
+        raise RuntimeError("Resend is down")
+
+    client.app.state.send_email = broken
+
+    assert client.post("/v1/me/test-email").status_code == 502

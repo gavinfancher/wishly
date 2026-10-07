@@ -37,6 +37,15 @@ export function useUpdateMe() {
   })
 }
 
+/** Email the signed-in user a sample reminder, to check delivery works. */
+export function useSendTestEmail() {
+  const getToken = useGetToken()
+
+  return useMutation({
+    mutationFn: () => apiFetch<{ status: string }>('/me/test-email', getToken, { method: 'POST' }),
+  })
+}
+
 /** The current user's reminders. */
 export function useReminders() {
   const getToken = useGetToken()
