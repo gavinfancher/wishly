@@ -25,13 +25,13 @@
     infisical_client_secret: "{{ lookup('env', 'INFISICAL_CLIENT_SECRET') }}"
     infisical_project_id: "{{ lookup('env', 'INFISICAL_PROJECT_ID') }}"
     # Docker publishes packages per distro and CPU architecture.
-    distro: "{{ ansible_distribution | lower }}"
-    arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    distro: "{{ ansible_facts['distribution'] | lower }}"
+    arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
     # GitHub Actions runner, pinned. Checksums from the release notes at
     # https://github.com/actions/runner/releases
     github_repo: "{{ lookup('env', 'GITHUB_REPOSITORY') or 'gavinfancher/wishly' }}"
     runner_version: "2.338.0"
-    runner_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'x64' }}"
+    runner_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'x64' }}"
     runner_sha256:
       x64: af4b794c1bc41d73d40535e3fe092a39f9679cd8d965954c2aca25a05ca41d32
       arm64: 628b4a7258487b80c1d3c221095a7ded349f5ae0175fd3dfab708d07428f041b
@@ -70,7 +70,7 @@
         name: docker
         types: deb
         uris: "https://download.docker.com/linux/{{ distro }}"
-        suites: "{{ ansible_distribution_release }}"
+        suites: "{{ ansible_facts['distribution_release'] }}"
         components: stable
         architectures: "{{ arch }}"
         signed_by: "https://download.docker.com/linux/{{ distro }}/gpg"

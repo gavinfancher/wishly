@@ -1,8 +1,10 @@
 import psycopg
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from tests.conftest import make_settings
 from wishly.main import create_app
+from wishly.settings import Settings
 
 # Nothing listens on port 1, so connections to it are refused.
 UNREACHABLE_DB = "postgresql://nobody@127.0.0.1:1/nothing"
@@ -37,3 +39,15 @@ def test_ready_when_database_is_up(db: psycopg.Connection) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
+
+
+def test_config_errors_do_not_echo_secrets(monkeypatch) -> None:
+    monkeypatch.setenv("WISHLY_RUN_TOKEN", "super-secret-value")
+    monkeypatch.delenv("WISHLY_DATABASE_URL", raising=False)
+
+    try:
+        Settings(_env_file=None)
+    except ValidationError as exc:
+        message = str(exc)
+    assert "database_url" in message
+    assert "super-secret-value" not in message

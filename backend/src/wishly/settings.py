@@ -13,7 +13,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # WISHLY_ENV=prod in the environment becomes settings.env == "prod".
     # A .env file is read too, for local development.
-    model_config = SettingsConfigDict(env_prefix="WISHLY_", env_file=".env")
+    # hide_input_in_errors: if config fails to load, the error names the bad
+    # field but doesn't echo the input values, which include every secret.
+    model_config = SettingsConfigDict(
+        env_prefix="WISHLY_", env_file=".env", hide_input_in_errors=True
+    )
 
     env: Literal["local", "test", "prod"] = "local"
     # The git SHA, set at image build time, so /healthz shows which build is live.
