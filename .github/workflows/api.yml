@@ -9,9 +9,9 @@ name: api
 on:
   push:
     branches: [main]
-    paths: ["backend/**", ".github/workflows/api.yml"]
+    paths: ["backend/**", "infra/compose.yaml", "infra/ansible/files/deploy.sh", ".github/workflows/api.yml"]
   pull_request:
-    paths: ["backend/**", ".github/workflows/api.yml"]
+    paths: ["backend/**", "infra/compose.yaml", "infra/ansible/files/deploy.sh", ".github/workflows/api.yml"]
   workflow_dispatch:
 
 permissions:
@@ -83,5 +83,10 @@ jobs:
       group: deploy
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v7
+      # Ship the compose file and deploy script from this commit, so changes to
+      # them deploy like everything else instead of waiting for an Ansible run.
+      - name: Update compose.yaml and deploy.sh on the VM
+        run: install -m 0755 infra/ansible/files/deploy.sh /opt/wishly/deploy.sh && install -m 0644 infra/compose.yaml /opt/wishly/compose.yaml
       - name: Pull the new image and restart, with secrets from Infisical
         run: /opt/wishly/deploy.sh

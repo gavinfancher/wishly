@@ -24,4 +24,6 @@ with_secrets docker compose pull
 # (so the deploy job fails) if one doesn't.
 with_secrets docker compose up -d --wait --remove-orphans
 docker image prune -f >/dev/null # drop images no container uses any more
-docker compose ps
+# Through with_secrets too: compose won't even read compose.yaml without
+# WISHLY_IMAGE, which only Infisical provides.
+with_secrets docker compose ps
