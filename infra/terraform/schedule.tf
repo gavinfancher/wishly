@@ -23,7 +23,7 @@ resource "aws_cloudwatch_log_group" "hourly_run" {
 resource "aws_lambda_function" "hourly_run" {
   function_name    = "wishly-hourly-run"
   role             = aws_iam_role.hourly_run.arn
-  runtime          = "python3.13"
+  runtime          = "python3.14"
   architectures    = ["arm64"]
   handler          = "hourly_run.handler"
   filename         = data.archive_file.hourly_run.output_path
