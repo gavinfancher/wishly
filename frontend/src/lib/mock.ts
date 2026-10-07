@@ -90,7 +90,8 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
   }
 
   if (path === '/me/test-email' && method === 'POST') {
-    return respond({ status: 'sent' })
+    console.info(`[mock] test e-mail to ${user.email}`)
+    return undefined as T
   }
 
   if (path === '/reminders' && method === 'GET') {

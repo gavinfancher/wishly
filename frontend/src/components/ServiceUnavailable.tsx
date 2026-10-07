@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { Message, Window } from './Win98.tsx'
+
 /**
  * Shown when the API cannot be reached at all — no answer within five seconds.
  *
@@ -37,46 +39,48 @@ export default function ServiceUnavailable() {
   const remaining = Math.max(0, EXPECTED_RECOVERY_SECONDS - waited)
   const minutes = Math.ceil(remaining / 60)
 
+  const progress = Math.min(100, Math.round((waited / EXPECTED_RECOVERY_SECONDS) * 100))
+
   return (
-    <div className="service-down" role="status" aria-live="polite">
-      <div className="service-down-card">
-        <span className="service-down-mark" aria-hidden="true">
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+    <div className="veil" role="status" aria-live="polite">
+      <Window title="Wishly" icon="wishly" className="dialog dialog-wide">
+        <div className="body">
+          <Message icon="error">
+            <p>
+              <b>Our primary server is down.</b>
+            </p>
+            <p>
+              We&rsquo;re bringing the backup online now.{' '}
+              {remaining > 0
+                ? `Service should be restored in under ${minutes} minute${minutes === 1 ? '' : 's'}.`
+                : 'This is taking longer than usual — it should be back shortly.'}
+            </p>
+            <p>
+              Your occasions and reminders are safe. Nothing has been lost, and scheduled e-mails
+              resume automatically. This window will close by itself.
+            </p>
+          </Message>
+          <div
+            className="meter"
+            role="progressbar"
+            aria-label="Starting the backup server"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
           >
-            <path d="M12 3a9 9 0 1 0 9 9" />
-            <path d="M12 8v5" />
-            <circle cx="12" cy="16.5" r="0.6" fill="currentColor" stroke="none" />
-          </svg>
-        </span>
-
-        <h2>Our primary server is down</h2>
-        <p>
-          We&rsquo;re bringing the backup online now.{' '}
-          {remaining > 0
-            ? `Service should be restored in under ${minutes} minute${minutes === 1 ? '' : 's'}.`
-            : 'This is taking longer than usual — it should be back shortly.'}
-        </p>
-        <p className="service-down-note">
-          Your occasions and reminders are safe. Nothing has been lost, and scheduled emails resume
-          automatically. This page will refresh itself.
-        </p>
-
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => void queryClient.refetchQueries()}
-        >
-          Try now
-        </button>
-      </div>
+            <i style={{ width: `${progress}%` }} />
+          </div>
+          <div className="row center">
+            <button
+              type="button"
+              className="btn btn-default"
+              onClick={() => void queryClient.refetchQueries()}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </Window>
     </div>
   )
 }

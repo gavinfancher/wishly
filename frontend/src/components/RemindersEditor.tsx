@@ -10,14 +10,14 @@ type RemindersEditorProps = {
 
 const MAX_DAYS = 365
 
-/** "7 days" / "1 day" / "Day of" — the chip face for a lead time. */
-function chipLabel(days: number): string {
-  if (days === 0) return 'Day of'
-  return `${days} day${days === 1 ? '' : 's'}`
+/** "7 days before" / "1 day before" / "On the day" — the checkbox label for a lead time. */
+function checkLabel(days: number): string {
+  if (days === 0) return 'On the day'
+  return `${days} day${days === 1 ? '' : 's'} before`
 }
 
 /**
- * Lead-time picker. Every option — preset or custom — is a single toggle chip,
+ * Lead-time picker. Every option — preset or custom — is a single checkbox,
  * so the selection lives in one place instead of being mirrored in a list.
  */
 export default function RemindersEditor({ value, onChange, error }: RemindersEditorProps) {
@@ -40,53 +40,45 @@ export default function RemindersEditor({ value, onChange, error }: RemindersEdi
   }
 
   return (
-    <fieldset className="reminders-editor">
-      <legend>Email me</legend>
+    <fieldset className="groupbox reminders-editor">
+      <legend>E-mail me</legend>
       <p className="field-hint">How many days before the date. Choose as many as you like.</p>
 
       <div className="reminder-presets">
         {options.map((days) => (
-          <button
-            key={days}
-            type="button"
-            className={`chip ${value.includes(days) ? 'chip-active' : ''}`}
-            aria-pressed={value.includes(days)}
-            onClick={() => toggle(days)}
-          >
-            {chipLabel(days)}
-          </button>
+          <label key={days} className="check">
+            <input type="checkbox" checked={value.includes(days)} onChange={() => toggle(days)} />
+            <span>{checkLabel(days)}</span>
+          </label>
         ))}
       </div>
 
-      <div className="reminder-custom">
-        <label className="reminder-custom-label" htmlFor="custom-lead-time">
-          Another number of days
-        </label>
-        <div className="reminder-custom-row">
-          <input
-            id="custom-lead-time"
-            type="number"
-            min={0}
-            max={MAX_DAYS}
-            placeholder="days"
-            value={customDay}
-            onChange={(e) => setCustomDay(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                addCustom()
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="btn-secondary btn-compact"
-            onClick={addCustom}
-            disabled={customDay.trim() === ''}
-          >
-            Add
-          </button>
-        </div>
+      <div className="row">
+        <label htmlFor="custom-lead-time">Other:</label>
+        <input
+          id="custom-lead-time"
+          className="text text-short"
+          type="number"
+          min={0}
+          max={MAX_DAYS}
+          value={customDay}
+          onChange={(e) => setCustomDay(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              addCustom()
+            }
+          }}
+        />
+        <span>day(s) before</span>
+        <button
+          type="button"
+          className="btn"
+          onClick={addCustom}
+          disabled={customDay.trim() === ''}
+        >
+          Add
+        </button>
       </div>
 
       {error && <p className="form-error">{error}</p>}

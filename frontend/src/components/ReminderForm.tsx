@@ -11,6 +11,7 @@ import {
   validateTitle,
 } from '../lib/validation.ts'
 import RemindersEditor from './RemindersEditor.tsx'
+import { Window } from './Win98.tsx'
 
 type ReminderFormProps = {
   initial: Reminder | null
@@ -76,65 +77,77 @@ export default function ReminderForm({
   const dayOptions = Array.from({ length: daysInMonth(values.month) }, (_, i) => i + 1)
 
   return (
-    <form className="event-form" onSubmit={(e) => void handleSubmit(e)}>
-      <h2 id="reminder-form-title">{initial ? 'Edit reminder' : 'Add a reminder'}</h2>
-
-      <label>
-        What is it?
-        <input
-          type="text"
-          value={values.title}
-          onChange={(e) => set('title', e.target.value)}
-          placeholder="Mom's birthday"
-          maxLength={200}
-          required
-        />
-      </label>
-
-      <div className="date-row">
-        <label>
-          Month
-          <select
-            value={values.month}
-            onChange={(e) => {
-              const month = Number(e.target.value)
-              set('month', month)
-              if (values.day > daysInMonth(month)) set('day', daysInMonth(month))
-            }}
-          >
-            {MONTH_NAMES.map((name, index) => (
-              <option key={name} value={index + 1}>
-                {name}
-              </option>
-            ))}
-          </select>
+    <Window
+      title={initial ? `${initial.title} Properties` : 'New Reminder'}
+      icon="calendar"
+      dialog="dialog"
+      className="dialog dialog-wide"
+      onClose={onCancel}
+      closeDisabled={isSubmitting}
+    >
+      <form className="body event-form" onSubmit={(e) => void handleSubmit(e)}>
+        <label className="field-row">
+          <span>Name:</span>
+          <input
+            className="text"
+            type="text"
+            value={values.title}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="Mom's birthday"
+            maxLength={200}
+            required
+            autoFocus
+          />
         </label>
 
-        <label>
-          Day
-          <select value={values.day} onChange={(e) => set('day', Number(e.target.value))}>
-            {dayOptions.map((day) => (
-              <option key={day} value={day}>
-                {day}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <span className="field-hint">Repeats every year.</span>
+        <div className="field-row">
+          <span id="reminder-date-label">Date:</span>
+          <div className="row" role="group" aria-labelledby="reminder-date-label">
+            <select
+              className="select"
+              aria-label="Month"
+              value={values.month}
+              onChange={(e) => {
+                const month = Number(e.target.value)
+                set('month', month)
+                if (values.day > daysInMonth(month)) set('day', daysInMonth(month))
+              }}
+            >
+              {MONTH_NAMES.map((name, index) => (
+                <option key={name} value={index + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="select"
+              aria-label="Day"
+              value={values.day}
+              onChange={(e) => set('day', Number(e.target.value))}
+            >
+              {dayOptions.map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">Repeats every year.</span>
+          </div>
+        </div>
 
-      <RemindersEditor value={values.days_before} onChange={(days) => set('days_before', days)} />
+        <RemindersEditor value={values.days_before} onChange={(days) => set('days_before', days)} />
 
-      {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error">{error}</p>}
 
-      <div className="form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel} disabled={isSubmitting}>
-          Cancel
-        </button>
-        <button type="submit" className="btn-primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : initial ? 'Save changes' : 'Add reminder'}
-        </button>
-      </div>
-    </form>
+        <div className="row end">
+          <button type="submit" className="btn btn-default" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'OK'}
+          </button>
+          <button type="button" className="btn" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Window>
   )
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { Icon, Window } from '../components/Win98.tsx'
 import { useUpdateMe } from '../lib/hooks.ts'
 import { timezoneOptions } from '../lib/timezones.ts'
 
@@ -35,48 +36,64 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="onboarding">
-      <form onSubmit={(e) => void handleSubmit(e)} className="form-panel">
-        <div className="form-panel-head">
-          <h1>When should reminders land?</h1>
-          <p className="form-panel-sub">
-            One email per reminder, at the hour you pick. Change it any time.
-          </p>
-        </div>
+    <div className="veil">
+      <Window title="Wishly Setup" icon="wishly" dialog="dialog" className="dialog wizard">
+        <form onSubmit={(e) => void handleSubmit(e)}>
+          <div className="wizard-body">
+            <div className="wizard-art" aria-hidden="true">
+              <Icon name="wishly" size={64} />
+            </div>
+            <div className="wizard-main">
+              <h1>When should reminders land?</h1>
+              <p>One e-mail per reminder, at the hour you pick. You can change it any time.</p>
 
-        <div className="form-panel-body">
-          <label className="field">
-            <span className="field-label">Timezone</span>
-            <select value={timezone} onChange={(e) => setTimezone(e.target.value)} required>
-              {timezoneOptions(timezone).map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
-            <span className="field-hint">Detected from your browser — adjust if it’s wrong.</span>
-          </label>
+              <label className="field-row">
+                <span>Time zone:</span>
+                <select
+                  className="select"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  required
+                >
+                  {timezoneOptions(timezone).map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="field-hint">Detected from your browser — adjust it if it’s wrong.</p>
 
-          <label className="field">
-            <span className="field-label">Delivery hour (local time)</span>
-            <select value={sendHour} onChange={(e) => setSendHour(Number(e.target.value))}>
-              {HOUR_OPTIONS.map((hour) => (
-                <option key={hour} value={hour}>
-                  {hour.toString().padStart(2, '0')}:00
-                </option>
-              ))}
-            </select>
-          </label>
+              <label className="field-row">
+                <span>Send at:</span>
+                <select
+                  className="select select-short"
+                  value={sendHour}
+                  onChange={(e) => setSendHour(Number(e.target.value))}
+                >
+                  {HOUR_OPTIONS.map((hour) => (
+                    <option key={hour} value={hour}>
+                      {hour.toString().padStart(2, '0')}:00
+                    </option>
+                  ))}
+                </select>
+                <span className="field-hint">local time</span>
+              </label>
 
-          {error && <p className="form-error">{error}</p>}
-        </div>
+              {error && <p className="form-error">{error}</p>}
+            </div>
+          </div>
 
-        <div className="form-panel-actions">
-          <button type="submit" className="btn-primary btn-compact" disabled={updateMe.isPending}>
-            {updateMe.isPending ? 'Saving…' : 'Save and continue'}
-          </button>
-        </div>
-      </form>
+          <div className="wizard-actions">
+            <button type="button" className="btn" disabled>
+              &lt; Back
+            </button>
+            <button type="submit" className="btn btn-default" disabled={updateMe.isPending}>
+              {updateMe.isPending ? 'Saving…' : 'Finish'}
+            </button>
+          </div>
+        </form>
+      </Window>
     </div>
   )
 }

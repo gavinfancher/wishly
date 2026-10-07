@@ -1,57 +1,16 @@
-import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 
-import { DEV_NO_AUTH, useWishlyAuth } from '../lib/auth-context.ts'
+import { TitleBar } from '../components/Win98.tsx'
+import { useWishlyAuth } from '../lib/auth-context.ts'
 
 /**
  * Wraps all authenticated routes.
  * - Unauthenticated visitors are redirected to /sign-in.
- * - Authenticated users see the console shell: sidebar, topbar, content.
+ * - Authenticated users get the Wishly application window; the page inside
+ *   supplies its menu bar, toolbar, contents and status bar.
  */
-
-/** Sidebar icons — 16px, currentColor, so they inherit the nav item's state. */
-const iconProps = {
-  width: 16,
-  height: 16,
-  viewBox: '0 0 16 16',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.5,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
-}
-
-function IconCalendar() {
-  return (
-    <svg {...iconProps} aria-hidden="true">
-      <rect x="2" y="3.5" width="12" height="10.5" rx="2" />
-      <path d="M2 6.75h12M5.5 2v3M10.5 2v3" />
-    </svg>
-  )
-}
-
-function IconPerson() {
-  return (
-    <svg {...iconProps} aria-hidden="true">
-      <circle cx="8" cy="5.5" r="2.75" />
-      <path d="M2.75 14a5.25 5.25 0 0 1 10.5 0" />
-    </svg>
-  )
-}
-
-/** Route → section name shown in the topbar. Longest match wins. */
-const SECTIONS: ReadonlyArray<readonly [string, string]> = [
-  ['/app/account', 'Account'],
-  ['/onboarding', 'Set up reminders'],
-  ['/app', 'Reminders'],
-]
-
-function sectionTitle(pathname: string): string {
-  return SECTIONS.find(([path]) => pathname.startsWith(path))?.[1] ?? 'Wishly'
-}
-
 export default function ProtectedLayout() {
-  const { isLoaded, isSignedIn, signOut } = useWishlyAuth()
-  const { pathname } = useLocation()
+  const { isLoaded, isSignedIn } = useWishlyAuth()
 
   // While auth is initialising, render nothing to avoid a flash of redirect.
   if (!isLoaded) {
@@ -63,49 +22,13 @@ export default function ProtectedLayout() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Link to="/app" className="sidebar-brand wordmark">
-          wishly<span className="wordmark-dot">.</span>
-        </Link>
-
-        <nav className="sidebar-nav">
-          <NavLink to="/app" end className="nav-item">
-            <IconCalendar />
-            <span className="nav-label">Reminders</span>
-          </NavLink>
-          <NavLink to="/app/account" className="nav-item">
-            <IconPerson />
-            <span className="nav-label">Account</span>
-          </NavLink>
-        </nav>
-
-        <div className="sidebar-foot">
-          {DEV_NO_AUTH ? (
-            <span className="dev-user-badge">Dev User</span>
-          ) : (
-            // Once the token is gone, this layout redirects to /sign-in by itself.
-            <button
-              type="button"
-              className="btn-secondary btn-compact"
-              onClick={() => void signOut()}
-            >
-              Sign out
-            </button>
-          )}
+    <div className="screen">
+      <main className="window app-window" aria-label="Wishly">
+        <TitleBar title="Wishly" icon="wishly" themeToggle />
+        <div className="app-content">
+          <Outlet />
         </div>
-      </aside>
-
-      <div className="app-main">
-        <header className="topbar">
-          <h1>{sectionTitle(pathname)}</h1>
-        </header>
-        <div className="content">
-          <div className="view">
-            <Outlet />
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   )
 }

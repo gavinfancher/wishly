@@ -23,7 +23,7 @@ export default function OnboardingGate() {
   }
 
   if (isError || !user) {
-    return <p className="form-error">Could not load your profile. Please refresh.</p>
+    return <p className="empty">Could not load your profile. Please refresh.</p>
   }
 
   // Server-side flag, not browser storage: onboarding belongs to the account, so

@@ -1,1625 +1,155 @@
 /* ============================================================
-   Wishly — design tokens
-   Paper-white ground, ink text, one accent: the red pen you
-   circle calendar dates with. Grotesk for voice, mono for dates.
+   Wishly 98 — design tokens
+   One Windows 98 application window: gray raised chrome drawn
+   with four-color bevels, navy title bar, and one accent kept
+   from the old design: the red pen you circle dates with.
+   Light by default, a dark "high contrast" take after sunset.
    ============================================================ */
 
 :root {
-  --paper: #fafaf8;
-  --card: #ffffff;
-  --ink: #1b1b1f;
-  --ink-soft: #6d6d75;
-  --ink-faint: #9b9ba3;
-  --line: #e8e7e2;
-  --pen: #c93b2b;
-  --pen-deep: #a92e20;
-  --pen-tint: #faeae6;
-  --ok: #2c7a4b;
-  --wash: rgb(27 27 31 / 0.05);
-  --overlay: rgb(27 27 31 / 0.4);
+  color-scheme: light;
 
-  --font-sans: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Spline Sans Mono', ui-monospace, 'SF Mono', monospace;
+  --face: #c0c0c0;
+  --hilite: #ffffff;
+  --light: #dfdfdf;
+  --shadow: #808080;
+  --dark: #0a0a0a;
+  --text: #000000;
+  --field: #ffffff;
+  --title-a: #000080;
+  --title-b: #1084d0;
+  --title-text: #ffffff;
+  --select: #000080;
+  --select-text: #ffffff;
+  --disabled: #808080;
+  --pen: #d40000;
+  --link: #0000ee;
+  --muted: #404040;
+  /* Disabled text: Win98's white-offset emboss. Dark mode drops it — it reads as smudged there. */
+  --emboss: 1px 1px var(--hilite);
+  --veil: rgb(0 0 0 / 0.25);
+  --glyph: #000;
+  /* Drop-down arrow and checkmark, drawn in --glyph's color. */
+  --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='4'%3E%3Cpath d='M0 0h7L3.5 4z'/%3E%3C/svg%3E");
+  --checkmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7'%3E%3Cpath d='M6 0h1v2H6v1H5v1H4v1H3v1H2V5H1V4H0V2h1v1h1v1h1V3h1V2h1V1h1z'/%3E%3C/svg%3E");
 
-  --radius: 10px;
-  --radius-sm: 7px;
-  --radius-lg: 18px;
-  --ring: rgb(201 59 43 / 0.18);
-  /* Select chevron, drawn in --ink-soft (a data URI can't read a variable). */
-  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236d6d75' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  /* Chrome (sidebar, topbar) sits between the page ground and a panel, so the
-     three depths read apart without shadows doing the work. */
-  --surface: #f2f1ee;
-  --sidebar-w: 232px;
-  --leaf-w: 58px;
-  --shadow-soft: 0 1px 2px rgb(27 27 31 / 0.05), 0 8px 24px rgb(27 27 31 / 0.06);
-  --shadow-pop: 0 2px 6px rgb(27 27 31 / 0.08), 0 20px 48px rgb(27 27 31 / 0.14);
+  /* The one typeface for everything: headings, e-mail text, code included. */
+  --ui: 'Pixelated MS Sans Serif', 'MS Sans Serif', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif;
 
-  color-scheme: light dark;
+  /* The four bevels everything is built from. */
+  --raised:
+    inset -1px -1px var(--dark), inset 1px 1px var(--hilite), inset -2px -2px var(--shadow),
+    inset 2px 2px var(--light);
+  --sunken:
+    inset -1px -1px var(--hilite), inset 1px 1px var(--shadow), inset -2px -2px var(--light),
+    inset 2px 2px var(--dark);
+  --pressed:
+    inset -1px -1px var(--hilite), inset 1px 1px var(--dark), inset -2px -2px var(--light),
+    inset 2px 2px var(--shadow);
+  --thin: inset -1px -1px var(--hilite), inset 1px 1px var(--shadow);
+  --etched:
+    inset -1px -1px var(--hilite), inset 1px 1px var(--shadow), inset -2px -2px var(--shadow),
+    inset 2px 2px var(--hilite);
+
+  --gutter: 16px;
 }
 
-/* Dark: the same paper-and-pen system after sunset. Follows the OS setting. */
+/* Dark: follows the OS unless the title-bar toggle pinned a theme. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #131317;
-    --card: #1d1d22;
-    --ink: #ececee;
-    --ink-soft: #a3a3ac;
-    --ink-faint: #6f6f79;
-    --line: #2d2d34;
-    --pen: #e05a48;
-    --pen-deep: #ea7362;
-    --pen-tint: #3b211c;
-    --ok: #5cb87f;
-    --wash: rgb(236 236 238 / 0.07);
-    --overlay: rgb(0 0 0 / 0.55);
-    --ring: rgb(224 90 72 / 0.26);
-    /* Select chevron, drawn in --ink-soft (a data URI can't read a variable). */
-    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23a3a3ac' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    --surface: #17171c;
-
-    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
-    --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 20px 48px rgb(0 0 0 / 0.55);
+  :root:not([data-theme='light']) {
+    --face: #2b2b2e;
+    --hilite: #5c5c63;
+    --light: #3f3f44;
+    --shadow: #151517;
+    --dark: #000000;
+    --text: #e8e8ea;
+    --field: #1a1a1c;
+    --title-a: #1c1c78;
+    --title-b: #2f6db0;
+    --select: #2f6db0;
+    --disabled: #7a7a80;
+    --pen: #ff5a48;
+    --link: #7db7ff;
+    --muted: #a6a6ad;
+    --emboss: none;
+    --veil: rgb(0 0 0 / 0.55);
+    --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='4'%3E%3Cpath d='M0 0h7L3.5 4z' fill='%23e8e8ea'/%3E%3C/svg%3E");
+    --checkmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7'%3E%3Cpath d='M6 0h1v2H6v1H5v1H4v1H3v1H2V5H1V4H0V2h1v1h1v1h1V3h1V2h1V1h1z' fill='%23e8e8ea'/%3E%3C/svg%3E");
+    color-scheme: dark;
   }
 }
 
-* {
+:root[data-theme='dark'] {
+  --face: #2b2b2e;
+  --hilite: #5c5c63;
+  --light: #3f3f44;
+  --shadow: #151517;
+  --dark: #000000;
+  --text: #e8e8ea;
+  --field: #1a1a1c;
+  --title-a: #1c1c78;
+  --title-b: #2f6db0;
+  --select: #2f6db0;
+  --disabled: #7a7a80;
+  --pen: #ff5a48;
+  --link: #7db7ff;
+  --muted: #a6a6ad;
+  --emboss: none;
+  --veil: rgb(0 0 0 / 0.55);
+  --arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='4'%3E%3Cpath d='M0 0h7L3.5 4z' fill='%23e8e8ea'/%3E%3C/svg%3E");
+  --checkmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7'%3E%3Cpath d='M6 0h1v2H6v1H5v1H4v1H3v1H2V5H1V4H0V2h1v1h1v1h1V3h1V2h1V1h1z' fill='%23e8e8ea'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
+html,
+body {
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
+  background: var(--face);
+  color: var(--text);
+  font: 12px/1.4 var(--ui);
+  -webkit-font-smoothing: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
 h1,
 h2,
-h3 {
-  margin: 0;
-  line-height: 1.15;
-  letter-spacing: -0.015em;
-  font-weight: 700;
-}
-
+h3,
 p {
   margin: 0;
 }
 
 a {
-  color: inherit;
+  color: var(--link);
 }
 
-.mono {
-  font-family: var(--font-mono);
-}
-
-:focus-visible {
-  outline: 2px solid var(--pen);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-  html {
-    scroll-behavior: auto;
-  }
-}
-
-/* ---------- Buttons ---------- */
-
-.btn-primary,
-.btn-secondary,
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: 999px;
-  padding: 0.55rem 1.15rem;
-  font-family: var(--font-sans);
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    background 140ms ease,
-    border-color 140ms ease,
-    transform 140ms ease;
-}
-
-.btn-primary {
-  background: var(--pen);
-  border: 1px solid var(--pen);
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--pen-deep);
-  border-color: var(--pen-deep);
-}
-
-.btn-secondary {
-  background: var(--card);
-  border: 1px solid var(--line);
-  color: var(--ink);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  border-color: var(--ink-faint);
-}
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--ink-soft);
-}
-
-.btn-ghost:hover {
-  color: var(--ink);
-}
-
-.btn-large {
-  padding: 0.8rem 1.6rem;
-  font-size: 1.05rem;
-}
-
-.btn-primary:disabled,
-.btn-secondary:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.btn-danger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 0.55rem 1.15rem;
-  font-family: var(--font-sans);
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid var(--pen);
-  color: var(--pen);
-  transition:
-    background 140ms ease,
-    color 140ms ease;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: var(--pen);
-  color: #fff;
-}
-
-.btn-danger:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.btn-quiet {
-  background: none;
-  border: none;
-  padding: 0.15rem 0.4rem;
-  font-family: var(--font-sans);
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--ink-soft);
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-.btn-quiet:hover:not(:disabled) {
-  color: var(--ink);
-  background: var(--wash);
-}
-
-.btn-quiet-danger:hover:not(:disabled) {
-  color: var(--pen-deep);
-  background: var(--pen-tint);
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  color: var(--ink-faint);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0.1rem 0.35rem;
-  border-radius: 6px;
-}
-
-.btn-icon:hover {
-  color: var(--pen-deep);
-  background: var(--pen-tint);
-}
-
-/* ---------- Wordmark ---------- */
-
-.wordmark {
-  font-weight: 800;
-  font-size: 1.25rem;
-  letter-spacing: -0.03em;
-  text-decoration: none;
-  color: var(--ink);
-}
-
-.wordmark-dot {
-  color: var(--pen);
-}
-
-/* ============================================================
-   Landing page
-   ============================================================ */
-
-.landing {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-}
-
-.landing-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.5rem 0;
-}
-
-.landing-nav {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.landing-nav a {
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--ink-soft);
-  text-decoration: none;
-}
-
-.landing-nav a:hover {
-  color: var(--ink);
-}
-
-.landing-nav .btn-primary {
-  color: #fff;
-}
-
-/* Hero */
-
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  gap: 3rem;
-  align-items: center;
-  padding: 4.5rem 0 5.5rem;
-}
-
-.hero-copy h1 {
-  font-size: clamp(2.2rem, 5vw, 3.4rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  max-width: 15em;
-}
-
-.hero-sub {
-  margin-top: 1.25rem;
-  font-size: 1.15rem;
-  color: var(--ink-soft);
-  max-width: 34em;
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-/* Signature: the red pen circle */
-
-.circled {
-  position: relative;
-  white-space: nowrap;
-  padding: 0 0.08em;
-}
-
-.pen-circle {
-  position: absolute;
-  inset: -0.28em -0.34em -0.34em -0.3em;
-  width: calc(100% + 0.64em);
-  height: calc(100% + 0.62em);
-  overflow: visible;
-  pointer-events: none;
-}
-
-.pen-circle path {
-  stroke: var(--pen);
-  /* User units, not px: the SVG scales, so this lands ~4-5px on screen. */
-  stroke-width: 7;
-  stroke-linecap: round;
-  /* NOTE: do not add `vector-effect: non-scaling-stroke` here. It makes the
-     browser resolve the dash pattern in *screen pixels* while the path (and
-     its pathLength=700 normalization) are in viewBox units. The two spaces
-     disagree, the dash runs out before the path does, and the circle stops
-     short of closing at larger render sizes. Constant on-screen stroke width
-     is not worth an animation that never completes. */
-  stroke-dasharray: 700;
-  stroke-dashoffset: 700;
-  animation: pen-draw 900ms cubic-bezier(0.55, 0, 0.3, 1) 500ms forwards;
-}
-
-@keyframes pen-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pen-circle path {
-    stroke-dashoffset: 0;
-    animation: none;
-  }
-}
-
-/* Hero email mock */
-
-.hero-mock {
-  position: relative;
-  justify-self: end;
-  width: min(100%, 380px);
-}
-
-.hero-mock-email {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft);
-  padding: 1.5rem;
-}
-
-.hero-mock-header {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  margin-bottom: 0.9rem;
-}
-
-.hero-mock-from {
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-
-.hero-mock-addr {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ink-faint);
-}
-
-.hero-mock-subject {
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.hero-mock-body {
-  margin-top: 0.6rem;
-  font-size: 0.9rem;
-  color: var(--ink-soft);
-}
-
-.hero-mock-count {
+.icon {
   display: inline-block;
-  margin-top: 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--pen);
-  background: var(--pen-tint);
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem;
+  flex: none;
+  line-height: 0;
 }
 
-.hero-mock-leaf {
-  position: absolute;
-  top: -1.6rem;
-  right: -0.9rem;
-  z-index: 1;
-  transform: rotate(4deg);
-}
-
-/* Calendar leaf (shared with the app list) */
-
-.hero-mock-leaf,
-.row-leaf {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: var(--leaf-w);
-  height: 62px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow-soft);
-  flex-shrink: 0;
-}
-
-.leaf-month {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--pen);
-}
-
-.leaf-day {
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-/* How it works */
-
-.how {
-  padding: 4rem 0;
-  border-top: 1px solid var(--line);
-}
-
-.how h2 {
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  letter-spacing: -0.02em;
-}
-
-.how-steps {
-  list-style: none;
-  margin: 2.5rem 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2.5rem;
-}
-
-.how-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  border: 1.5px solid var(--pen);
-  color: var(--pen);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.9rem;
-}
-
-.how-steps h3 {
-  font-size: 1.1rem;
-  margin-bottom: 0.4rem;
-}
-
-.how-steps p {
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-}
-
-/* Closer + footer */
-
-.closer {
-  text-align: center;
-  padding: 4.5rem 0 5rem;
-  border-top: 1px solid var(--line);
-}
-
-.closer h2 {
-  font-size: clamp(1.6rem, 3.5vw, 2.3rem);
-  letter-spacing: -0.025em;
-}
-
-.closer p {
-  margin: 0.8rem 0 1.8rem;
-  color: var(--ink-soft);
-  font-size: 1.05rem;
-}
-
-.landing-footer {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem 0 2rem;
-  border-top: 1px solid var(--line);
-  font-size: 0.85rem;
-  color: var(--ink-faint);
-}
-
-.landing-footer > span:first-child {
-  font-weight: 800;
-  color: var(--ink);
-}
-
-@media (max-width: 780px) {
-  .hero {
-    grid-template-columns: 1fr;
-    gap: 3.5rem;
-    padding-top: 2.5rem;
-    padding-bottom: 4rem;
-  }
-
-  .hero-mock {
-    /* Was `start` with a 0.5rem nudge, which left the card visibly off-centre
-       once the hero collapsed to one column. */
-    justify-self: center;
-    margin-left: 0;
-    /* `.hero-mock-leaf` is absolutely positioned at `right: -0.9rem`, so it hangs
-       past the card's edge by design. On desktop the grid column absorbs that;
-       here the card fills its container and the date badge was clipped by the
-       viewport. Reserving the overhang keeps the badge on screen — and because
-       the leaf sits to the right, the small right margin centres the composition
-       as a whole rather than just the card box. */
-    margin-right: 0.9rem;
-  }
-
-  .how-steps {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }
-
-  .landing-nav {
-    gap: 1rem;
-  }
-}
-
-/* ============================================================
-   App shell
-   ============================================================ */
-
-.prefs-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* The standalone shell reuses `.app-header` / `.app-main`, which are the
-   console's classes — `.app-main` is the sidebar layout's scrolling column, so
-   on its own it contributes no padding and no measure, and `.app-header` has
-   only a sticky rule for narrow viewports. Unstyled, the page welded itself to
-   the left edge of the viewport at full bleed. Scoped to `.prefs-shell` so the
-   console keeps its own behaviour. */
-.prefs-shell .app-header {
-  padding-block: 1.25rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.prefs-shell .app-main {
-  /* The console pairs `overflow: hidden` here with an inner `.content` that
-     does the scrolling. This shell has no such child, so tall content would be
-     clipped rather than scrolling the page. */
-  overflow: visible;
-  padding-block: 2.5rem 4rem;
-}
-
-/* One measure, applied to both bands, so the wordmark sits on the same left
-   edge as the panels rather than floating off toward the viewport corner. */
-.prefs-shell .app-header .wordmark,
-.prefs-shell .app-main > * {
-  display: block;
-  box-sizing: border-box;
+.icon svg {
   width: 100%;
-  max-width: 44rem;
-  margin-inline: auto;
-  padding-inline: 1.5rem;
-}
-
-@media (max-width: 560px) {
-  .prefs-shell .app-header .wordmark,
-  .prefs-shell .app-main > * {
-    padding-inline: 1.1rem;
-  }
-
-  .prefs-shell .app-main {
-    padding-block: 1.75rem 3rem;
-  }
-}
-
-/* ---------- App shell ----------
-   Console layout: a fixed sidebar for where you are, a topbar naming the
-   section, and one scrolling content column. Only the content scrolls. */
-
-.app-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  height: 100vh;
-  height: 100dvh;
-}
-
-/* Sizing the shell to the viewport is not enough to make `.content` the only
-   scroller — it stops the shell growing, but leaves the *viewport* scrollable.
-   A wheel over any non-scrollable region (the sidebar, or the gap past the end
-   of a short month) then chains up to the document and drags the whole
-   fixed-height shell off-screen: the sidebar strands mid-page with its bottom
-   edge showing, and everything below it is dead background.
-
-   Scoped with :has() so it applies only while the console is mounted — the
-   marketing and auth pages have no shell and must keep scrolling normally. */
-html:has(.app-shell) {
   height: 100%;
+  shape-rendering: crispEdges;
 }
 
-body:has(.app-shell) {
-  overflow: hidden;
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-  padding: 1rem 0.75rem;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-}
-
-.sidebar-brand {
-  padding: 0.35rem 0.5rem;
-  text-decoration: none;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--ink-soft);
-  text-decoration: none;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-}
-
-.nav-item:hover {
-  background: var(--wash);
-  color: var(--ink);
-}
-
-.nav-item.active {
-  background: var(--pen-tint);
-  color: var(--pen);
-}
-
-.nav-item svg {
-  flex-shrink: 0;
-}
-
-.sidebar-foot {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0 0.15rem;
-}
-
-.app-main {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  height: 60px;
-  padding: 0 1.5rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-}
-
-.topbar h1 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-}
-
-.view {
-  max-width: 1080px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-}
-
-@media (max-width: 780px) {
-  /* Hand scrolling back to the document.
-     The console's model is "the shell is exactly viewport-tall and only
-     `.content` scrolls", which needs `body { overflow: hidden }` to stop the
-     wheel chaining up and dragging the fixed-height shell off-screen. Below this
-     breakpoint the shell becomes `height: auto` and stacks vertically, so that
-     premise is gone — but the body lock was never lifted with it. The result was
-     a page where nothing scrolled at all: at 390x844 the content ran to 1536px
-     and the bottom 692px was simply unreachable. `.content` could not take over
-     either, because with an auto-height shell it is sized to its own content and
-     so has nothing to scroll. */
-  html:has(.app-shell) {
-    height: auto;
-  }
-
-  body:has(.app-shell) {
-    overflow: visible;
-  }
-
-  .app-main,
-  .content {
-    overflow: visible;
-  }
-
-  .app-shell {
-    /* minmax(0, 1fr), not 1fr: a grid track sized `1fr` still floors at the
-       min-content width of its items, so one too-wide child widens the entire
-       page rather than being contained by it. This also replaces the horizontal
-       containment that `.app-main { overflow: hidden }` was providing before the
-       rule above relaxed it. */
-    grid-template-columns: minmax(0, 1fr);
-    height: auto;
-    min-height: 100dvh;
-  }
-
-  /* With the page scrolling, a nav bar in normal flow scrolls away and leaves no
-     way to change section without scrolling back up. */
-  .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-  }
-
-  .sidebar {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.75rem;
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-    overflow-x: auto;
-  }
-
-  .sidebar-nav {
-    flex-direction: row;
-  }
-
-  .sidebar-foot {
-    margin-top: 0;
-    margin-left: auto;
-  }
-}
-
-.dev-user-badge {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.25rem 0.65rem;
-}
-
-/* ---------- Events page ---------- */
-
-/* Toolbar, not a masthead — the topbar already names the section. */
-.events-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.events-subtitle {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-
-/* Mono set at the same px as the surrounding grotesk reads noticeably larger and
-   airier: Spline Sans Mono has a big x-height and wide side bearings, so "08:00"
-   floats in a gap. Optical sizing (em, so it tracks the parent) plus a touch of
-   negative tracking makes the run sit in the sentence instead of interrupting it. */
-.events-subtitle .mono {
-  font-size: 0.92em;
-  letter-spacing: -0.01em;
-}
-
-/* The header sat flush against the toolbar; give the line room to read as a caption. */
-.events-header {
-  margin-bottom: 0.85rem;
-}
-
-.events-status {
-  color: var(--ink-soft);
-  padding: 2rem 0;
-}
-
-.events-error {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.events-empty {
-  text-align: center;
-  background: var(--card);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-lg);
-  padding: 3.5rem 2rem;
-}
-
-.events-empty h2 {
-  font-size: 1.25rem;
-}
-
-.events-empty p {
-  margin: 0.5rem 0 1.5rem;
-  color: var(--ink-soft);
-}
-
-.events-section-label {
-  margin: 2.5rem 0 0.9rem;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.events-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.event-row {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1rem 1.15rem;
-  transition: border-color 140ms ease;
-}
-
-.event-row:hover {
-  border-color: var(--ink-faint);
-}
-
-.event-row-paused {
-  opacity: 0.65;
-}
-
-.event-row-paused .leaf-month {
-  color: var(--ink-faint);
-}
-
-.row-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.row-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  /* h3 line-height is 1.15 globally — tight enough that the meta line crowded the
-     descenders. A touch more leading separates title from detail. */
-  line-height: 1.3;
-}
-
-.row-meta {
-  margin-top: 0.15rem;
-  font-size: 0.83rem;
-  line-height: 1.45;
-  color: var(--ink-soft);
-}
-
-/* The user's own note is subordinate to the meta line, so it reads smaller rather
-   than larger — it was 0.85rem against the meta's 0.83rem, which made the italic
-   look oversized and pushed the row taller than it needed to be. */
-.row-note {
-  margin-top: 0.3rem;
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--ink-faint);
-  font-style: italic;
-}
-
-.row-side {
-  display: flex;
-  align-items: center;
-  align-self: center;
-  gap: 0.6rem;
-  flex-shrink: 0;
-}
-
-.row-count {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem;
-  white-space: nowrap;
-}
-
-.row-count-soon {
-  color: var(--pen);
-  background: var(--pen-tint);
-  border-color: transparent;
-}
-
-.row-count-paused {
-  color: var(--ink-faint);
-}
-
-/* The title's button is the row's primary action, stretched over the whole row so
-   any click opens the editor. The accessible name stays the title alone. */
-.row-open {
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.row-open::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius);
-}
-
-.event-row:hover .row-open {
-  color: var(--pen);
-}
-
-.row-open:focus-visible::after {
-  outline: 2px solid var(--pen);
-  outline-offset: 2px;
-}
-
-.row-open:focus-visible {
-  outline: none;
-}
-
-/* Sits above the stretched overlay so the menu stays clickable. */
-.row-menu {
-  position: relative;
-  z-index: 1;
-}
-
-.row-menu-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  background: none;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
-}
-
-.row-menu-trigger:hover,
-.row-menu-trigger[aria-expanded='true'] {
-  background: var(--wash);
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-.row-menu-popover {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  min-width: 9rem;
-  padding: 0.3rem;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-pop);
-  display: flex;
-  flex-direction: column;
-  z-index: 20;
-}
-
-.row-menu-item {
-  appearance: none;
-  background: none;
-  border: 0;
-  font: inherit;
-  font-size: 0.88rem;
-  color: var(--ink);
-  text-align: left;
-  padding: 0.4rem 0.55rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.row-menu-item:hover:not(:disabled) {
-  background: var(--wash);
-}
-
-.row-menu-item:disabled {
-  color: var(--ink-faint);
-  cursor: default;
-}
-
-.row-menu-item-danger {
-  color: var(--pen-deep);
-}
-
-.row-menu-item-danger:hover:not(:disabled) {
-  background: var(--pen-tint);
-}
-
-/* Sticky header once the layout is a single column (phones + small tablets). */
-@media (max-width: 760px) {
-  .app-header {
-    position: sticky;
-    top: 0;
-    z-index: 40;
-    background: color-mix(in srgb, var(--paper) 88%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--line);
-  }
-}
-
-@media (max-width: 560px) {
-  .events-header {
-    flex-direction: column;
-  }
-
-  .event-row {
-    flex-wrap: wrap;
-  }
-
-  .row-side {
-    flex-direction: row;
-    align-items: center;
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .app-nav {
-    gap: 0.9rem;
-  }
-}
-
-/* ---------- Toolbar (search / filter / sort) ---------- */
-
-/* One row, one control height, one right edge. Every child is sized off
-   --control-h so the search, chips, sort and action button line up top and
-   bottom instead of each finding its own height from its padding. */
-.toolbar {
-  --control-h: 34px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
-}
-
-.toolbar-search,
-.toolbar-sort,
-.toolbar .chip,
-.toolbar .btn-primary {
-  height: var(--control-h);
-}
-
-.toolbar-search {
-  flex: 1;
-  min-width: 180px;
-}
-
-input[type='search'] {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.7rem;
-}
-
-input[type='search']:focus {
-  outline: 2px solid var(--pen);
-  outline-offset: -1px;
-}
-
-.filter-chips {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.toolbar-sort {
-  padding: 0.45rem 0.65rem;
-  background: var(--card);
-}
-
-/* ---------- Modal + forms ---------- */
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 4vh 1rem;
-  overflow-y: auto;
-  z-index: 50;
-}
-
-.modal-panel {
-  background: var(--card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-pop);
-  width: 100%;
-  max-width: 520px;
-  padding: 2rem;
-}
-
-.modal-panel-sm {
-  max-width: 420px;
-}
-
-.dialog-title {
-  font-size: 1.2rem;
-  letter-spacing: -0.015em;
-}
-
-.dialog-body {
-  margin: 0.6rem 0 0.5rem;
-  font-size: 0.92rem;
-  color: var(--ink-soft);
-}
-
-.event-form h2 {
-  font-size: 1.35rem;
-  margin-bottom: 1.5rem;
-}
-
-.event-form label,
-.onboarding-form label,
-.preferences-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.88rem;
-  font-weight: 600;
-  margin-bottom: 1.1rem;
-}
-
-/* 1rem (16px) minimum on all controls — anything smaller makes iOS Safari
-   zoom the page when a field is focused. Pointer devices get the denser
-   console sizing below, where that constraint doesn't apply. */
-input[type='text'],
-input[type='number'],
-input[type='email'],
-input[type='password'],
-select,
-textarea {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: 400;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.55rem 0.7rem;
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: var(--pen);
-  box-shadow: 0 0 0 3px var(--ring);
-}
-
-textarea {
-  resize: vertical;
-}
-
-/* Desktop density: 14px controls, so a field's value sits below its panel
-   title in the hierarchy instead of shouting over it. Guarded by a pointer
-   query so touch keyboards never trigger the iOS zoom. */
-@media (min-width: 640px) and (pointer: fine) {
-  input[type='text'],
-  input[type='number'],
-  input[type='email'],
-  input[type='password'],
-  input[type='search'],
-  select,
-  textarea {
-    font-size: 0.875rem;
-    padding: 0.5rem 0.65rem;
-  }
-}
-
-/* Our own chevron instead of the browser's, which sits flush against the right
-   border and drifts off-centre from the text. Comes after the density rules
-   above so their padding shorthand doesn't wipe out the room on the right. */
-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 2.25rem;
-  background-image: var(--chevron);
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 12px 12px;
-  cursor: pointer;
-}
-
-.optional {
-  font-weight: 400;
-  color: var(--ink-faint);
-}
-
-.field-hint {
-  font-size: 0.78rem;
-  font-weight: 400;
-  color: var(--ink-faint);
-}
-
-.form-error {
-  color: var(--pen-deep);
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin: 0.25rem 0 0.75rem;
-}
-
-.form-success {
-  color: var(--ok);
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin: 0.25rem 0 0.75rem;
-}
-
-/* Bottom-aligned so the three inputs sit on one line even when a label
-   wraps — the label is the variable-height part, not the control. */
-.date-row {
-  display: grid;
-  grid-template-columns: 1.7fr 0.9fr 1.5fr;
-  gap: 0.75rem;
-  align-items: end;
-}
-
-/* A year isn't worth stepping through one at a time. */
-input[type='number']::-webkit-inner-spin-button,
-input[type='number']::-webkit-outer-spin-button {
-  appearance: none;
-  margin: 0;
-}
-
-input[type='number'] {
-  appearance: textfield;
-}
-
-/* Segmented type picker */
-
-.type-picker {
-  border: none;
-  margin: 0 0 1.1rem;
-  padding: 0;
-}
-
-.type-picker legend {
-  font-size: 0.88rem;
-  font-weight: 600;
-  margin-bottom: 0.35rem;
-  padding: 0;
-}
-
-.segmented {
-  display: inline-flex;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 3px;
-  gap: 2px;
-}
-
-.segment {
-  border: none;
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--ink-soft);
-  border-radius: 999px;
-  padding: 0.35rem 0.9rem;
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-}
-
-.segment:hover {
-  color: var(--ink);
-}
-
-.segment-active {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.segment-active:hover {
-  color: var(--paper);
-}
-
-.type-picker .field-hint {
-  display: block;
-  margin-top: 0.45rem;
-}
-
-/* Reminders editor */
-
-.reminders-editor {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1rem 1.1rem 1.1rem;
-  margin: 0 0 1.1rem;
-}
-
-.reminders-editor legend {
-  font-size: 0.88rem;
-  font-weight: 600;
-  padding: 0 0.4rem;
-}
-
-.reminders-editor .field-hint {
-  margin: 0 0 0.7rem;
-}
-
-.reminder-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-/* Durations, not labels — these stay mono so the numbers align. */
-.reminder-presets .chip {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-}
-
-/* `.chip` is a generic pill used for two different things, so it carries no
-   opinion about typeface: the type filters are words ("Birthdays") and belong in
-   the sans like every other control, while the reminder presets are durations and
-   opt into mono below — "Grotesk for voice, mono for dates". */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--line);
-  background: var(--card);
-  font-family: var(--font-sans);
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--ink-soft);
-  border-radius: var(--radius-sm);
-  padding: 0.3rem 0.7rem;
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease;
-}
-
-.chip:hover {
-  border-color: var(--ink-faint);
-}
-
-.chip-active {
-  /* Filled, not tinted-outline. The outline version used --pen — the same accent
-     as the Danger zone — so a row of selected lead times read as four warnings.
-     A solid fill reads unambiguously as "on". */
-  background: var(--pen);
-  border-color: var(--pen);
-  color: #fff;
-}
-
-.chip-active:hover {
-  background: var(--pen-deep);
-  border-color: var(--pen-deep);
-}
-
-.reminder-custom {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.reminder-custom-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-
-.reminder-custom-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.reminder-custom-row input,
-.reminder-custom-row button {
-  height: var(--control-h);
-}
-
-.reminder-custom input {
-  width: 6rem;
-}
-
-.checkbox-row {
-  flex-direction: row !important;
-  align-items: center;
-  gap: 0.5rem !important;
-}
-
-.checkbox-row input {
-  accent-color: var(--pen);
-  width: 1rem;
-  height: 1rem;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-/* ---------- Onboarding ---------- */
-
-/* ---------- Form panel ----------
-   Three hairline-separated bands: what this is, the controls, the one action.
-   Denser than the marketing page on purpose — this is a console, not a pitch.
-   Distinct from `.panel` (a plain padded section) because the bands and the
-   pinned action row are the whole point. */
-
-.form-panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.form-panel-head {
-  padding: 0.95rem 1.15rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.form-panel-head h1 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.form-panel-sub {
-  margin: 0.3rem 0 0;
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-}
-
-.form-panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1.05rem;
-  padding: 1.15rem;
-}
-
-.form-panel-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  padding: 0.8rem 1.15rem;
-  border-top: 1px solid var(--line);
-}
-
-/* Label above, control, hint below — three sizes so the eye ranks them. */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.field-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-
-/* Square-ish and small: app chrome, not a marketing pill. */
-.btn-compact {
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.95rem;
-  font-size: 0.88rem;
-}
-
-.onboarding {
-  display: flex;
-  justify-content: center;
-  padding: 3rem 0 4rem;
-}
-
-.onboarding .form-panel {
-  width: 100%;
-  max-width: 420px;
-}
-
-/* ---------- Calendar ---------- */
-
-/* No visually-hidden helper existed; the calendar needs one for the weekday
-   column headers (S/M/T/W/T/F/S repeat, so the letter alone is not a name) and
-   for announcing which occasion a marked cell carries. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1632,729 +162,943 @@ input[type='number'] {
   border: 0;
 }
 
-.calendar-rail {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* ---------- Screen: one window on a plain background ---------- */
+
+.screen {
+  min-height: 100dvh;
+  padding: var(--gutter);
 }
 
-.calendar-month + .calendar-month {
-  border-top: 1px solid var(--line);
-}
-
-/* Grid and list side by side; the grid keeps its natural width so the columns
-   stay square, and the occasion list takes the rest. */
-.calendar-month-body {
+.screen-center {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 1.75rem;
-  align-items: start;
-  padding-bottom: 1.75rem;
+  place-items: center;
 }
 
-.calendar-grid {
-  border-collapse: collapse;
-  table-layout: fixed;
-}
+/* ---------- Window chrome ---------- */
 
-.calendar-grid th {
-  width: 2.15rem;
-  padding-bottom: 0.4rem;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-}
-
-.calendar-cell {
-  position: relative;
-  height: 2.15rem;
-  text-align: center;
-  vertical-align: middle;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-}
-
-.calendar-cell-past .calendar-day {
-  opacity: 0.4;
-}
-
-/* Marked days read as the app's accent, the same signal the countdown pill uses. */
-.calendar-cell-marked .calendar-day {
-  font-weight: 700;
-  color: var(--pen);
-}
-
-.calendar-cell-paused .calendar-day {
-  color: var(--ink-faint);
-}
-
-.calendar-dot {
-  position: absolute;
-  left: 50%;
-  bottom: 0.15rem;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
-  border-radius: 50%;
-  background: var(--pen);
-}
-
-.calendar-cell-paused .calendar-dot {
-  background: var(--ink-faint);
-}
-
-/* Today is a ring rather than a fill, so a marked day that is also today still
-   reads as marked. */
-.calendar-cell-today .calendar-day {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.65rem;
-  height: 1.65rem;
-  border: 1px solid var(--pen);
-  border-radius: 50%;
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.calendar-occasions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.window {
+  background: var(--face);
+  box-shadow: var(--raised);
+  padding: 3px;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-}
-
-.calendar-occasion {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 0.85rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: var(--radius-sm);
-}
-
-.calendar-occasion:hover {
-  background: var(--wash);
-}
-
-.calendar-occasion-muted {
-  opacity: 0.55;
-}
-
-.calendar-occasion-day {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--pen);
-  text-align: right;
-}
-
-.calendar-occasion-muted .calendar-occasion-day {
-  color: var(--ink-faint);
-}
-
-.calendar-occasion-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  gap: 2px;
   min-width: 0;
 }
 
-.calendar-occasion-title {
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.titlebar {
+  background: linear-gradient(90deg, var(--title-a), var(--title-b));
+  color: var(--title-text);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 3px 3px 4px;
+  min-height: 22px;
+  min-width: 0;
+  flex: none;
+}
+
+.titlebar-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tbtn {
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: var(--face);
+  color: var(--text);
+  box-shadow: var(--raised);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+
+.tbtn:active:not(:disabled) {
+  box-shadow: var(--pressed);
+}
+
+.tbtn svg {
+  fill: var(--text);
+}
+
+.tbtn + .tbtn {
+  margin-left: -2px;
+}
+
+.tbtn:disabled svg {
+  fill: var(--disabled);
+}
+
+.tbtn:focus-visible {
+  outline: 1px dotted var(--text);
+  outline-offset: -4px;
+}
+
+.statusbar {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.statusbar > div {
+  box-shadow: var(--thin);
+  padding: 3px 6px;
   white-space: nowrap;
-}
-
-.calendar-occasion-meta {
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-}
-
-.calendar-occasion-when {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ink-faint);
-  white-space: nowrap;
-}
-
-.calendar-quiet {
-  padding: 0.5rem 0.6rem;
-  font-size: 0.85rem;
-  color: var(--ink-faint);
-}
-
-.calendar-page .events-empty .btn-primary {
-  display: inline-flex;
-  margin-top: 1.25rem;
-}
-
-/* Below this the grid and the list no longer fit side by side. */
-@media (max-width: 720px) {
-  .calendar-month-body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
-  }
-
-  .calendar-grid {
-    width: 100%;
-  }
-
-  .calendar-grid th {
-    width: auto;
-  }
-}
-
-/* ---------- Preferences ---------- */
-
-.preferences-page h1 {
-  font-size: 1.7rem;
-  letter-spacing: -0.025em;
-  margin: 0 0 0.35rem;
-}
-
-.preferences-page > p {
-  color: var(--ink-soft);
-  margin-bottom: 2rem;
-}
-
-.text-muted {
-  color: var(--ink-soft);
-}
-
-.preferences-section,
-.panel {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 1.25rem;
-}
-
-.preferences-section h2,
-.panel h2 {
-  font-size: 1.05rem;
-  margin-bottom: 1rem;
-}
-
-.panel-sub {
-  margin: -0.6rem 0 1rem;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-
-/* ---------- Account page ---------- */
-
-.account-page h1 {
-  font-size: 1.7rem;
-  letter-spacing: -0.025em;
-  margin: 1rem 0 0.35rem;
-}
-
-.account-page > .text-muted {
-  display: block;
-  margin-bottom: 2rem;
-}
-
-.profile-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.9rem;
-}
-
-.profile-initial {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 999px;
-  background: var(--pen-tint);
-  color: var(--pen);
-  font-size: 1.3rem;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.profile-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
 }
 
-.profile-details .text-muted {
-  font-size: 0.88rem;
+.statusbar-main {
+  flex: 1;
 }
 
-.panel-danger {
-  border-color: color-mix(in srgb, var(--pen) 35%, var(--line));
-}
-
-.panel-danger h2 {
-  color: var(--pen-deep);
-}
-
-.danger-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.danger-row .text-muted {
-  font-size: 0.85rem;
-  margin-top: 0.15rem;
-}
-
-.panel-danger .field-hint {
-  display: block;
-  margin-top: 0.9rem;
-}
-
-.preferences-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-/* Form controls stretch to their flex parent, which on a wide card meant a
-   full-width select for a value as short as "08:00" — the chevron ended up
-   stranded against the card edge. Cap the column at a readable field measure
-   instead of letting it track the container. */
-.preferences-form {
+.body {
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  max-width: 26rem;
+  gap: 12px;
+  min-width: 0;
 }
 
-/* A 24-item hour list needs far less room than an IANA timezone name. */
-.preferences-form .field-narrow {
-  max-width: 11rem;
-}
-
-.preferences-form .btn-primary {
-  align-self: flex-start;
-}
-
-.preferences-events {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.row {
   display: flex;
-  flex-direction: column;
-}
-
-.preferences-events li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.8rem 0;
-  border-top: 1px solid var(--line);
-}
-
-.preferences-events li:first-child {
-  border-top: none;
-}
-
-.preferences-events li > div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.preferences-events .text-muted {
-  font-size: 0.82rem;
-}
-
-.preferences-back {
-  display: inline-block;
-  margin-top: 1rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--ink-soft);
-  text-decoration: none;
-}
-
-.preferences-back:hover {
-  color: var(--ink);
-}
-
-.test-email-row {
-  display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
+  gap: 6px;
+  align-items: center;
 }
 
-.test-email-row .form-success,
-.test-email-row .form-error {
-  margin: 0;
+.row.center {
+  justify-content: center;
 }
 
-/* ---------- History page ---------- */
-
-.history-page .events-header {
-  margin-bottom: 1rem;
+.row.end {
+  justify-content: flex-end;
 }
 
-.history-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.msg {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.msg-text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 8px;
+  overflow-wrap: anywhere;
+  padding-top: 2px;
 }
 
-.history-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.85rem 1.15rem;
+.msg-text ol,
+.msg-text ul {
+  margin: 0;
+  padding-left: 20px;
 }
 
-.history-main {
-  min-width: 0;
-}
+/* ---------- Controls ---------- */
 
-.history-side {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-shrink: 0;
-}
-
-.history-when {
-  font-size: 0.78rem;
-  color: var(--ink-faint);
-  white-space: nowrap;
-}
-
-.history-status {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border-radius: 999px;
-  padding: 0.2rem 0.65rem;
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-}
-
-.history-status-sent {
-  color: var(--ok);
-  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
-}
-
-.history-status-failed {
-  color: var(--pen-deep);
-  background: var(--pen-tint);
-  border-color: transparent;
-}
-
-/* ---------- Auth + setup ---------- */
-
-.auth-page {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1rem;
-}
-
-.setup-screen {
-  max-width: 560px;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
-}
-
-.setup-screen h1 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.setup-screen code {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.1rem 0.4rem;
-}
-
-/* ============================================================
-   Small screens — keep last so these win over the base rules.
-   ============================================================ */
-
-@media (max-width: 560px) {
-  /* Search takes its own row; chips scroll sideways instead of wrapping. */
-  .toolbar-search {
-    flex-basis: 100%;
-  }
-
-  .filter-chips {
-    overflow-x: auto;
-    /* `max-width: 100%` alone does nothing here: a flex item defaults to
-       `min-width: auto`, which refuses to shrink below its intrinsic content
-       width, so the chip row pushed the whole shell wider than the viewport.
-       At 320px that overflowed by 19px and clipped the last chip. */
-    min-width: 0;
-    max-width: 100%;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .filter-chips::-webkit-scrollbar {
-    display: none;
-  }
-
-  .filter-chips .chip {
-    white-space: nowrap;
-  }
-
-  .history-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .history-side {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .danger-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .preferences-section-header {
-    flex-wrap: wrap;
-  }
-
-  /* Event form: month gets its own row, day + year share the next one. */
-  .date-row {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .date-row label:first-child {
-    grid-column: 1 / -1;
-  }
-
-  .form-actions button {
-    flex: 1;
-  }
-
-  /* Modals become bottom sheets. */
-  .modal-overlay {
-    padding: 0;
-    align-items: flex-end;
-  }
-
-  .modal-panel,
-  .modal-panel-sm {
-    max-width: none;
-    max-height: 92dvh;
-    overflow-y: auto;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    padding: 1.5rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
-  }
-}
-
-/* Service unavailable — shown when the API cannot be reached at all. */
-
-.service-down {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 1rem;
-}
-
-.service-down-card {
-  max-width: 27rem;
-  text-align: center;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 2.25rem 2rem;
-  box-shadow: var(--shadow-soft);
-}
-
-.service-down-mark {
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  background: var(--wash);
-  color: var(--ink-soft);
-  margin-bottom: 1rem;
+  min-width: 75px;
+  min-height: 23px;
+  padding: 3px 12px;
+  border: 0;
+  background: var(--face);
+  color: var(--text);
+  box-shadow: var(--raised);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.service-down-card h2 {
-  margin: 0 0 0.6rem;
-  font-size: 1.2rem;
+.btn:active:not(:disabled) {
+  box-shadow: var(--pressed);
+  padding: 4px 11px 2px 13px;
+}
+
+.btn-default {
+  box-shadow:
+    var(--raised),
+    0 0 0 1px var(--dark);
+}
+
+.btn-default:active:not(:disabled) {
+  box-shadow:
+    var(--pressed),
+    0 0 0 1px var(--dark);
+}
+
+.btn:focus-visible {
+  outline: 1px dotted var(--text);
+  outline-offset: -5px;
+}
+
+.btn:disabled {
+  color: var(--disabled);
+  text-shadow: var(--emboss);
+  cursor: default;
+}
+
+.text,
+.select {
+  border: 0;
+  border-radius: 0;
+  background: var(--field);
+  box-shadow: var(--sunken);
+  padding: 3px 5px;
+  height: 23px;
+  min-width: 0;
+}
+
+.text {
+  width: 100%;
+}
+
+.text:focus,
+.select:focus {
+  outline: none;
+}
+
+.text-short {
+  width: 64px;
+}
+
+.select {
+  appearance: none;
+  padding-right: 22px;
+  max-width: 100%;
+  cursor: pointer;
+  /* The drop-down arrow, drawn as its own little raised button. */
+  background:
+    var(--arrow) no-repeat right 6px center,
+    linear-gradient(var(--face), var(--face)) no-repeat right 2px top 2px / 16px calc(100% - 4px),
+    var(--field);
+}
+
+.select:focus-visible {
+  background-color: var(--field);
+  outline: 1px dotted var(--text);
+  outline-offset: -4px;
+}
+
+.select-short {
+  width: 92px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.check input {
+  appearance: none;
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  background: var(--field);
+  box-shadow: var(--sunken);
+  flex: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.check input:checked {
+  background: var(--field) var(--checkmark) no-repeat center;
+}
+
+.check input:focus-visible + span {
+  outline: 1px dotted var(--text);
+}
+
+.groupbox {
+  margin: 0;
+  padding: 10px 10px 10px;
+  border: 0;
+  box-shadow: var(--etched);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The label sits in a gap in the etched line: its background covers the line,
+   so it must match whatever the box is drawn on (--groupbox-bg). */
+.groupbox legend {
+  padding: 0 3px;
+  margin-left: -2px;
+  background: var(--groupbox-bg, var(--face));
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-row > :nth-child(2):last-child {
+  grid-column: 2 / -1;
+}
+
+.field-row > .select {
+  justify-self: start;
+}
+
+.field-hint {
+  color: var(--muted);
+}
+
+.form-error,
+.form-success {
+  padding: 4px 6px 4px 24px;
+  background: no-repeat 4px center / 14px 14px;
+  box-shadow: var(--thin);
+}
+
+.form-error {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23d40000' stroke='%23000'/%3E%3Cpath d='M10 10l12 12M22 10 10 22' stroke='%23fff' stroke-width='4'/%3E%3C/svg%3E");
+}
+
+.form-success {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23fff' stroke='%23000'/%3E%3Cpath d='M16 13v10' stroke='%23000080' stroke-width='4'/%3E%3Ccircle cx='16' cy='8' r='2.4' fill='%23000080'/%3E%3C/svg%3E");
+}
+
+.meter {
+  box-shadow: var(--sunken);
+  background: var(--face);
+  padding: 3px;
+  height: 22px;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--select) 0 10px, transparent 10px 12px);
+  transition: width 400ms steps(4);
+}
+
+/* ---------- Dialogs ---------- */
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: var(--veil);
+  overflow: auto;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 400px;
+}
+
+.dialog-wide {
+  max-width: 480px;
+}
+
+.logon {
+  max-width: 440px;
+}
+
+.logon-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.logon-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.logon-fields .field-row {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.logon-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logon-switch {
+  padding-top: 8px;
+  box-shadow:
+    inset 0 1px var(--shadow),
+    inset 0 2px var(--hilite);
+}
+
+.wizard {
+  max-width: 560px;
+}
+
+.wizard-body {
+  display: flex;
+  gap: 16px;
+  padding: 12px;
+}
+
+.wizard-art {
+  flex: 0 0 130px;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #000080, #1084d0 60%, #008080);
+  box-shadow: var(--sunken);
+}
+
+.wizard-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wizard-main h1 {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.wizard-main .field-row {
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  box-shadow:
+    inset 0 1px var(--shadow),
+    inset 0 2px var(--hilite);
+}
+
+.ctx {
+  position: fixed;
+  z-index: 40;
+  background: var(--face);
+  box-shadow: var(--raised);
+  padding: 3px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ctx button {
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 4px 22px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.ctx button.is-bold {
   font-weight: 700;
 }
 
-.service-down-card p {
-  margin: 0 0 1rem;
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-  line-height: 1.55;
+.ctx button:hover:not(:disabled),
+.ctx button:focus-visible {
+  background: var(--select);
+  color: var(--select-text);
+  outline: none;
 }
 
-/* The reassurance line: present, but quieter than the status it sits under. */
-.service-down-card .service-down-note {
-  margin-bottom: 1.5rem;
-  font-size: 0.85rem;
-  opacity: 0.8;
+/* ---------- Landing ---------- */
+
+.landing-pane {
+  flex: 1;
 }
 
-/* Marks a history row as a test reminder the user sent themselves. */
-.history-test-badge {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  background: var(--wash);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.12rem 0.4rem;
+.landing {
+  padding: 28px 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 980px;
+  margin: 0 auto;
 }
 
-/* ── Narrow screens ─────────────────────────────────────────────────────────
-   At 393px the top nav is wordmark + three labelled items + the account button,
-   which does not fit: `.sidebar` has `overflow-x: auto`, so it silently scrolled
-   and clipped "Account" rather than overflowing the page. Icons alone fit with
-   room to spare, and the topbar already names the current section. */
-@media (max-width: 560px) {
-  .nav-label {
-    /* Visually hidden, still read aloud — the icon alone is not an accessible name. */
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hero-copy h1 {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.hero-copy p {
+  font-size: 13px;
+  max-width: 46ch;
+}
+
+.hero-copy .row {
+  padding-top: 4px;
+}
+
+.hero-mail {
+  --groupbox-bg: var(--field);
+  padding: 10px;
+}
+
+.mailhead {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  padding: 6px 8px;
+  box-shadow: var(--thin);
+}
+
+.mailhead span:nth-child(odd) {
+  color: var(--muted);
+}
+
+.mailhead span:nth-child(even) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mailbody {
+  background: var(--field);
+  box-shadow: var(--sunken);
+  padding: 14px;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.how {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scroll-margin-top: 12px;
+}
+
+.how h2 {
+  font-size: 13px;
+  padding-bottom: 6px;
+  box-shadow:
+    inset 0 -1px var(--hilite),
+    inset 0 -2px var(--shadow);
+}
+
+.how-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.how-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.how-steps h3 {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.closer {
+  background: var(--face);
+  box-shadow: var(--etched);
+  padding: 12px;
+  width: 100%;
+  max-width: 420px;
+  align-self: center;
+}
+
+/* ---------- App window ---------- */
+
+.app-window {
+  max-width: 1100px;
+  margin: 0 auto;
+  height: calc(100dvh - 2 * var(--gutter));
+  min-height: 420px;
+}
+
+/* Menu bar: File / Help. */
+.menubar {
+  display: flex;
+  gap: 0;
+  padding: 1px 0;
+  flex: none;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu-title {
+  border: 0;
+  background: none;
+  color: var(--text);
+  padding: 3px 7px;
+  cursor: default;
+}
+
+.menu-title:hover,
+.menu-title:focus-visible {
+  box-shadow:
+    inset -1px -1px var(--shadow),
+    inset 1px 1px var(--hilite);
+  outline: none;
+}
+
+.menu-title.is-open {
+  box-shadow:
+    inset -1px -1px var(--hilite),
+    inset 1px 1px var(--shadow);
+}
+
+.menu-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  min-width: 170px;
+  background: var(--face);
+  box-shadow: var(--raised);
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-drop button {
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  padding: 4px 22px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.menu-drop button:hover:not(:disabled),
+.menu-drop button:focus-visible {
+  background: var(--select);
+  color: var(--select-text);
+  outline: none;
+}
+
+.menu-drop button:disabled {
+  color: var(--disabled);
+  text-shadow: var(--emboss);
+}
+
+.menu-sep {
+  height: 2px;
+  margin: 3px 1px;
+  box-shadow:
+    inset 0 1px var(--shadow),
+    inset 0 -1px var(--hilite);
+}
+
+.pane {
+  background: var(--field);
+  box-shadow: var(--sunken);
+  padding: 2px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  box-shadow: var(--thin);
+  flex: none;
+}
+
+.tool {
+  border: 0;
+  background: var(--face);
+  color: var(--text);
+  text-decoration: none;
+  padding: 3px 8px;
+  min-width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  box-shadow:
+    inset -1px -1px var(--shadow),
+    inset 1px 1px var(--hilite);
+}
+
+.tool:active:not(:disabled) {
+  box-shadow:
+    inset -1px -1px var(--hilite),
+    inset 1px 1px var(--shadow);
+}
+
+.tool:disabled {
+  color: var(--disabled);
+  text-shadow: var(--emboss);
+  cursor: default;
+}
+
+.tool:disabled .icon {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.tool:focus-visible {
+  outline: 1px dotted var(--text);
+  outline-offset: -4px;
+}
+
+.tool-sep {
+  width: 2px;
+  margin: 2px 3px;
+  box-shadow:
+    inset 1px 0 var(--shadow),
+    inset -1px 0 var(--hilite);
+}
+
+.list-pane {
+  flex: 1;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.list {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.list th {
+  position: sticky;
+  top: 0;
+  background: var(--face);
+  box-shadow: var(--raised);
+  font-weight: 400;
+  text-align: left;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.list td {
+  padding: 2px 8px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.list tbody tr:focus-visible {
+  outline: 1px dotted var(--text);
+  outline-offset: -1px;
+}
+
+.list tr.is-selected td {
+  background: var(--select);
+  color: var(--select-text);
+}
+
+.list tr.is-selected:focus-visible {
+  outline-color: var(--select-text);
+}
+
+.cell-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cell-soon {
+  color: var(--pen);
+  font-weight: 700;
+}
+
+.is-selected .cell-soon {
+  color: #ffd95a;
+}
+
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty .btn {
+  margin-top: 6px;
+}
+
+.etched {
+  width: 100%;
+  height: 2px;
+  margin: 2px 0;
+  border: 0;
+  box-shadow:
+    inset 0 1px var(--shadow),
+    inset 0 -1px var(--hilite);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.kv span:nth-child(even) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.account-who {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.event-form .field-row {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.reminder-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 12px;
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 860px) {
+  .hero,
+  .how-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 8px;
   }
 
-  .sidebar {
-    /* Was `visible`, on the reasoning that icon-only nav "fits with room to
-       spare". True at 390px; false at 320px, where the row is ~19px too wide and
-       `visible` let it widen the whole document instead of scrolling — every
-       ancestor stretched to 339px and the last filter chip was clipped off the
-       screen. Scrolling a nav row is a much smaller cost than a page that
-       scrolls sideways. */
-    overflow-x: auto;
-    min-width: 0;
-    scrollbar-width: none;
-    padding: 0.6rem 0.75rem;
+  body {
+    font-size: 13px;
   }
 
-  .sidebar::-webkit-scrollbar {
+  .landing {
+    padding: 16px 14px 20px;
+    gap: 22px;
+  }
+
+  .hero-copy h1 {
+    font-size: 23px;
+  }
+
+  .app-window {
+    height: auto;
+    min-height: calc(100dvh - 2 * var(--gutter));
+  }
+
+  .app-content {
+    min-height: 360px;
+  }
+
+  .col-wide {
     display: none;
   }
 
-  .sidebar-nav {
-    min-width: 0;
+  .wizard-art {
+    display: none;
   }
 
-  .nav-item {
-    justify-content: center;
+  .logon-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  /* The countdown wrapped onto its own full-width line with the menu stranded at
-     the far right. Pull the menu out of flow into the card corner and indent the
-     pill to line up with the text column instead of the leaf. */
-  .row-menu {
-    position: absolute;
-    top: 0.85rem;
-    right: 0.85rem;
+  .logon-grid > .icon {
+    display: none;
   }
 
-  /* Reserve the corner the menu now occupies — a long title ("Passport renewal
-     deadline") otherwise runs underneath it. */
-  .row-main {
-    padding-right: 1.9rem;
+  .logon-buttons {
+    flex-direction: row;
+    justify-content: flex-end;
   }
 
-  .row-side {
-    width: 100%;
-    padding-left: calc(var(--leaf-w) + 1rem);
-    justify-content: flex-start;
-    align-self: auto;
-    margin-top: 0.15rem;
-  }
-}
-
-/* ---------- Touch targets — LAST on purpose ----------
-   These override `--control-h` and the base control padding, both of which are
-   declared further up the file. At equal specificity the later rule wins, so
-   this block sitting earlier meant `.toolbar { --control-h: 34px }` quietly beat
-   it and every toolbar control stayed 34px tall on a phone. Keep it last. */
-/* Comfortable touch targets when there's no mouse.
-   The 34px control height is deliberate under a cursor and too small under a
-   thumb — 44px is the figure Apple's HIG and WCAG 2.5.5 both land on. Scoped to
-   `pointer: coarse` so the desktop density we designed for is untouched. */
-@media (pointer: coarse) {
-  .toolbar {
-    --control-h: 44px;
+  /* Label above control instead of beside it. */
+  .field-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
   }
 
-  .nav-item {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .sidebar-brand {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  /* The row overflow menu is the smallest thing on a card and the easiest to
-     miss — it is declared as a hard 30x30. The icon inside stays 30px; only the
-     hit area grows, so nothing moves visually. */
-  .row-menu-trigger {
-    width: 44px;
-    height: 44px;
-  }
-
-  /* Short labels ("All") leave the chip narrower than it is tall. */
-  .chip {
-    min-width: 44px;
-    justify-content: center;
-  }
-
-  .btn-quiet {
-    padding: 0.45rem 0.6rem;
-    font-size: 0.9rem;
-  }
-
-  .btn-icon {
-    padding: 0.4rem 0.55rem;
+  .field-row > .select,
+  .field-row > .field-hint {
+    align-self: flex-start;
   }
 }
