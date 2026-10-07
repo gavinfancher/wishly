@@ -43,9 +43,12 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
     }
   }, [onClose])
 
-  // Keep the menu on screen near the right and bottom edges.
-  const left = Math.min(x, window.innerWidth - 170)
-  const top = Math.min(y, window.innerHeight - (items.length * 24 + 12))
+  // The page may be CSS-zoomed (see --ui-zoom in index.css), which scales
+  // fixed positions too. Divide the mouse position so the menu opens at the
+  // cursor, and keep it on screen near the right and bottom edges.
+  const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1
+  const left = Math.min(x / zoom, window.innerWidth / zoom - 170)
+  const top = Math.min(y / zoom, window.innerHeight / zoom - (items.length * 24 + 12))
 
   return (
     <div className="ctx" role="menu" ref={root} style={{ left, top }}>

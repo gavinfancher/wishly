@@ -112,6 +112,25 @@ body {
   margin: 0;
 }
 
+/* The pixel-sized Win98 UI reads small on a large screen, so wide desktops get
+   it at 125%: the whole page is zoomed, bevels included. Only at 1200px and
+   up, so the zoomed layout still has more room than the 860px breakpoint
+   below. Zoom also scales viewport units and fixed positions, so full-height
+   rules divide by --ui-zoom, and ContextMenu.tsx divides the mouse position. */
+:root {
+  --ui-zoom: 1;
+}
+
+@media (min-width: 1200px) {
+  :root {
+    --ui-zoom: 1.25;
+  }
+}
+
+html {
+  zoom: var(--ui-zoom);
+}
+
 body {
   background: var(--face);
   color: var(--text);
@@ -165,7 +184,7 @@ a {
 /* ---------- Screen: one window on a plain background ---------- */
 
 .screen {
-  min-height: 100dvh;
+  min-height: calc(100dvh / var(--ui-zoom));
   padding: var(--gutter);
 }
 
@@ -751,7 +770,7 @@ a {
 .app-window {
   max-width: 1100px;
   margin: 0 auto;
-  height: calc(100dvh - 2 * var(--gutter));
+  height: calc(100dvh / var(--ui-zoom) - 2 * var(--gutter));
   min-height: 420px;
 }
 
@@ -1061,7 +1080,7 @@ a {
 
   .app-window {
     height: auto;
-    min-height: calc(100dvh - 2 * var(--gutter));
+    min-height: calc(100dvh / var(--ui-zoom) - 2 * var(--gutter));
   }
 
   .app-content {
