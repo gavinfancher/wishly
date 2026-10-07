@@ -5,7 +5,6 @@ planetscale_org       = "your-org"
 cloudflare_account_id = "0123456789abcdef0123456789abcdef"
 cloudflare_zone_id    = "0123456789abcdef0123456789abcdef"
 domain                = "wishly.dev"
-clerk_issuer          = "https://clerk.wishly.dev"
 frontend_origin       = "https://wishly.dev"
 image                 = "ghcr.io/your-github-user/wishly:latest"
 ntfy_topic            = "wishly-<random suffix>" # subscribe to it in the ntfy app

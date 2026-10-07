@@ -1254,6 +1254,7 @@ input[type='search']:focus {
 input[type='text'],
 input[type='number'],
 input[type='email'],
+input[type='password'],
 select,
 textarea {
   font-family: var(--font-sans);
@@ -1288,6 +1289,7 @@ textarea {
   input[type='text'],
   input[type='number'],
   input[type='email'],
+  input[type='password'],
   input[type='search'],
   select,
   textarea {

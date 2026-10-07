@@ -1,15 +1,15 @@
 from fastapi.testclient import TestClient
 
-from tests.conftest import as_user
+from tests.conftest import sign_up
 
 MOM = {"title": "Mom's birthday", "month": 10, "day": 12, "days_before": [0, 7, 7, 1]}
 
 
-def test_first_request_creates_the_user(client: TestClient) -> None:
+def test_new_user_starts_not_onboarded(client: TestClient) -> None:
     me = client.get("/v1/me").json()
 
-    assert me["id"] == "user_a"
-    assert me["email"] == "user_a@example.com"
+    assert isinstance(me["id"], int)
+    assert me["email"] == "a@example.com"
     assert me["onboarded_at"] is None
 
 
@@ -48,7 +48,7 @@ def test_impossible_date_is_rejected(client: TestClient) -> None:
 def test_users_cannot_touch_each_others_reminders(client: TestClient) -> None:
     reminder_id = client.post("/v1/reminders", json=MOM).json()["id"]
     url = f"/v1/reminders/{reminder_id}"
-    user_b = as_user("user_b")
+    user_b = sign_up(client, "b@example.com")
 
     assert client.get("/v1/reminders", headers=user_b).json() == []
     assert client.put(url, json=MOM, headers=user_b).status_code == 404

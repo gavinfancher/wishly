@@ -53,8 +53,8 @@ export function useSaveReminder() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, body }: { id?: string; body: ReminderInput }) =>
-      id
+    mutationFn: ({ id, body }: { id?: number; body: ReminderInput }) =>
+      id !== undefined
         ? apiFetch<Reminder>(`/reminders/${id}`, getToken, {
             method: 'PUT',
             body: JSON.stringify(body),
@@ -74,7 +74,7 @@ export function useDeleteReminder() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/reminders/${id}`, getToken, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiFetch<void>(`/reminders/${id}`, getToken, { method: 'DELETE' }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['reminders'] })
     },

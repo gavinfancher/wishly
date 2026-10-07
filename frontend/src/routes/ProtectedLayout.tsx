@@ -1,7 +1,6 @@
 import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 
-import { AuthUserButton } from '../lib/auth.tsx'
-import { useWishlyAuth } from '../lib/auth-context.ts'
+import { DEV_NO_AUTH, useWishlyAuth } from '../lib/auth-context.ts'
 
 /**
  * Wraps all authenticated routes.
@@ -51,10 +50,10 @@ function sectionTitle(pathname: string): string {
 }
 
 export default function ProtectedLayout() {
-  const { isLoaded, isSignedIn } = useWishlyAuth()
+  const { isLoaded, isSignedIn, signOut } = useWishlyAuth()
   const { pathname } = useLocation()
 
-  // While Clerk is initialising, render nothing to avoid a flash of redirect.
+  // While auth is initialising, render nothing to avoid a flash of redirect.
   if (!isLoaded) {
     return null
   }
@@ -82,7 +81,18 @@ export default function ProtectedLayout() {
         </nav>
 
         <div className="sidebar-foot">
-          <AuthUserButton />
+          {DEV_NO_AUTH ? (
+            <span className="dev-user-badge">Dev User</span>
+          ) : (
+            // Once the token is gone, this layout redirects to /sign-in by itself.
+            <button
+              type="button"
+              className="btn-secondary btn-compact"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </aside>
 

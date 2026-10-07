@@ -11,11 +11,9 @@ from typing import Any
 
 import psycopg
 import pytest
-from fastapi import Request
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 
-from wishly.auth import verified_claims
 from wishly.main import create_app
 from wishly.settings import Settings
 
@@ -35,7 +33,6 @@ def make_settings(**overrides: Any) -> Settings:
     values = {
         "env": "test",
         "database_url": TEST_DATABASE_URL,
-        "clerk_issuer": "https://clerk.example.test",
         "run_token": RUN_TOKEN,
     }
     return Settings(**(values | overrides))
@@ -62,7 +59,7 @@ def db(database_url: str) -> Iterator[psycopg.Connection]:
     """A connection for one test. Every table is emptied afterwards."""
     with psycopg.connect(database_url, autocommit=True, row_factory=dict_row) as conn:
         yield conn
-        conn.execute("truncate users, reminders, sends cascade")
+        conn.execute("truncate users, sessions, reminders, sends cascade")
 
 
 @pytest.fixture
@@ -71,21 +68,27 @@ def emails() -> list[dict[str, str]]:
     return []
 
 
+PASSWORD = "correct horse battery"
+
+
+def sign_up(client: TestClient, email: str) -> dict[str, str]:
+    """Create an account through the real API; return its Authorization header."""
+    response = client.post("/v1/auth/signup", json={"email": email, "password": PASSWORD})
+    assert response.status_code == 201, response.text
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
 @pytest.fixture
-def client(db: psycopg.Connection, emails: list) -> Iterator[TestClient]:
-    """The app, signed in as user_a. Pass `as_user` headers to switch users."""
+def anonymous(db: psycopg.Connection, emails: list) -> Iterator[TestClient]:
+    """The app, signed out. Emails it 'sends' land in the `emails` fixture."""
     app = create_app(make_settings())
     app.state.send_email = lambda **email: emails.append(email)
-
-    # Skip real Clerk token verification: the Bearer token *is* the user ID.
-    def fake_claims(request: Request) -> dict[str, str]:
-        user_id = request.headers["Authorization"].removeprefix("Bearer ")
-        return {"sub": user_id, "email": f"{user_id}@example.com"}
-
-    app.dependency_overrides[verified_claims] = fake_claims
-    with TestClient(app, headers={"Authorization": "Bearer user_a"}) as client:
+    with TestClient(app) as client:
         yield client
 
 
-def as_user(user_id: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {user_id}"}
+@pytest.fixture
+def client(anonymous: TestClient) -> TestClient:
+    """The app, signed in as a@example.com (sign up others with `sign_up`)."""
+    anonymous.headers.update(sign_up(anonymous, "a@example.com"))
+    return anonymous

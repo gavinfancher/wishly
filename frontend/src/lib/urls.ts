@@ -5,9 +5,6 @@
  * served from its own host (`https://app.wishly.dev`), so links out of the
  * landing page must be absolute; locally both live on the dev server, so they
  * stay relative and keep client-side routing. `VITE_APP_BASE_URL` picks which.
- *
- * Clerk shares its session across `*.wishly.dev` because the cookie is set on
- * the apex domain — both hosts must be registered on the Clerk instance.
  */
 
 const APP_BASE_URL = (import.meta.env.VITE_APP_BASE_URL ?? '').replace(/\/+$/, '')

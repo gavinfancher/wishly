@@ -22,7 +22,6 @@ flowchart LR
     runner[GitHub Actions runner]
   end
 
-  clerk[Clerk]
   db[(PlanetScale Postgres)]
   eb[AWS EventBridge: hourly]
   lam[Lambda: hourly-run]
@@ -32,12 +31,11 @@ flowchart LR
   inf[Infisical]
 
   user --> pages
-  user -- "Clerk JWT" --> edge
+  user -- "session token" --> edge
   eb --> lam
   lam -- "POST /internal/run + run token" --> edge
   lam -- "failed, or sent emails" --> ntfy
   edge --> cfd --> api
-  api -- "verify JWTs (cached keys)" --> clerk
   api --> db
   api --> resend --> inbox
   gh -- "deploy job" --> runner
@@ -56,16 +54,17 @@ flowchart LR
 | **ntfy.sh** | Push notifications to your phone from the hourly run. | `ntfy_topic` Terraform variable |
 | **Infisical** | The one place secrets live. The VM reads them at container start. | Set up by hand |
 | **Terraform state** | S3 bucket, versioned, S3-native locking. | Created by hand (see README step 2) |
-| **Clerk, Resend** | Sign-in and email. SaaS, configured in their dashboards. | — |
+| **Resend** | Sends the emails. SaaS, configured in its dashboard. | — |
 
 ## Three paths through the system
 
 **A user request.** Browser → `api.<domain>` (Cloudflare) → Tunnel → cloudflared
 on the VM → the API on `localhost:8000`. cloudflared shares the API container's
 network namespace, the same way two containers in one ECS task would, so the
-tunnel's route is `localhost:8000` wherever it runs. The API checks the Clerk
-JWT's signature against Clerk's public keys (cached, so no per-request call),
-then queries PlanetScale as `wishly_app`.
+tunnel's route is `localhost:8000` wherever it runs. The API hashes the
+session token from the `Authorization` header, looks it up in `sessions`, then
+queries PlanetScale as `wishly_app`. Auth lives in the API itself (no
+third-party identity provider); see `backend/src/wishly/auth.py`.
 
 **The hourly run.** EventBridge → the `wishly-hourly-run` Lambda → the same
 public hostname, with `Authorization: Bearer <run token>`. For each reminder
@@ -101,7 +100,8 @@ a config file on the VM.
 | `ntfy_topic` | You (`terraform.tfvars`) | The Lambda. Anyone with the name can read the topic, so keep it long and random. |
 | `TUNNEL_TOKEN` | Terraform (Cloudflare) | cloudflared |
 | `WISHLY_RESEND_API_KEY` | Resend dashboard | The API |
-| `WISHLY_CLERK_ISSUER`, `WISHLY_CORS_ORIGINS`, `WISHLY_IMAGE` | Terraform (plain config, not secret) | The API / Compose |
+| `WISHLY_CORS_ORIGINS`, `WISHLY_IMAGE` | Terraform (plain config, not secret) | The API / Compose |
+| `WISHLY_SIGNUP_ENABLED` | You (optional; `false` once your account exists) | The API |
 | Infisical machine identity | Infisical, by hand | `deploy.sh` on the VM (`/opt/wishly/infisical.env`, mode 0600) |
 | Provider tokens (AWS, Cloudflare, PlanetScale) | Each dashboard | Terraform, from your shell's environment |
 
@@ -121,7 +121,7 @@ state bucket is private, versioned, and blocks all public access.
   `postgres`) can change the schema, and only a person uses it.
 - **The Lambda's IAM role** may write to its own log group, nothing else, and
   only the hourly EventBridge rule may invoke it.
-- **The run token** only opens `/internal/run`. User endpoints need a Clerk JWT.
+- **The run token** only opens `/internal/run`. User endpoints need a session token.
 - **The VM** has no inbound ports. The tunnel dials out to Cloudflare, and you
   reach the box over Tailscale.
 
@@ -204,8 +204,9 @@ quiet.
   `/healthz` stops answering.
 - **Partial alerting.** A failed hourly run reaches your phone, so a dead VM
   is noticed within the hour, but nothing watches it between runs.
-- **Clerk deletions don't propagate.** A user deleted in Clerk's dashboard keeps
-  their rows until removed by hand (fix: a `user.deleted` webhook).
+- **No login rate limiting.** Passwords are slow to hash (scrypt), but nothing
+  stops repeated guesses. Cloudflare rate limiting on `/v1/auth/login` is the
+  cheap fix; the planned auth microservice is the long-term home for it.
 - **Deploys track `:latest`.** Rolling back means setting `WISHLY_IMAGE` to an
   older `:<sha>` in Infisical and running `deploy.sh`.
 

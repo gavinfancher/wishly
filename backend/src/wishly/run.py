@@ -30,6 +30,9 @@ def run(request: Request, conn: Annotated[Connection, Depends(get_conn)]) -> dic
 
 
 def send_due_reminders(conn: Connection, send_email: Callable, now: datetime) -> dict[str, int]:
+    # Housekeeping while we're here: expired sessions can never be used again.
+    conn.execute("delete from sessions where expires_at < %s", (now,))
+
     rows = conn.execute(
         """
         select r.id, r.title, r.month, r.day, r.days_before,

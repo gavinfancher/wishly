@@ -35,7 +35,7 @@ docs/infrastructure.md  how it runs: every piece, secret, and failure mode
 
 ### 0. Accounts and tools
 
-Accounts: AWS, Cloudflare (with a domain on it), PlanetScale, Infisical, Clerk,
+Accounts: AWS, Cloudflare (with a domain on it), PlanetScale, Infisical,
 Resend, GitHub. Tools on your laptop: `terraform` ≥ 1.11, `uv` (runs Ansible
 via `uvx`), `aws`, and Docker.
 
@@ -131,7 +131,9 @@ curl https://api.<your-domain>/readyz    # {"status":"ready"}
 ### 8. Frontend
 
 Create a Cloudflare Pages project from `frontend/` with these build variables:
-`VITE_API_BASE_URL=https://api.<your-domain>/v1` and `VITE_CLERK_PUBLISHABLE_KEY`.
+`VITE_API_BASE_URL=https://api.<your-domain>/v1`. Then sign up at
+`https://<your-domain>/sign-up`, and set `WISHLY_SIGNUP_ENABLED=false` in
+Infisical (and redeploy) so nobody else can.
 
 ## Day to day
 

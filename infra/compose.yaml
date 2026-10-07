@@ -12,10 +12,10 @@ services:
     # `infisical run` started it with. Nothing secret is written to disk.
     environment:
       - WISHLY_DATABASE_URL
-      - WISHLY_CLERK_ISSUER
       - WISHLY_CORS_ORIGINS
       - WISHLY_RUN_TOKEN
       - WISHLY_RESEND_API_KEY
+      - WISHLY_SIGNUP_ENABLED # optional; set to false once your account exists
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 15s

@@ -19,7 +19,6 @@ output "infisical_values" {
     WISHLY_SCHEMA_DATABASE_URL = local.db_url.schema
     WISHLY_RUN_TOKEN           = random_password.run_token.result
     TUNNEL_TOKEN               = data.cloudflare_zero_trust_tunnel_cloudflared_token.api.token
-    WISHLY_CLERK_ISSUER        = var.clerk_issuer
     WISHLY_CORS_ORIGINS        = jsonencode([var.frontend_origin])
     WISHLY_IMAGE               = var.image
   }

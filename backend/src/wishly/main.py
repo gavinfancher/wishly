@@ -13,7 +13,7 @@ from functools import partial
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from wishly import api, email, health, run
+from wishly import api, auth, email, health, run
 from wishly.db import create_pool
 from wishly.settings import Settings
 
@@ -59,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(api.router)
     app.include_router(run.router)
     return app

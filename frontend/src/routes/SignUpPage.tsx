@@ -1,23 +1,5 @@
-import { SignUp } from '@clerk/clerk-react'
-import { Navigate } from 'react-router-dom'
-
-import { DEV_NO_AUTH } from '../lib/auth-context.ts'
-import { DASHBOARD_URL } from '../lib/urls.ts'
+import AuthForm from '../components/AuthForm.tsx'
 
 export default function SignUpPage() {
-  // Dev bypass: no Clerk sign-up; go straight to the app.
-  if (DEV_NO_AUTH) {
-    return <Navigate to="/app" replace />
-  }
-
-  return (
-    <div className="auth-page">
-      <SignUp
-        routing="path"
-        path="/sign-up"
-        signInUrl="/sign-in"
-        fallbackRedirectUrl={DASHBOARD_URL}
-      />
-    </div>
-  )
+  return <AuthForm mode="sign-up" />
 }

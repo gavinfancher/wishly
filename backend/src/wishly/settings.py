@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     # Max open connections. PlanetScale caps connections per plan.
     db_pool_size: int = 5
 
-    # Clerk instance URL, e.g. https://clerk.wishly.dev. Session tokens must be
-    # issued by it, and its public signing keys live under it.
-    clerk_issuer: str
+    # Whether POST /v1/auth/signup accepts new accounts. Turn off once
+    # everyone who should have an account has one.
+    signup_enabled: bool = True
     # Browser origins allowed to call the API (the frontend's URL).
     cors_origins: list[str] = ["http://localhost:5173"]
 

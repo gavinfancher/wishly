@@ -5,12 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
 import { missingEnvVars } from './lib/env.ts'
 import { AuthProvider } from './lib/auth.tsx'
-import { ThemedClerkProvider } from './lib/clerk-provider.tsx'
-import { DEV_NO_AUTH } from './lib/auth-context.ts'
 import SetupScreen from './routes/SetupScreen.tsx'
 import './index.css'
 
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 const setupMissing = missingEnvVars()
 
 const root = createRoot(document.getElementById('root')!)
@@ -24,23 +21,17 @@ if (setupMissing.length > 0) {
 } else {
   const queryClient = new QueryClient()
 
-  const appTree = (
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </AuthProvider>
-  )
-
   root.render(
     <StrictMode>
-      {DEV_NO_AUTH ? (
-        appTree
-      ) : (
-        <ThemedClerkProvider publishableKey={publishableKey!}>{appTree}</ThemedClerkProvider>
-      )}
+      {/* AuthProvider sits inside QueryClientProvider so signing in or out can
+          clear the previous user's cached data. */}
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
+      </QueryClientProvider>
     </StrictMode>
   )
 }

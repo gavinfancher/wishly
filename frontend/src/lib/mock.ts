@@ -2,11 +2,11 @@
  * In-browser mock of the Wishly API, enabled with ``VITE_MOCK_API=true``.
  *
  * Lets the UI run fully populated with `npm run dev` alone — no FastAPI,
- * no Postgres, no Clerk. `apiFetch` dispatches here instead of `fetch`.
+ * no Postgres, no sign-in server. `apiFetch` dispatches here instead of `fetch`.
  * State lives in memory and resets on reload.
  */
 
-import type { Reminder, ReminderInput, User, UserUpdate } from './api.ts'
+import type { Reminder, ReminderInput, Session, User, UserUpdate } from './api.ts'
 import { ApiError } from './api.ts'
 
 export const MOCK_API = import.meta.env.VITE_MOCK_API === 'true'
@@ -21,7 +21,7 @@ function inDays(days: number): { month: number; day: number } {
 }
 
 let user: User = {
-  id: 'user_mock',
+  id: 1,
   email: 'you@example.com',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   send_hour: 8,
@@ -35,14 +35,14 @@ let reminders: Reminder[] = [
   { title: "Mia & Tom's anniversary", offsetDays: 19, days_before: [14, 1] },
   { title: 'Passport renewal deadline', offsetDays: 88, days_before: [60, 30, 7] },
 ].map((seed, index) => ({
-  id: `rem_mock_${index}`,
+  id: index + 1,
   title: seed.title,
   ...inDays(seed.offsetDays),
   days_before: seed.days_before,
   created_at: now(),
 }))
 
-let nextId = reminders.length
+let nextId = reminders.length + 1
 
 const delay = () => new Promise((resolve) => setTimeout(resolve, 180))
 
@@ -62,6 +62,18 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
   const method = (init.method ?? 'GET').toUpperCase()
   const body = typeof init.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined
   const respond = (value: unknown) => clone(value) as T
+
+  // Any email and password work; the mock has one user.
+  if ((path === '/auth/login' || path === '/auth/signup') && method === 'POST') {
+    const { email } = body as { email: string }
+    user = { ...user, email }
+    const session: Session = { token: 'mock-session', user }
+    return respond(session)
+  }
+
+  if (path === '/auth/logout' && method === 'POST') {
+    return undefined as T
+  }
 
   if (path === '/me' && method === 'GET') {
     return respond(user)
@@ -83,7 +95,7 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
 
   if (path === '/reminders' && method === 'POST') {
     const reminder: Reminder = {
-      id: `rem_mock_${nextId++}`,
+      id: nextId++,
       ...normalize(body as ReminderInput),
       created_at: now(),
     }
@@ -93,7 +105,7 @@ export async function mockFetch<T>(path: string, init: RequestInit = {}): Promis
 
   const match = /^\/reminders\/([^/]+)$/.exec(path)
   if (match) {
-    const existing = reminders.find((r) => r.id === match[1])
+    const existing = reminders.find((r) => r.id === Number(match[1]))
     if (!existing) throw new ApiError(404, { detail: 'reminder not found' })
 
     if (method === 'PUT') {

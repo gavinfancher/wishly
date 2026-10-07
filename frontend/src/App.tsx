@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './routes/LandingPage.tsx'
 import SignInPage from './routes/SignInPage.tsx'
 import SignUpPage from './routes/SignUpPage.tsx'
-import WaitlistPage from './routes/WaitlistPage.tsx'
 import ProtectedLayout from './routes/ProtectedLayout.tsx'
 import OnboardingGate from './routes/OnboardingGate.tsx'
 import OnboardingPage from './routes/OnboardingPage.tsx'
@@ -15,15 +14,13 @@ export default function App() {
       {/* Public marketing page */}
       <Route path="/" element={<LandingPage />} />
 
-      {/* Auth routes — rendered by Clerk's hosted components */}
-      <Route path="/sign-in/*" element={<SignInPage />} />
-      <Route path="/sign-up/*" element={<SignUpPage />} />
-      <Route path="/waitlist" element={<WaitlistPage />} />
+      {/* Email + password, against the API's /auth endpoints */}
+      <Route path="/sign-in" element={<SignInPage />} />
+      <Route path="/sign-up" element={<SignUpPage />} />
 
       {/* Aliases for the URLs people type */}
       <Route path="/login" element={<Navigate to="/sign-in" replace />} />
       <Route path="/signup" element={<Navigate to="/sign-up" replace />} />
-      <Route path="/join" element={<Navigate to="/waitlist" replace />} />
 
       {/* Protected app shell — all child routes require auth */}
       <Route element={<ProtectedLayout />}>

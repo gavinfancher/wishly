@@ -9,7 +9,8 @@ can call her.
 ## Tech stack
 
 - **Frontend** — static site on Cloudflare Pages.
-- **Auth** — user accounts through Clerk.
+- **Auth** — our own email + password sessions in the API (planned: split out
+  into its own auth microservice).
 - **API** — FastAPI (Python) in a container, exposed via a Cloudflare Tunnel.
 - **Orchestration** — an hourly EventBridge rule calling an endpoint on the API. No
   scheduler of its own.

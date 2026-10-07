@@ -10,23 +10,49 @@ hour, in their timezone. If code and this doc disagree, one of them is a bug.
 |--------|--------------------------|-------------|--------------------------------------|
 | GET    | `/healthz`               | anyone      | Liveness — never touches the DB      |
 | GET    | `/readyz`                | anyone      | Readiness — 503 if the DB is down    |
-| GET    | `/v1/me`                 | Clerk JWT   | Current user (created on first call) |
-| PATCH  | `/v1/me`                 | Clerk JWT   | Timezone, send hour, finish onboarding |
-| GET    | `/v1/reminders`          | Clerk JWT   | My reminders                         |
-| POST   | `/v1/reminders`          | Clerk JWT   | Create                               |
-| PUT    | `/v1/reminders/{id}`     | Clerk JWT   | Replace                              |
-| DELETE | `/v1/reminders/{id}`     | Clerk JWT   | Delete                               |
+| POST   | `/v1/auth/signup`        | anyone      | Create account → session token (if sign-ups are on) |
+| POST   | `/v1/auth/login`         | anyone      | Email + password → session token     |
+| POST   | `/v1/auth/logout`        | session     | End this session                     |
+| GET    | `/v1/me`                 | session     | Current user                         |
+| PATCH  | `/v1/me`                 | session     | Timezone, send hour, finish onboarding |
+| GET    | `/v1/reminders`          | session     | My reminders                         |
+| POST   | `/v1/reminders`          | session     | Create                               |
+| PUT    | `/v1/reminders/{id}`     | session     | Replace                              |
+| DELETE | `/v1/reminders/{id}`     | session     | Delete                               |
 | POST   | `/internal/run`          | run token   | Send everything due this hour        |
 
 Another user's reminder ID returns 404, not 403.
 
+## Auth
+
+Email + password, handled by the API itself (`backend/src/wishly/auth.py`).
+
+- **Passwords** are hashed with scrypt (Python's standard library), salted per
+  user. At least 12 characters. Emails are compared lowercased.
+- **Sessions** are random 256-bit tokens. The browser keeps the token and sends
+  it as `Authorization: Bearer <token>`; the database keeps only its SHA-256,
+  so a leaked `sessions` table can't be used to sign in. They last 30 days,
+  and logout deletes the row so the token dies immediately.
+- **Login** gives the same answer, after the same slow hash, for a wrong
+  password and an unknown email, so it can't be used to discover accounts.
+- **Sign-ups** can be closed with `WISHLY_SIGNUP_ENABLED=false`.
+
+Opaque tokens checked against the database, rather than JWTs, because logout
+and revocation are just a `delete`. The planned next step is moving this into
+its own auth service, which the API would ask "whose token is this?".
+
 ## Data
 
 ```
-users      id (Clerk sub) · email · timezone · send_hour · onboarded_at · created_at
+users      id · email (unique) · password_hash · timezone · send_hour · onboarded_at · created_at
+sessions   token_hash (PK) · user_id → users · created_at · expires_at
 reminders  id · user_id → users · title · month · day · days_before int[] · created_at
 sends      PK (reminder_id → reminders, days_before, occurrence_date) · sent_at
 ```
+
+Ids are plain integers from Postgres (`generated always as identity`).
+Sequential ids are safe here because every query is scoped to the caller's
+`user_id`; guessing someone else's id gets a 404.
 
 Plain SQL through psycopg. The whole schema is `infra/sql/schema.sql`: one
 file you read, then apply with `psql` as the `wishly_schema` role. It's
@@ -52,9 +78,9 @@ For each due reminder:
 
 - Feb 29 dates fall on Feb 28 in non-leap years.
 - No v1 data migration; v1 tables are dropped before the first deploy.
-- Users are created just-in-time from the Clerk token (`sub`, `email` claims).
-- **Known gap:** a user deleted in the Clerk dashboard keeps their rows (and
-  emails) until removed by hand. Fix later with a Clerk `user.deleted` webhook.
+- Each hourly run also deletes expired sessions.
+- **Known gaps:** no login rate limiting, no password reset, no email
+  verification. Fine for a personal app with sign-ups closed.
 
 ## Running it
 

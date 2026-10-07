@@ -8,7 +8,7 @@ def test_schema_has_every_table(db: psycopg.Connection) -> None:
         "select table_name from information_schema.tables where table_schema = 'public'"
     ).fetchall()
 
-    assert {row["table_name"] for row in rows} == {"users", "reminders", "sends"}
+    assert {row["table_name"] for row in rows} == {"users", "sessions", "reminders", "sends"}
 
 
 def test_schema_is_safe_to_rerun(db: psycopg.Connection) -> None:
@@ -18,12 +18,15 @@ def test_schema_is_safe_to_rerun(db: psycopg.Connection) -> None:
 
 def test_sends_rejects_a_second_claim(db: psycopg.Connection) -> None:
     """The whole duplicate-email defence, in one test."""
-    db.execute("insert into users (id, email) values ('u1', 'a@example.com')")
+    user_id = db.execute(
+        "insert into users (email, password_hash) values ('a@example.com', 'unused') returning id"
+    ).fetchone()["id"]
     reminder = db.execute(
         """
         insert into reminders (user_id, title, month, day, days_before)
-        values ('u1', 'Mom', 10, 12, '{7}') returning id
-        """
+        values (%s, 'Mom', 10, 12, '{7}') returning id
+        """,
+        (user_id,),
     ).fetchone()
 
     claim = """

@@ -16,7 +16,7 @@ export default function SetupScreen({ missing }: SetupScreenProps) {
       <h1>Wishly needs local configuration</h1>
       <p>
         The UI is built, but this workspace has no <code>frontend/.env</code> yet. Copy the example
-        file and add your Clerk key to run the app locally.
+        file to run the app locally.
       </p>
 
       <ol className="setup-steps">
@@ -24,13 +24,10 @@ export default function SetupScreen({ missing }: SetupScreenProps) {
           <code>cp frontend/.env.example frontend/.env</code>
         </li>
         <li>
-          Set <code>VITE_CLERK_PUBLISHABLE_KEY</code> from the Clerk dashboard (API Keys)
+          For local API calls, set <code>VITE_API_BASE_URL=http://localhost:8000/v1</code>
         </li>
         <li>
-          For local API calls, set <code>VITE_API_BASE_URL=http://localhost:8000</code>
-        </li>
-        <li>
-          Run <code>just web-dev</code> (or <code>npm run dev</code> in <code>frontend/</code>)
+          Run <code>npm run dev</code> in <code>frontend/</code>
         </li>
       </ol>
 
@@ -44,8 +41,7 @@ export default function SetupScreen({ missing }: SetupScreenProps) {
       </ul>
 
       <p className="text-muted">
-        After sign-in you&apos;ll see onboarding, then the events UI. Nothing is deployed to
-        wishly.dev yet — that&apos;s T7.4 in the plan.
+        Or run without a backend: <code>VITE_MOCK_API=true VITE_DEV_NO_AUTH=true npm run dev</code>
       </p>
     </div>
   )

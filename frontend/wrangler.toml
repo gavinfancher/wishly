@@ -15,8 +15,8 @@ compatibility_date = "2026-06-13"
 workers_dev = false
 
 # Apex only. www.wishly.dev 301s here via a zone redirect rule instead of being a
-# second Worker origin — two origins meant two Clerk sessions (and two "new
-# device" emails) for what the user experiences as one sign-in.
+# second Worker origin, so there is exactly one origin for the API to allow (CORS)
+# and one place the session token is stored.
 routes = [
   { pattern = "wishly.dev", custom_domain = true },
 ]

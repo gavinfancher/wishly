@@ -61,11 +61,6 @@ variable "ntfy_topic" {
 
 # --- The app -----------------------------------------------------------------
 
-variable "clerk_issuer" {
-  type        = string
-  description = "Clerk Frontend API URL, e.g. https://clerk.wishly.dev."
-}
-
 variable "frontend_origin" {
   type        = string
   description = "Where the frontend is served, e.g. https://wishly.dev. Allowed by CORS."

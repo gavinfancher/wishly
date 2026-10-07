@@ -7,14 +7,13 @@ so we never confirm that it exists.
 
 from datetime import datetime
 from typing import Annotated
-from uuid import UUID
 from zoneinfo import available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from psycopg import Connection
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from wishly.auth import CurrentUser
+from wishly.auth import CurrentUser, User
 from wishly.db import get_conn
 from wishly.schedule import is_valid_month_day
 
@@ -25,15 +24,6 @@ TIMEZONES = available_timezones()
 
 
 # --- shapes of request and response bodies -------------------------------------
-
-
-class User(BaseModel):
-    id: str
-    email: str
-    timezone: str
-    send_hour: int
-    onboarded_at: datetime | None
-    created_at: datetime
 
 
 class UserUpdate(BaseModel):
@@ -67,7 +57,7 @@ class ReminderIn(BaseModel):
 
 
 class Reminder(ReminderIn):
-    id: UUID
+    id: int
     created_at: datetime
 
 
@@ -125,9 +115,7 @@ def create_reminder(body: ReminderIn, user: CurrentUser, conn: Conn) -> Reminder
 
 
 @router.put("/reminders/{reminder_id}")
-def replace_reminder(
-    reminder_id: UUID, body: ReminderIn, user: CurrentUser, conn: Conn
-) -> Reminder:
+def replace_reminder(reminder_id: int, body: ReminderIn, user: CurrentUser, conn: Conn) -> Reminder:
     row = conn.execute(
         """
         update reminders
@@ -143,7 +131,7 @@ def replace_reminder(
 
 
 @router.delete("/reminders/{reminder_id}", status_code=204)
-def delete_reminder(reminder_id: UUID, user: CurrentUser, conn: Conn) -> Response:
+def delete_reminder(reminder_id: int, user: CurrentUser, conn: Conn) -> Response:
     deleted = conn.execute(
         "delete from reminders where id = %s and user_id = %s",
         (reminder_id, user["id"]),

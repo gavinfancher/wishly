@@ -24,7 +24,7 @@ export default function AccountPage() {
         <p className="field-hint">
           {DEV_NO_AUTH
             ? 'Running as the local dev user.'
-            : 'Your email comes from your sign-in account. Change it from the account menu.'}
+            : 'The email you signed up with. Reminders are sent here.'}
         </p>
       </section>
 

@@ -11,18 +11,20 @@ SEND_TIME = datetime(2026, 10, 5, 13, 0, 3, tzinfo=UTC)
 
 
 def add_mom_reminder(db: psycopg.Connection, *, onboarded: bool = True) -> None:
-    db.execute(
+    user_id = db.execute(
         """
-        insert into users (id, email, timezone, send_hour, onboarded_at)
-        values ('u1', 'me@example.com', 'America/Chicago', 8, %s)
+        insert into users (email, password_hash, timezone, send_hour, onboarded_at)
+        values ('me@example.com', 'unused', 'America/Chicago', 8, %s)
+        returning id
         """,
         (datetime.now(UTC) if onboarded else None,),
-    )
+    ).fetchone()["id"]
     db.execute(
         """
         insert into reminders (user_id, title, month, day, days_before)
-        values ('u1', 'Mom''s birthday', 10, 12, '{7,0}')
-        """
+        values (%s, 'Mom''s birthday', 10, 12, '{7,0}')
+        """,
+        (user_id,),
     )
 
 
@@ -72,3 +74,22 @@ def test_run_endpoint_requires_the_run_token(client: TestClient) -> None:
     assert client.post("/internal/run").status_code == 401  # a user's token
     ok = client.post("/internal/run", headers={"Authorization": f"Bearer {RUN_TOKEN}"})
     assert ok.status_code == 200
+
+
+def test_run_deletes_expired_sessions(db: psycopg.Connection) -> None:
+    user_id = db.execute(
+        "insert into users (email, password_hash) values ('x@example.com', 'unused') returning id"
+    ).fetchone()["id"]
+    db.execute(
+        """
+        insert into sessions (token_hash, user_id, expires_at) values
+            ('old', %(id)s, now() - interval '1 day'),
+            ('current', %(id)s, now() + interval '1 day')
+        """,
+        {"id": user_id},
+    )
+
+    send_due_reminders(db, lambda **e: None, now=datetime.now(UTC))
+
+    rows = db.execute("select token_hash from sessions").fetchall()
+    assert [row["token_hash"] for row in rows] == ["current"]

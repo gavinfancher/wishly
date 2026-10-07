@@ -1,9 +1,10 @@
 /**
- * Authenticated fetch wrapper for the Wishly FastAPI backend.
+ * Fetch wrapper for the Wishly FastAPI backend.
  *
- * Attaches the Clerk session JWT as a Bearer token and targets
- * ``VITE_API_BASE_URL`` (which includes the ``/v1`` prefix). All business logic lives server-side; the SPA
- * only talks to the world through these helpers.
+ * Sends the session token (from POST /auth/login or /auth/signup) as a Bearer
+ * token and targets ``VITE_API_BASE_URL`` (which includes the ``/v1`` prefix).
+ * All business logic lives server-side; the SPA only talks to the world
+ * through these helpers.
  */
 
 import { getApiBaseUrl } from './env.ts'
@@ -26,23 +27,38 @@ export const REQUEST_TIMEOUT_MS = 5_000
 
 type TokenGetter = () => Promise<string | null>
 
-/** Perform an authenticated request against the Wishly API. */
+/**
+ * Called when the API rejects our token (expired or revoked session). The auth
+ * provider registers one that forgets the token, which sends the user back to
+ * /sign-in.
+ */
+let onUnauthorized: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler
+}
+
+/**
+ * Perform a request against the Wishly API. Pass `null` for `getToken` on the
+ * calls that happen before there is a session (sign-in, sign-up).
+ */
 export async function apiFetch<T>(
   path: string,
-  getToken: TokenGetter,
+  getToken: TokenGetter | null,
   init: RequestInit = {}
 ): Promise<T> {
   if (MOCK_API) {
     return mockFetch<T>(path, init)
   }
 
-  const token = await getToken()
-  if (!token) {
-    throw new ApiError(401, null, 'Not authenticated')
-  }
-
   const headers = new Headers(init.headers)
-  headers.set('Authorization', `Bearer ${token}`)
+  if (getToken) {
+    const token = await getToken()
+    if (!token) {
+      throw new ApiError(401, null, 'Not authenticated')
+    }
+    headers.set('Authorization', `Bearer ${token}`)
+  }
   if (init.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
@@ -74,6 +90,9 @@ export async function apiFetch<T>(
   const body: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
+    if (response.status === 401 && getToken) {
+      onUnauthorized?.()
+    }
     throw new ApiError(response.status, body)
   }
 
@@ -83,7 +102,7 @@ export async function apiFetch<T>(
 // --- Response types (mirror backend/src/wishly/api.py) ---------------------- //
 
 export type User = {
-  id: string
+  id: number
   email: string
   timezone: string
   send_hour: number
@@ -109,8 +128,28 @@ export type ReminderInput = {
 }
 
 export type Reminder = ReminderInput & {
-  id: string
+  id: number
   created_at: string
+}
+
+/** What POST /auth/login and /auth/signup return. */
+export type Session = {
+  token: string
+  user: User
+}
+
+/** The API's own error message (FastAPI's `detail`), if it sent a readable one. */
+export function errorDetail(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  const body = error.body
+  if (typeof body !== 'object' || body === null) return null
+  const detail = (body as { detail?: unknown }).detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const first = detail[0] as { msg?: unknown } | undefined
+    if (first && typeof first.msg === 'string') return first.msg
+  }
+  return null
 }
 
 /**
