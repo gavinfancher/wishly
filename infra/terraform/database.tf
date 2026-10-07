@@ -37,15 +37,18 @@ resource "planetscale_postgres_branch_role" "schema" {
 }
 
 locals {
-  # sslrootcert=system: verify PlanetScale's certificate against the OS's
-  # trusted CAs, so the connection can't be silently intercepted.
+  # verify-full: check PlanetScale's certificate and hostname, so the connection
+  # can't be silently intercepted. The CA file is named explicitly rather than
+  # `sslrootcert=system`: psycopg-binary ships its own OpenSSL, which doesn't know
+  # where Debian keeps CAs, so `system` fails in the API image. This path is the
+  # Debian CA bundle, present in the python:slim image the API runs on.
   db_url = {
     for key, role in {
       app    = planetscale_postgres_branch_role.app
       schema = planetscale_postgres_branch_role.schema
     } :
     key => format(
-      "postgresql://%s:%s@%s:5432/%s?sslmode=verify-full&sslrootcert=system",
+      "postgresql://%s:%s@%s:5432/%s?sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca-certificates.crt",
       role.username, urlencode(role.password), role.access_host_url, role.database_name,
     )
   }

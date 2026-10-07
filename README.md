@@ -93,9 +93,14 @@ Read `infra/sql/schema.sql`, then apply it with the schema role:
 
 ```bash
 infisical run --env=prod -- sh -c \
-  'docker run --rm -i postgres:18.4 psql "$WISHLY_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1' \
+  'docker run --rm -i -v /etc/ssl/cert.pem:/etc/ssl/certs/ca-certificates.crt:ro \
+     postgres:18.4 psql "$WISHLY_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1' \
   < infra/sql/schema.sql
 ```
+
+The `-v` gives the container your machine's trusted CA certificates (the
+postgres image has none), so `psql` can verify PlanetScale's TLS certificate.
+On Linux, mount `/etc/ssl/certs/ca-certificates.crt` instead of `/etc/ssl/cert.pem`.
 
 It's safe to re-run. It only creates what's missing.
 

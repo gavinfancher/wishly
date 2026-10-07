@@ -4,8 +4,13 @@
 -- create tables), with credentials coming from Infisical:
 --
 --   infisical run --env=prod -- sh -c \
---     'docker run --rm -i postgres:18.4 psql "$WISHLY_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1' \
+--     'docker run --rm -i -v /etc/ssl/cert.pem:/etc/ssl/certs/ca-certificates.crt:ro \
+--        postgres:18.4 psql "$WISHLY_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1' \
 --     < infra/sql/schema.sql
+--
+-- The -v mounts your machine's trusted CA certificates into the container (the
+-- postgres image ships without any), so psql can verify PlanetScale's TLS
+-- certificate. That's the macOS path; on Linux use /etc/ssl/certs/ca-certificates.crt.
 --
 -- Safe to re-run: every statement is "if not exists", so a second run changes
 -- nothing. It also never changes a table that already exists. To change one,
