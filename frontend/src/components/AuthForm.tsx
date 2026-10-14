@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 
-import { Icon, Window } from './Win98.tsx'
 import { errorDetail, isOffline } from '../lib/api.ts'
 import { useWishlyAuth } from '../lib/auth-context.ts'
 import { DASHBOARD_URL } from '../lib/urls.ts'
@@ -13,19 +12,19 @@ type AuthFormProps = {
 
 const COPY = {
   'sign-in': {
-    title: 'Log On to Wishly',
-    prompt: 'Type your e-mail address and password to log on to Wishly.',
-    busy: 'Logging on…',
+    title: 'Sign in to Wishly',
+    submit: 'Sign in',
+    busy: 'Signing in…',
     switchText: 'No account yet?',
     switchLink: 'Create one',
     switchTo: '/sign-up',
   },
   'sign-up': {
-    title: 'Create Wishly Account',
-    prompt: 'Type an e-mail address and choose a password for your new Wishly account.',
-    busy: 'Creating…',
+    title: 'Create your Wishly account',
+    submit: 'Create account',
+    busy: 'Creating account…',
     switchText: 'Already have an account?',
-    switchLink: 'Log on',
+    switchLink: 'Sign in',
     switchTo: '/sign-in',
   },
 } as const
@@ -34,7 +33,6 @@ const COPY = {
 export default function AuthForm({ mode }: AuthFormProps) {
   const { isSignedIn, signIn, signUp } = useWishlyAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const copy = COPY[mode]
 
   const [email, setEmail] = useState('')
@@ -44,12 +42,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
   if (isSignedIn) {
     return <Navigate to={DASHBOARD_URL} replace />
-  }
-
-  // Back to the previous page; a link opened directly has no history here, so go home.
-  function goBack() {
-    if (location.key === 'default') navigate('/')
-    else navigate(-1)
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -72,66 +64,49 @@ export default function AuthForm({ mode }: AuthFormProps) {
   }
 
   return (
-    <div className="screen screen-center">
-      <Window
-        title={copy.title}
-        icon="key"
-        dialog="dialog"
-        className="dialog logon"
-        themeToggle
-        onClose={goBack}
-        closeDisabled={busy}
-      >
-        <form className="body" onSubmit={(e) => void handleSubmit(e)}>
-          <div className="logon-grid">
-            <Icon name="key" size={32} />
-            <div className="logon-fields">
-              <p>{copy.prompt}</p>
-              <label className="field-row">
-                <span>E-mail:</span>
-                <input
-                  className="text"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </label>
-              <label className="field-row">
-                <span>Password:</span>
-                <input
-                  className="text"
-                  type="password"
-                  autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-                  minLength={mode === 'sign-up' ? 12 : undefined}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </label>
-              {mode === 'sign-up' && (
-                <p className="field-hint">Passwords must be at least 12 characters.</p>
-              )}
-            </div>
-            <div className="logon-buttons">
-              <button type="submit" className="btn btn-default" disabled={busy}>
-                {busy ? copy.busy : 'OK'}
-              </button>
-              <button type="button" className="btn" onClick={goBack} disabled={busy}>
-                &lt; Back
-              </button>
-            </div>
-          </div>
-
-          {error && <p className="form-error">{error}</p>}
-
-          <p className="logon-switch">
+    <div className="auth-page onboarding">
+      <form className="form-panel" onSubmit={(e) => void handleSubmit(e)}>
+        <div className="form-panel-head">
+          <h1>{copy.title}</h1>
+          <p className="form-panel-sub">
             {copy.switchText} <Link to={copy.switchTo}>{copy.switchLink}</Link>
           </p>
-        </form>
-      </Window>
+        </div>
+
+        <div className="form-panel-body">
+          <label className="field">
+            <span className="field-label">Email</span>
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span className="field-label">Password</span>
+            <input
+              type="password"
+              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+              minLength={mode === 'sign-up' ? 12 : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            {mode === 'sign-up' && <span className="field-hint">At least 12 characters.</span>}
+          </label>
+
+          {error && <p className="form-error">{error}</p>}
+        </div>
+
+        <div className="form-panel-actions">
+          <button type="submit" className="btn-primary btn-compact" disabled={busy}>
+            {busy ? copy.busy : copy.submit}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

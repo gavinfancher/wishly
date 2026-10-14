@@ -1,24 +1,20 @@
 import { useEffect } from 'react'
 
-import { Message, Window } from './Win98.tsx'
-
 type ConfirmDialogProps = {
   title: string
   body: string
-  confirmLabel?: string
-  cancelLabel?: string
+  confirmLabel: string
   danger?: boolean
   isBusy?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
 
-/** Windows message box, replacing window.confirm. Escape cancels. */
+/** Modal confirmation, replacing window.confirm. Escape cancels. */
 export default function ConfirmDialog({
   title,
   body,
-  confirmLabel = 'Yes',
-  cancelLabel = 'No',
+  confirmLabel,
   danger = false,
   isBusy = false,
   onConfirm,
@@ -33,29 +29,38 @@ export default function ConfirmDialog({
   }, [isBusy, onCancel])
 
   return (
-    <div className="veil" role="presentation" onClick={() => !isBusy && onCancel()}>
-      <Window
-        title={title}
-        dialog="alertdialog"
-        className="dialog"
-        onClose={onCancel}
-        closeDisabled={isBusy}
+    <div className="modal-overlay" role="presentation" onClick={() => !isBusy && onCancel()}>
+      <div
+        className="modal-panel modal-panel-sm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="body">
-          <Message icon={danger ? 'warn' : 'ask'}>
-            <p>{body}</p>
-          </Message>
-          <div className="row center">
-            <button type="button" className="btn btn-default" onClick={onConfirm} disabled={isBusy}>
-              {isBusy ? 'Working…' : confirmLabel}
-            </button>
-            <button type="button" className="btn" onClick={onCancel} disabled={isBusy} autoFocus>
-              {cancelLabel}
-            </button>
-          </div>
+        <h2 id="confirm-title" className="dialog-title">
+          {title}
+        </h2>
+        <p className="dialog-body">{body}</p>
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onCancel}
+            disabled={isBusy}
+            autoFocus
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={danger ? 'btn-danger' : 'btn-primary'}
+            onClick={onConfirm}
+            disabled={isBusy}
+          >
+            {isBusy ? 'Working…' : confirmLabel}
+          </button>
         </div>
-      </Window>
+      </div>
     </div>
   )
 }

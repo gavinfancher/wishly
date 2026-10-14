@@ -6,6 +6,7 @@ import ProtectedLayout from './routes/ProtectedLayout.tsx'
 import OnboardingGate from './routes/OnboardingGate.tsx'
 import OnboardingPage from './routes/OnboardingPage.tsx'
 import RemindersPage from './routes/RemindersPage.tsx'
+import AccountPage from './routes/AccountPage.tsx'
 
 export default function App() {
   return (
@@ -26,8 +27,7 @@ export default function App() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route element={<OnboardingGate />}>
           <Route path="/app" element={<RemindersPage />} />
-          {/* Same window with File › Account Info open over the list. */}
-          <Route path="/app/account" element={<RemindersPage />} />
+          <Route path="/app/account" element={<AccountPage />} />
         </Route>
       </Route>
 

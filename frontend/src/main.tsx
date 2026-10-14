@@ -6,10 +6,7 @@ import App from './App.tsx'
 import { missingEnvVars } from './lib/env.ts'
 import { AuthProvider } from './lib/auth.tsx'
 import SetupScreen from './routes/SetupScreen.tsx'
-import { applyTheme, storedTheme } from './lib/theme.ts'
 import './index.css'
-
-applyTheme(storedTheme())
 
 const setupMissing = missingEnvVars()
 
