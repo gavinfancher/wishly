@@ -66,9 +66,9 @@ export async function apiFetch<T>(
   let response: Response
   try {
     // Five seconds, then give up and treat it as unreachable. Without this the
-    // browser's own timeout applies — often a minute or more — so a failover
-    // would leave the user staring at a spinner for far longer than the
-    // failover itself takes. A healthy API answers these calls in tens of
+    // browser's own timeout applies — often a minute or more — so an outage
+    // would leave the user staring at a spinner instead of seeing the
+    // "Wishly is down" screen. A healthy API answers these calls in tens of
     // milliseconds, so 5s only ever fires when something is genuinely wrong.
     response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...init,

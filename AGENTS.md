@@ -9,15 +9,20 @@ can call her.
 ## Tech stack
 
 - **Frontend** — static site on Cloudflare Pages.
-- **Auth** — our own email + password sessions in the API (planned: split out
-  into its own auth microservice).
-- **API** — FastAPI (Python) in a container, exposed via a Cloudflare Tunnel.
-- **Orchestration** — an hourly EventBridge rule calling an endpoint on the API. No
-  scheduler of its own.
-- **Host** — Proxmox Ubuntu VM running Docker Compose for cloudflared and the API.
-- **Email** — Resend.
-- **Database** — PlanetScale micro instance for production data. Banking on it not going
-  offline, which is fine — I have 2 users.
+- **Auth** — our own email + password sessions in the API. 8-character minimum, no
+  password resets (planned: split out into its own auth microservice).
+- **API** — FastAPI (Python), one self-contained container, exposed at api.wishly.dev
+  via a Cloudflare Tunnel. Secrets live in one hand-made Kubernetes Secret, never in git.
+- **Scheduling** — inside the API: a scheduler thread sends everyone's reminders at
+  9am Eastern. No external scheduler.
+- **Host** — home k3s cluster (`deploy/k8s`), kept in sync by Argo CD. CI builds the
+  image on GitHub and commits its tag; Argo rolls it out.
+- **Monitoring** — the only thing on AWS: an EventBridge → Lambda watchdog pings a
+  key-protected, rate-limited `/internal/ping` every minute and pushes via ntfy after
+  5 minutes down.
+- **Email** — Resend, plain text.
+- **Database** — self-hosted Postgres 18 on my home network (moved off PlanetScale
+  2026-10). Set up with `infra/sql/roles.sql`, then `infra/sql/schema.sql`.
 
 ## Why this project
 
@@ -26,6 +31,5 @@ about it and to build cost-effective, higher-availability setups.
 
 ## Where it's going
 
-The goal is a container on AWS (maybe even a simple Lambda) that pings the Proxmox VM to see
-if it's alive. If it hasn't responded for 3 minutes, it triggers an ECS deployment of the
-containers. Not sure yet how to get this part going, but that's the eventual target.
+v3 (see `v3.md`) is the current target: the app on the home k8s cluster with Argo CD as
+the CD. AWS stays limited to the watchdog Lambda; there is no AWS failover.

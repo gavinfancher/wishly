@@ -1,8 +1,11 @@
-# Wishly API — v2
+# Wishly API — v3
 
 A user picks a date (repeats yearly) and how many days before it they want an
-email, e.g. 7, 1 and 0. Wishly emails them a plain-text reminder at their chosen
-hour, in their timezone. If code and this doc disagree, one of them is a bug.
+email, e.g. 7, 1 and 0. Wishly emails them a plain-text reminder at 9am
+Eastern. If code and this doc disagree, one of them is a bug.
+
+The API is one self-contained container: the HTTP API, the auth, and the
+scheduler that sends the emails all run in the same process.
 
 ## Endpoints
 
@@ -14,12 +17,12 @@ hour, in their timezone. If code and this doc disagree, one of them is a bug.
 | POST   | `/v1/auth/login`         | anyone      | Email + password → session token     |
 | POST   | `/v1/auth/logout`        | session     | End this session                     |
 | GET    | `/v1/me`                 | session     | Current user                         |
-| PATCH  | `/v1/me`                 | session     | Timezone, send hour, finish onboarding |
+| PATCH  | `/v1/me`                 | session     | Timezone, send hour (stored, not used for delivery), finish onboarding |
 | GET    | `/v1/reminders`          | session     | My reminders                         |
 | POST   | `/v1/reminders`          | session     | Create                               |
 | PUT    | `/v1/reminders/{id}`     | session     | Replace                              |
 | DELETE | `/v1/reminders/{id}`     | session     | Delete                               |
-| POST   | `/internal/run`          | run token   | Send everything due this hour        |
+| GET    | `/internal/ping`         | ping key    | Watchdog check: DB answers and scheduler is ticking. Rate-limited per client. |
 
 Another user's reminder ID returns 404, not 403.
 
@@ -28,7 +31,9 @@ Another user's reminder ID returns 404, not 403.
 Email + password, handled by the API itself (`backend/src/wishly/auth.py`).
 
 - **Passwords** are hashed with scrypt (Python's standard library), salted per
-  user. At least 12 characters. Emails are compared lowercased.
+  user. At least 8 characters. Emails are compared lowercased.
+- **No password resets**, and no email verification. Fine for a personal app
+  with sign-ups closed.
 - **Sessions** are random 256-bit tokens. The browser keeps the token and sends
   it as `Authorization: Bearer <token>`; the database keeps only its SHA-256,
   so a leaked `sessions` table can't be used to sign in. They last 30 days,
@@ -59,37 +64,43 @@ file you read, then apply with `psql` as the `wishly_schema` role. It's
 idempotent (`if not exists`) and runs in a transaction. The API connects as
 `wishly_app`, which can read and write rows but can't create or drop tables.
 
-## The hourly run
+## The daily send
 
-EventBridge invokes a small Lambda at the top of every hour, which calls
-`POST /internal/run`, logs the result, and notifies by ntfy. A reminder is
-**due** when its send moment — `send_hour` local time, `days_before` days before
-the date — falls in this hour or the previous one. So a missed run sends up to
-one hour late; after that the reminder is dropped.
+A scheduler thread inside the API (`scheduler.py`) wakes at every quarter
+hour. A reminder is **due** from 9:00 Eastern on the day `days_before` days
+before its date, until midnight Eastern that day (`schedule.py`). So the 9:00
+tick sends it, and later ticks the same day retry a failure or catch up after
+a restart. After midnight Eastern a missed reminder is dropped.
+
+Users' `timezone` and `send_hour` columns are still stored and returned (the
+frontend sets them), but delivery ignores them: everyone gets 9am Eastern.
 
 For each due reminder:
 
 1. **Claim:** `insert into sends … on conflict do nothing`. The primary key lets
    exactly one insert win, so overlapping or retried runs can't double-send.
 2. **Send** via Resend, with `Idempotency-Key: <reminder>/<days>/<date>`.
-3. **On failure, release** the claim (delete the row), so the next run retries.
+3. **On failure, release** the claim (delete the row), so the next tick retries.
+
+`/internal/ping` reports the scheduler stalled if no tick has finished for 31
+minutes (two missed ticks plus slack), which the watchdog turns into a push
+notification.
 
 ## Decisions
 
 - Feb 29 dates fall on Feb 28 in non-leap years.
 - No v1 data migration; v1 tables are dropped before the first deploy.
-- Each hourly run also deletes expired sessions.
-- **Known gaps:** no login rate limiting, no password reset, no email
-  verification. Fine for a personal app with sign-ups closed.
+- Each scheduler tick also deletes expired sessions.
+- **Known gaps:** no login rate limiting.
 
 ## Running it
 
 See the README for the full bring-up. In short:
 
 - **Image:** `backend/Dockerfile`, published to GHCR by `.github/workflows/api.yml`.
-- **Infra:** `infra/terraform` creates PlanetScale (database + two roles), the
-  Cloudflare Tunnel and DNS, and the hourly trigger (EventBridge → Lambda). Its credentials
-  are copied into Infisical by hand.
-- **Host:** `infra/ansible` prepares the VM and registers a self-hosted GitHub
-  Actions runner. Merging to `main` deploys: the runner runs `deploy.sh`, i.e.
-  `infisical run -- docker compose up -d --wait` with `infra/compose.yaml`.
+- **Infra:** `infra/terraform` creates the Cloudflare Tunnel and DNS, and the
+  watchdog (EventBridge → Lambda, every minute). `deploy/create-secret.sh`
+  puts its outputs, with the database URL and Resend key, into the cluster.
+- **Cluster:** `deploy/k8s` (kustomize), applied by Argo CD from `main`.
+  Merging to `main` deploys: CI builds the image and commits its tag to
+  `deploy/k8s/kustomization.yaml`; Argo CD rolls it out.

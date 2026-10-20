@@ -90,12 +90,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
             <input
               type="password"
               autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-              minLength={mode === 'sign-up' ? 12 : undefined}
+              minLength={mode === 'sign-up' ? 8 : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            {mode === 'sign-up' && <span className="field-hint">At least 12 characters.</span>}
+            {mode === 'sign-up' && <span className="field-hint">At least 8 characters.</span>}
           </label>
 
           {error && <p className="form-error">{error}</p>}

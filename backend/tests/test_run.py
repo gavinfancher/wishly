@@ -1,20 +1,19 @@
 from datetime import UTC, datetime
 
 import psycopg
-from fastapi.testclient import TestClient
 
-from tests.conftest import RUN_TOKEN
 from wishly.run import send_due_reminders
 
-# 13:00 UTC on Oct 5 is 8am in Chicago: 7 days before Mom's birthday (Oct 12).
+# 13:00 UTC on Oct 5 is 9am Eastern: 7 days before Mom's birthday (Oct 12).
 SEND_TIME = datetime(2026, 10, 5, 13, 0, 3, tzinfo=UTC)
 
 
 def add_mom_reminder(db: psycopg.Connection, *, onboarded: bool = True) -> None:
+    # The user's own timezone and send hour no longer matter: everyone gets 9am Eastern.
     user_id = db.execute(
         """
         insert into users (email, password_hash, timezone, send_hour, onboarded_at)
-        values ('me@example.com', 'unused', 'America/Chicago', 8, %s)
+        values ('me@example.com', 'unused', 'America/Los_Angeles', 18, %s)
         returning id
         """,
         (datetime.now(UTC) if onboarded else None,),
@@ -46,7 +45,7 @@ def test_running_twice_sends_once(db: psycopg.Connection) -> None:
     send = lambda **e: emails.append(e)  # noqa: E731
 
     send_due_reminders(db, send, now=SEND_TIME)
-    send_due_reminders(db, send, now=SEND_TIME)  # e.g. EventBridge retried
+    send_due_reminders(db, send, now=SEND_TIME)  # e.g. two pods during a rollout
 
     assert len(emails) == 1
 
@@ -60,7 +59,7 @@ def test_failed_send_is_retried_next_run(db: psycopg.Connection) -> None:
     assert send_due_reminders(db, broken, now=SEND_TIME) == {"sent": 0, "failed": 1}
 
     emails = []
-    later = SEND_TIME.replace(hour=14)  # one hour late: still inside the window
+    later = SEND_TIME.replace(minute=15)  # the next scheduler tick
     assert send_due_reminders(db, lambda **e: emails.append(e), now=later)["sent"] == 1
 
 
@@ -68,12 +67,6 @@ def test_users_who_havent_onboarded_get_nothing(db: psycopg.Connection) -> None:
     add_mom_reminder(db, onboarded=False)
 
     assert send_due_reminders(db, lambda **e: None, now=SEND_TIME)["sent"] == 0
-
-
-def test_run_endpoint_requires_the_run_token(client: TestClient) -> None:
-    assert client.post("/internal/run").status_code == 401  # a user's token
-    ok = client.post("/internal/run", headers={"Authorization": f"Bearer {RUN_TOKEN}"})
-    assert ok.status_code == 200
 
 
 def test_run_deletes_expired_sessions(db: psycopg.Connection) -> None:

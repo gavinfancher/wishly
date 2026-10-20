@@ -11,8 +11,8 @@ def healthz(request: Request) -> dict[str, str]:
     """Liveness: the process is up and can answer HTTP.
 
     Deliberately checks nothing else. If this touched the database, a database
-    outage would make the watchdog think the VM is dead and fail over to ECS,
-    where the database is just as down.
+    outage would make the orchestrator think the process is dead and restart
+    it, which can't fix the database.
     """
     return {"status": "ok", "version": request.app.state.settings.version}
 

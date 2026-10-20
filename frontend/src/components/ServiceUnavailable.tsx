@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 /**
@@ -9,33 +9,23 @@ import { useQueryClient } from '@tanstack/react-query'
  * right now. Telling the user to "refresh" in that case is wrong — refreshing
  * changes nothing until a server is back.
  *
- * It is also not a dead end. When the primary host goes dark a watchdog scales
- * a standby up on AWS, so the right thing for this screen to do is wait and
- * retry on the user's behalf rather than make them keep clicking. It polls
- * every five seconds and disappears by itself the moment a request succeeds.
+ * It is also not a dead end. The server usually comes back on its own (a
+ * restart, a redeploy), so this screen waits and retries on the user's behalf
+ * rather than make them keep clicking. It polls every five seconds and
+ * disappears by itself the moment a request succeeds.
  */
 
 const RETRY_INTERVAL_MS = 5_000
 
-/** Roughly how long a failover takes end to end: detection, then the standby starting. */
-const EXPECTED_RECOVERY_SECONDS = 300
-
 export default function ServiceUnavailable() {
   const queryClient = useQueryClient()
-  const [waited, setWaited] = useState(0)
 
   useEffect(() => {
     // Retry in the background. react-query dedupes and the fetch itself has a
     // 5s timeout, so these cannot pile up.
-    const id = setInterval(() => {
-      setWaited((s) => s + RETRY_INTERVAL_MS / 1000)
-      void queryClient.refetchQueries()
-    }, RETRY_INTERVAL_MS)
+    const id = setInterval(() => void queryClient.refetchQueries(), RETRY_INTERVAL_MS)
     return () => clearInterval(id)
   }, [queryClient])
-
-  const remaining = Math.max(0, EXPECTED_RECOVERY_SECONDS - waited)
-  const minutes = Math.ceil(remaining / 60)
 
   return (
     <div className="service-down" role="status" aria-live="polite">
@@ -57,13 +47,8 @@ export default function ServiceUnavailable() {
           </svg>
         </span>
 
-        <h2>Our primary server is down</h2>
-        <p>
-          We&rsquo;re bringing the backup online now.{' '}
-          {remaining > 0
-            ? `Service should be restored in under ${minutes} minute${minutes === 1 ? '' : 's'}.`
-            : 'This is taking longer than usual — it should be back shortly.'}
-        </p>
+        <h2>Wishly is down right now</h2>
+        <p>We can&rsquo;t reach the server. It should be back shortly.</p>
         <p className="service-down-note">
           Your occasions and reminders are safe. Nothing has been lost, and scheduled emails resume
           automatically. This page will refresh itself.

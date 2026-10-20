@@ -1,5 +1,5 @@
-"""Who is calling? Email + password sessions for users, a shared token for the
-hourly run.
+"""Who is calling? Email + password sessions for users, a shared key for the
+watchdog's ping.
 
 How a session works:
   1. Sign up or log in → we create a random token, store its SHA-256 in
@@ -41,7 +41,7 @@ def hash_token(token: str) -> str:
 
 class Credentials(BaseModel):
     email: str = Field(max_length=254)
-    password: str = Field(min_length=12, max_length=200)
+    password: str = Field(min_length=8, max_length=200)
 
     @field_validator("email")
     @classmethod
@@ -126,12 +126,12 @@ def current_user(token: Token, conn: Conn) -> dict[str, Any]:
     return user
 
 
-def require_run_token(request: Request, token: Token) -> None:
-    expected = request.app.state.settings.run_token.get_secret_value()
+def require_ping_token(request: Request, token: Token) -> None:
+    expected = request.app.state.settings.ping_token.get_secret_value()
     # compare_digest takes the same time whether the first or last character
     # differs, so response timing can't be used to guess the token.
     if not hmac.compare_digest(token.credentials, expected):
-        raise HTTPException(status_code=401, detail="invalid run token")
+        raise HTTPException(status_code=401, detail="invalid ping key")
 
 
 CurrentUser = Annotated[dict[str, Any], Depends(current_user)]

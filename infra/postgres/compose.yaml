@@ -1,0 +1,36 @@
+# Production Postgres for Wishly, on postgres.ad.gavinf.com (any Docker host
+# the cluster can reach works). Lives at /opt/postgres/compose.yaml there.
+#
+# The superuser password is in /opt/postgres/.env (mode 0600), which only
+# exists on that host:  POSTGRES_PASSWORD=...
+# After the first start, create the app's database and roles with
+# infra/sql/roles.sql, then the tables with infra/sql/schema.sql (see README).
+#
+#   cd /opt/postgres && docker compose up -d --wait
+services:
+  postgres:
+    image: postgres:18.4
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?missing - put it in /opt/postgres/.env}
+      # Password logins over the network use scram-sha-256, never md5 or trust.
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/18/docker.
+      - pgdata:/var/lib/postgresql
+    # Enough for the API's pool of 5 plus psql sessions, with room to spare.
+    command: ["postgres", "-c", "max_connections=50"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Cap logs so they can't fill the disk.
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+    restart: unless-stopped
+
+volumes:
+  pgdata:

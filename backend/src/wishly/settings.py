@@ -1,7 +1,7 @@
 """Typed configuration, loaded from WISHLY_* environment variables.
 
 This file is the complete list of knobs an operator can turn. In production
-every value comes from Infisical (`infisical run -- docker compose up -d`).
+every value comes from the cluster's `wishly` Secret (deploy/create-secret.sh).
 """
 
 from typing import Literal
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # Required: no default, so the app refuses to start without it.
     # SecretStr prints as '**********', so it can't leak into logs by accident.
     database_url: SecretStr
-    # Max open connections. PlanetScale caps connections per plan.
+    # Max open connections. Keep it under the server's max_connections.
     db_pool_size: int = 5
 
     # Whether POST /v1/auth/signup accepts new accounts. Turn off once
@@ -35,8 +35,12 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the API (the frontend's URL).
     cors_origins: list[str] = ["http://localhost:5173"]
 
-    # EventBridge sends this as a Bearer token to POST /internal/run.
-    run_token: SecretStr
+    # The watchdog Lambda sends this as a Bearer token to GET /internal/ping.
+    ping_token: SecretStr
+
+    # The in-process scheduler that sends reminders at 9am Eastern. Off in
+    # tests, which drive send_due_reminders directly.
+    scheduler_enabled: bool = True
 
     # Unset locally: emails are printed instead of sent.
     resend_api_key: SecretStr | None = None

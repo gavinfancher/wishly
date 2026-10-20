@@ -4,8 +4,13 @@ Callers pass in `now`, so every rule here is testable at any instant we like.
 """
 
 import calendar
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
+
+# Everyone's reminders go out at 9am Eastern. Users' own timezone and send_hour
+# are still stored (the frontend sets them) but no longer change delivery.
+SEND_TZ = ZoneInfo("America/New_York")
+SEND_HOUR = 9
 
 
 def is_valid_month_day(month: int, day: int) -> bool:
@@ -23,36 +28,23 @@ def occurrence_in_year(month: int, day: int, year: int) -> date:
     return date(year, month, day)
 
 
-def due_occurrence(
-    *,
-    month: int,
-    day: int,
-    days_before: int,
-    send_hour: int,
-    tz: ZoneInfo,
-    now: datetime,
-) -> date | None:
-    """If this reminder should go out in the run happening at `now`, return
-    the occurrence date it's for. Otherwise None.
+def due_occurrence(*, month: int, day: int, days_before: int, now: datetime) -> date | None:
+    """If this reminder should go out at `now`, return the occurrence date it's
+    for. Otherwise None.
 
-    A reminder's send moment is `send_hour` local time, `days_before` days
-    before the event. It's due if that moment is in this hour or the previous
-    one: on time, or at most one missed run late.
+    A reminder is due from 9:00 Eastern, `days_before` days before the event,
+    until midnight Eastern that day. The scheduler's 9:00 run sends it; if that
+    run was missed (the app was restarting) or the send failed, any later run
+    the same day still does.
 
-    The returned date is part of notification_log's unique key, so it's what
-    stops the same reminder going out twice.
+    The returned date is part of the `sends` primary key, so it's what stops
+    the same reminder going out twice.
     """
-    this_hour = now.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    local = now.astimezone(SEND_TZ)
+    if local.hour < SEND_HOUR:
+        return None
 
-    # Step back through the window in UTC, then convert to local time. Doing the
-    # subtraction in UTC keeps it correct across daylight-saving changes.
-    for hour in (this_hour, this_hour - timedelta(hours=1)):
-        local = hour.astimezone(tz)
-        if local.hour != send_hour:
-            continue
-
-        occurrence = local.date() + timedelta(days=days_before)
-        if occurrence_in_year(month, day, occurrence.year) == occurrence:
-            return occurrence
-
+    occurrence = local.date() + timedelta(days=days_before)
+    if occurrence_in_year(month, day, occurrence.year) == occurrence:
+        return occurrence
     return None

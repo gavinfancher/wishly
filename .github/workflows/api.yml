@@ -1,17 +1,18 @@
-# Test the API, publish its image to GHCR, then deploy it to the VM.
+# Test the API, publish its image to GHCR, then hand it to Argo CD.
 #
-#   ghcr.io/<owner>/wishly:<short sha>   permanent, one per commit
-#   ghcr.io/<owner>/wishly:latest        moves to each new build on main
+#   ghcr.io/<owner>/wishly:<short sha>   one per commit; the only tag
 #
-# test runs everywhere (GitHub-hosted). image and deploy run only for main.
+# test runs everywhere. image and release run only for main. release commits
+# the new tag to deploy/k8s/kustomization.yaml; Argo CD, watching main, sees
+# that commit and rolls the cluster. Nothing here can reach the cluster.
 name: api
 
 on:
   push:
     branches: [main]
-    paths: ["backend/**", "infra/compose.yaml", "infra/ansible/files/deploy.sh", ".github/workflows/api.yml"]
+    paths: ["backend/**", "infra/sql/schema.sql", ".github/workflows/api.yml"]
   pull_request:
-    paths: ["backend/**", "infra/compose.yaml", "infra/ansible/files/deploy.sh", ".github/workflows/api.yml"]
+    paths: ["backend/**", "infra/sql/schema.sql", ".github/workflows/api.yml"]
   workflow_dispatch:
 
 permissions:
@@ -50,6 +51,8 @@ jobs:
     permissions:
       contents: read
       packages: write # push to ghcr.io/<owner>/*
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - id: tag
@@ -63,30 +66,39 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: backend
-          platforms: linux/amd64 # the VM and Fargate are x86_64
+          platforms: linux/amd64 # the cluster nodes are x86_64
           build-args: VERSION=${{ steps.tag.outputs.tag }}
           push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/wishly:${{ steps.tag.outputs.tag }}
-            ghcr.io/${{ github.repository_owner }}/wishly:latest
+          tags: ghcr.io/${{ github.repository_owner }}/wishly:${{ steps.tag.outputs.tag }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  release:
     needs: image
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    # The self-hosted runner Ansible installed on the VM.
-    runs-on: [self-hosted, wishly-vm]
-    # One deploy at a time; a newer one waits rather than cancelling a half-done one.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag bump to main
+    # One release at a time, so two quick merges can't race each other to main.
     concurrency:
-      group: deploy
+      group: release
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-      # Ship the compose file and deploy script from this commit, so changes to
-      # them deploy like everything else instead of waiting for an Ansible run.
-      - name: Update compose.yaml and deploy.sh on the VM
-        run: install -m 0755 infra/ansible/files/deploy.sh /opt/wishly/deploy.sh && install -m 0644 infra/compose.yaml /opt/wishly/compose.yaml
-      - name: Pull the new image and restart, with secrets from Infisical
-        run: /opt/wishly/deploy.sh
+        with:
+          ref: main
+      - name: Point deploy/k8s at the new image
+        env:
+          TAG: ${{ needs.image.outputs.tag }}
+        run: |
+          sed -i -E "s/^(    newTag: ).*/\1${TAG}/" deploy/k8s/kustomization.yaml
+          git diff --exit-code --quiet && { echo "already at ${TAG}"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy: wishly ${TAG}"
+          # main may have moved while we built; replay our one-line change on top.
+          # A push made with GITHUB_TOKEN doesn't start another workflow run, so
+          # this can't loop.
+          git pull --rebase origin main
+          git push origin HEAD:main

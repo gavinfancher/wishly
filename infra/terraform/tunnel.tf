@@ -1,17 +1,21 @@
-# Cloudflare Tunnel: the VM dials out to Cloudflare, so it needs no open ports
-# and no public IP. https://api.<domain> → tunnel → cloudflared → the API.
+# Cloudflare Tunnel: cloudflared in the cluster dials out to Cloudflare, so
+# nothing at home needs an open port or a public IP.
+# https://api.<domain> → tunnel → cloudflared pods → the wishly-api Service.
 
 locals {
   api_host = "${var.api_subdomain}.${var.domain}"
+  # The Service in deploy/k8s/api.yaml, by its cluster DNS name.
+  api_service = "http://wishly-api.wishly.svc.cluster.local:8000"
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "api" {
   account_id = var.cloudflare_account_id
   name       = "wishly-api"
-  config_src = "cloudflare" # routes live here, not in a file on the VM
+  config_src = "cloudflare" # routes live here, not in a file in the cluster
 }
 
-# The token cloudflared runs with. Output below, for you to put in Infisical.
+# The token cloudflared runs with. Output below; deploy/create-secret.sh puts it
+# in the cluster's `wishly` Secret.
 data "cloudflare_zero_trust_tunnel_cloudflared_token" "api" {
   account_id = var.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.api.id
@@ -22,8 +26,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "api" {
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.api.id
   config = {
     ingress = [
-      # cloudflared shares the API container's network, so the API is localhost.
-      { hostname = local.api_host, service = "http://localhost:8000" },
+      { hostname = local.api_host, service = local.api_service },
       { service = "http_status:404" }, # anything else
     ]
   }

@@ -5,30 +5,6 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-# --- PlanetScale -------------------------------------------------------------
-
-variable "planetscale_org" {
-  type        = string
-  description = "Your PlanetScale organization name."
-}
-
-variable "database_name" {
-  type    = string
-  default = "wishly"
-}
-
-variable "planetscale_region" {
-  type        = string
-  description = "PlanetScale region slug. null = your organization's default."
-  default     = null
-}
-
-variable "planetscale_cluster_size" {
-  type        = string
-  description = "PlanetScale cluster size, e.g. PS_10_AWS_ARM. null = PlanetScale's default."
-  default     = null
-}
-
 # --- Cloudflare --------------------------------------------------------------
 
 variable "cloudflare_account_id" {
@@ -54,9 +30,15 @@ variable "api_subdomain" {
 
 variable "ntfy_topic" {
   type        = string
-  description = "ntfy.sh topic for hourly-run alerts on your phone. Empty = no alerts. Anyone who knows the name can read it, so use a long random one."
+  description = "ntfy.sh topic for watchdog alerts on your phone. Empty = no alerts. Anyone who knows the name can read it, so use a long random one."
   default     = ""
   sensitive   = true
+}
+
+variable "alert_after_minutes" {
+  type        = number
+  description = "How long Wishly must be down before the watchdog notifies you."
+  default     = 5
 }
 
 # --- The app -----------------------------------------------------------------
@@ -64,10 +46,4 @@ variable "ntfy_topic" {
 variable "frontend_origin" {
   type        = string
   description = "Where the frontend is served, e.g. https://wishly.dev. Allowed by CORS."
-}
-
-variable "image" {
-  type        = string
-  description = "The API image the VM runs."
-  default     = "ghcr.io/gavinfancher/wishly:latest"
 }

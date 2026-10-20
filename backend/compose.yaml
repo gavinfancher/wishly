@@ -1,4 +1,5 @@
-# Local development and tests ONLY. Production uses PlanetScale.
+# Local development and tests ONLY. Production uses the self-hosted
+# Postgres set up by infra/sql/roles.sql.
 #
 #   docker compose up -d
 services:

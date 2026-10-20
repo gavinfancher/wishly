@@ -1,4 +1,4 @@
-"""POST /internal/run — EventBridge calls this at the top of every hour.
+"""Sending what's due. The in-process scheduler (scheduler.py) calls this.
 
 For each reminder that's due (see schedule.py):
   1. claim it by inserting its row into `sends`. If the row already exists,
@@ -9,24 +9,13 @@ For each reminder that's due (see schedule.py):
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime
-from typing import Annotated
-from zoneinfo import ZoneInfo
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
 from psycopg import Connection
 
-from wishly.auth import require_run_token
-from wishly.db import get_conn
 from wishly.schedule import due_occurrence
 
 log = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(require_run_token)])
-
-
-@router.post("/internal/run")
-def run(request: Request, conn: Annotated[Connection, Depends(get_conn)]) -> dict[str, int]:
-    return send_due_reminders(conn, request.app.state.send_email, now=datetime.now(UTC))
 
 
 def send_due_reminders(conn: Connection, send_email: Callable, now: datetime) -> dict[str, int]:
@@ -35,8 +24,7 @@ def send_due_reminders(conn: Connection, send_email: Callable, now: datetime) ->
 
     rows = conn.execute(
         """
-        select r.id, r.title, r.month, r.day, r.days_before,
-               u.email, u.timezone, u.send_hour
+        select r.id, r.title, r.month, r.day, r.days_before, u.email
         from reminders r join users u on u.id = r.user_id
         where u.onboarded_at is not null
         """
@@ -46,12 +34,7 @@ def send_due_reminders(conn: Connection, send_email: Callable, now: datetime) ->
     for row in rows:
         for days_before in row["days_before"]:
             occurrence = due_occurrence(
-                month=row["month"],
-                day=row["day"],
-                days_before=days_before,
-                send_hour=row["send_hour"],
-                tz=ZoneInfo(row["timezone"]),
-                now=now,
+                month=row["month"], day=row["day"], days_before=days_before, now=now
             )
             if occurrence is None:
                 continue

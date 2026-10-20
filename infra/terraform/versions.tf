@@ -6,11 +6,10 @@ terraform {
   backend "s3" {}
 
   required_providers {
-    aws         = { source = "hashicorp/aws", version = "~> 6.0" }
-    cloudflare  = { source = "cloudflare/cloudflare", version = "~> 5.8" }
-    planetscale = { source = "planetscale/planetscale", version = "~> 1.3" }
-    random      = { source = "hashicorp/random", version = "~> 3.6" }
-    archive     = { source = "hashicorp/archive", version = "~> 2.7" }
+    aws        = { source = "hashicorp/aws", version = "~> 6.0" }
+    cloudflare = { source = "cloudflare/cloudflare", version = "~> 5.8" }
+    random     = { source = "hashicorp/random", version = "~> 3.6" }
+    archive    = { source = "hashicorp/archive", version = "~> 2.7" }
   }
 }
 
@@ -24,5 +23,4 @@ provider "aws" {
   }
 }
 
-provider "cloudflare" {}  # CLOUDFLARE_API_TOKEN
-provider "planetscale" {} # PLANETSCALE_SERVICE_TOKEN_ID, PLANETSCALE_SERVICE_TOKEN
+provider "cloudflare" {} # CLOUDFLARE_API_TOKEN

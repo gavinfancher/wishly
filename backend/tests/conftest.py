@@ -20,7 +20,7 @@ from wishly.settings import Settings
 TEST_DATABASE_URL = os.environ.get(
     "WISHLY_TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/wishly_test"
 )
-RUN_TOKEN = "test-run-token"
+PING_TOKEN = "test-ping-token"
 SCHEMA_SQL = Path(__file__).parents[2] / "infra" / "sql" / "schema.sql"
 
 # The fixtures below drop and empty every table. Refuse to point them at
@@ -33,7 +33,8 @@ def make_settings(**overrides: Any) -> Settings:
     values = {
         "env": "test",
         "database_url": TEST_DATABASE_URL,
-        "run_token": RUN_TOKEN,
+        "ping_token": PING_TOKEN,
+        "scheduler_enabled": False,
     }
     return Settings(**(values | overrides))
 

@@ -29,9 +29,12 @@ def test_email_is_case_insensitive(anonymous: TestClient) -> None:
     assert duplicate.status_code == 409
 
 
-def test_short_password_is_rejected(anonymous: TestClient) -> None:
-    response = anonymous.post("/v1/auth/signup", json={"email": "a@b.co", "password": "short"})
-    assert response.status_code == 422
+def test_password_must_be_at_least_8_characters(anonymous: TestClient) -> None:
+    seven = anonymous.post("/v1/auth/signup", json={"email": "a@b.co", "password": "x" * 7})
+    eight = anonymous.post("/v1/auth/signup", json={"email": "a@b.co", "password": "x" * 8})
+
+    assert seven.status_code == 422
+    assert eight.status_code == 201
 
 
 def test_wrong_password_and_unknown_email_look_the_same(anonymous: TestClient) -> None:

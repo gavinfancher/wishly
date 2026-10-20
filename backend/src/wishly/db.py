@@ -1,7 +1,7 @@
 """Database connections.
 
 Opening a Postgres connection costs a TCP + TLS handshake and authentication —
-tens of milliseconds to PlanetScale. A pool opens a few once and lends them out.
+a few milliseconds even on the LAN. A pool opens a few once and lends them out.
 """
 
 from collections.abc import Iterator
@@ -23,6 +23,12 @@ def create_pool(settings: Settings) -> ConnectionPool:
         # single statements, so there's no transaction state to reason about.
         # dict_row: rows come back as {"column": value} dicts.
         kwargs={"autocommit": True, "row_factory": dict_row},
+        # The 9am send is often the first query after a quiet night, by which
+        # time Postgres, or a NAT or firewall in between, may have dropped the
+        # idle connection. Test each one before lending it out, and retire
+        # connections idle for 5 minutes.
+        check=ConnectionPool.check_connection,
+        max_idle=300,
         # Building the pool doesn't connect; the app's startup opens it.
         open=False,
     )
