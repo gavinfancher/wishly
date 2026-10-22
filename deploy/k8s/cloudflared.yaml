@@ -6,6 +6,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared
+  annotations:
+    secrets.infisical.com/auto-reload: "true" # restart when the `wishly` Secret changes
 spec:
   # Two connectors: one can restart or move nodes while the other carries traffic.
   replicas: 2

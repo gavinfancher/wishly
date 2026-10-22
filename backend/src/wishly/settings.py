@@ -1,7 +1,7 @@
 """Typed configuration, loaded from WISHLY_* environment variables.
 
 This file is the complete list of knobs an operator can turn. In production
-every value comes from the cluster's `wishly` Secret (deploy/create-secret.sh).
+every value comes from the cluster's `wishly` Secret (synced from Infisical).
 """
 
 from typing import Literal

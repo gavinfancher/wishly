@@ -11,7 +11,6 @@ backend/          FastAPI app → one self-contained Docker image on GHCR
 frontend/         React app → Cloudflare Pages
 deploy/k8s/       what runs in the cluster: the API and cloudflared
 deploy/argocd/    the Argo CD Application that keeps the cluster matching deploy/k8s
-deploy/create-secret.sh  puts the credentials into the cluster (the one thing not in git)
 infra/postgres/   the production Postgres: one Compose file for its Docker host
 infra/sql/        roles.sql (one-time database + roles), schema.sql (the tables)
 infra/terraform/  Cloudflare Tunnel + DNS, and the watchdog (EventBridge → Lambda,
@@ -30,9 +29,10 @@ docs/infrastructure.md  how it runs: every piece, secret, and failure mode
   `infra/sql/roles.sql` creates the database and its two roles.
 - **Kubernetes** (k3s at home) runs the API and two cloudflared connectors.
   Cloudflare Tunnel carries `api.<domain>` in; nothing at home is exposed.
-- **Secrets** live in one Kubernetes Secret, `wishly`, that
-  `deploy/create-secret.sh` builds from Terraform's output plus the database
-  URL and Resend key. Nothing secret is committed or baked into the image.
+- **Secrets** live in Infisical (env `prod`, folder `/wishly`). The cluster's
+  Infisical operator copies them into one Kubernetes Secret, `wishly`
+  (`deploy/k8s/infisical-secret.yaml`). Nothing secret is committed or baked
+  into the image.
 - **On every merge to `main`**, CI tests and builds `ghcr.io/<you>/wishly:<sha>`,
   then commits that tag to `deploy/k8s/kustomization.yaml`. **Argo CD** sees the
   commit and rolls the cluster.
@@ -129,15 +129,18 @@ Both SQL files are safe to re-run. They only create what's missing.
 
 ### 5. The cluster
 
-Create the `wishly` Secret, the one piece of the cluster that isn't in git.
-It takes the database URL and your Resend key; the rest it reads from
-`terraform output`:
+The cluster needs the Infisical operator and its machine identity (set up in
+the homek8s repo). In Infisical, env **Production**, make a folder `/wishly`
+with these keys:
 
-```bash
-WISHLY_DATABASE_URL="postgresql://wishly_app:$APP_PW@$DB:5432/wishly" \
-WISHLY_RESEND_API_KEY=re_... \
-deploy/create-secret.sh
-```
+| Key | Value |
+|---|---|
+| `WISHLY_DATABASE_URL` | `postgresql://wishly_app:<APP_PW>@<DB>:5432/wishly` |
+| `WISHLY_RESEND_API_KEY` | from Resend |
+| `WISHLY_PING_TOKEN`, `TUNNEL_TOKEN`, `WISHLY_CORS_ORIGINS` | `terraform -chdir=infra/terraform output -json cluster_secret_values` |
+| `WISHLY_SIGNUP_ENABLED` | optional; `false` once your account exists |
+
+`deploy/k8s/infisical-secret.yaml` turns that folder into the `wishly` Secret.
 
 Then hand `deploy/k8s` to Argo CD. From here on, git is the deploy tool:
 
@@ -159,8 +162,8 @@ curl -H "Authorization: Bearer $(terraform -chdir=infra/terraform output -json c
 
 Create a Cloudflare Pages project from `frontend/` with these build variables:
 `VITE_API_BASE_URL=https://api.<your-domain>/v1`. Then sign up at
-`https://<your-domain>/sign-up`, then re-run `deploy/create-secret.sh` with
-`WISHLY_SIGNUP_ENABLED=false` so nobody else can. The script restarts the API.
+`https://<your-domain>/sign-up`, then set `WISHLY_SIGNUP_ENABLED=false` in
+Infisical so nobody else can. The operator restarts the API within a minute.
 
 ## Day to day
 
@@ -169,8 +172,8 @@ Create a Cloudflare Pages project from `frontend/` with these build variables:
   `kubectl -n wishly rollout status deploy/wishly-api`.
 - **Roll back:** revert the `deploy: wishly <sha>` commit (or set `newTag` to an
   older SHA) and push. Argo applies it like any other change.
-- **Change a secret:** re-run `deploy/create-secret.sh` with the new value. It
-  replaces the Secret and restarts the pods that read it.
+- **Change a secret:** edit it in Infisical. Within a minute the operator
+  updates the `wishly` Secret and restarts the pods that read it.
 - **Change the schema:** edit `infra/sql/schema.sql`, review it, re-run it as in
   step 4.
 - **Change infrastructure:** `deploy/k8s` via git (Argo applies it);

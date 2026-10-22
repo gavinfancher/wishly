@@ -1,9 +1,8 @@
 # Everything Wishly runs in the cluster. Argo CD (deploy/argocd/wishly.yaml)
 # watches this directory on main and applies it.
 #
-# Except the secrets: the `wishly` Secret every pod reads is created by hand
-# with deploy/create-secret.sh and never committed. Argo leaves it alone, since
-# it only prunes what it created.
+# Except secret values: infisical-secret.yaml tells the Infisical operator to
+# build the `wishly` Secret from Infisical, so no credential is ever in git.
 #
 #   kubectl kustomize deploy/k8s     # see exactly what Argo will apply
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -16,6 +15,7 @@ resources:
   - api.yaml
   - cloudflared.yaml
   - networkpolicy.yaml
+  - infisical-secret.yaml
 
 # The one line CI changes. After every image build on main, the `release` job
 # in .github/workflows/api.yml rewrites newTag to the new commit's short SHA

@@ -99,8 +99,8 @@ See the README for the full bring-up. In short:
 
 - **Image:** `backend/Dockerfile`, published to GHCR by `.github/workflows/api.yml`.
 - **Infra:** `infra/terraform` creates the Cloudflare Tunnel and DNS, and the
-  watchdog (EventBridge → Lambda, every minute). `deploy/create-secret.sh`
-  puts its outputs, with the database URL and Resend key, into the cluster.
+  watchdog (EventBridge → Lambda, every minute). Its outputs, the
+  database URL and the Resend key go into Infisical, which feeds the cluster.
 - **Cluster:** `deploy/k8s` (kustomize), applied by Argo CD from `main`.
   Merging to `main` deploys: CI builds the image and commits its tag to
   `deploy/k8s/kustomization.yaml`; Argo CD rolls it out.

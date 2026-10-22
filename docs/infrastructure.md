@@ -30,7 +30,7 @@ flowchart LR
   ntfy([ntfy: your phone])
   resend[Resend]
   gh[GitHub Actions] --> ghcr[(GHCR image)]
-  you([You: deploy/create-secret.sh])
+  inf[(Infisical: prod /wishly)]
 
   user --> pages
   user -- "session token" --> edge
@@ -45,7 +45,7 @@ flowchart LR
   argo -- "polls main" --> repo
   argo -- "applies" --> api
   ghcr -. pulled by .-> api
-  you -. "kubectl apply" .-> sec -. "env vars" .-> api
+  inf -. "operator sync" .-> sec -. "env vars" .-> api
 ```
 
 | Piece | What it does | Where it's defined |
@@ -57,7 +57,7 @@ flowchart LR
 | **Cloudflare Tunnel + DNS** | Public HTTPS for `api.<domain>` with no open ports or public IP at home. Routes to the `wishly-api` Service. | `infra/terraform/tunnel.tf` |
 | **Watchdog** | EventBridge invokes a Lambda every minute; it calls `GET /internal/ping`, remembers outages in one DynamoDB item, and notifies you once Wishly has been down 5 minutes, and again on recovery. The only thing on AWS. | `infra/terraform/watchdog.tf`, `infra/terraform/lambda/watchdog.py` |
 | **ntfy.sh** | Push notifications to your phone from the watchdog. | `ntfy_topic` Terraform variable |
-| **The `wishly` Secret** | Every credential the pods use, in one Kubernetes Secret. The only part of the cluster not in git. | `deploy/create-secret.sh` |
+| **The `wishly` Secret** | Every credential the pods use, in one Kubernetes Secret, built by the Infisical operator from Infisical's `prod:/wishly` folder. | `deploy/k8s/infisical-secret.yaml` |
 | **Terraform state** | S3 bucket, versioned, S3-native locking. | Created by hand (see README step 2) |
 | **Resend** | Sends the emails, plain text. SaaS, configured in its dashboard. | — |
 
@@ -100,9 +100,9 @@ cluster credentials; the cluster pulls.
 ## Secrets: where each one comes from and goes
 
 Nothing secret is committed or baked into the image. The cluster's credentials
-live in one Kubernetes Secret, `wishly`, built by `deploy/create-secret.sh`
-from Terraform's output plus two values you pass it. Each pod reads only its
-own keys from it. Your password manager is the record of everything you made
+live in Infisical (env `prod`, folder `/wishly`); the Infisical operator copies
+them into one Kubernetes Secret, `wishly`, and keeps it in sync. Each pod reads
+only its own keys from it. Your password manager is the record of everything you made
 by hand.
 
 | Secret | Created by | Lives in | Read by |
@@ -118,16 +118,17 @@ by hand.
 | `WISHLY_SIGNUP_ENABLED` | You (optional; `false` once your account exists) | `wishly` Secret | The API |
 | Provider tokens (AWS, Cloudflare) | Each dashboard | `infra/terraform/.env` (gitignored) | Terraform, from your shell's environment |
 
-**Changing a secret** means re-running `deploy/create-secret.sh` with the new
-value. It replaces the Secret and restarts the Deployments, since pods read
-environment variables only at start.
+**Changing a secret** means editing it in Infisical. Within a minute the
+operator updates the Secret and restarts both Deployments (they carry
+`secrets.infisical.com/auto-reload`), since pods read environment variables
+only at start.
 
-**Argo CD leaves the Secret alone.** It prunes only what it created from git,
-and this Secret was never in git. Deleting the namespace would delete it,
-though, so re-run the script after rebuilding the cluster.
+**Argo CD leaves the Secret alone.** Argo creates the `InfisicalSecret`; the
+operator creates and owns the Secret. After a cluster rebuild, the operator's
+machine identity (homek8s) is the only thing to recreate by hand.
 
 **Terraform state holds secrets.** The ping key and tunnel token sit in state,
-because Terraform generated them and the script reads them from its output. That's why the state
+because Terraform generated them; you copy them from its output into Infisical. That's why the state
 bucket is private, versioned, and blocks all public access.
 
 ## Least privilege
@@ -160,7 +161,7 @@ Each step needs something the one before it made:
 4. **Database** (Compose on the DB host, then `roles.sql`, then `schema.sql`):
    tables must exist before the API serves traffic, and the Secret needs the
    `wishly_app` password.
-5. **Cluster**: `deploy/create-secret.sh`, then the Argo CD Application.
+5. **Cluster**: the `/wishly` folder in Infisical, then the Argo CD Application.
    From then on, merges deploy.
 6. **Frontend** on Cloudflare Pages, pointed at `https://api.<domain>/v1`.
 
@@ -179,7 +180,7 @@ reach your phone.
 | One cloudflared pod down | The other carries traffic; the PodDisruptionBudget keeps one up through drains | Nothing. |
 | Resend down | The send fails, its `sends` row is deleted | Retried every 15 min until midnight Eastern. |
 | A deploy ships a broken image | The new pod never passes `/readyz`; the old one keeps serving (`maxUnavailable: 0`) | Argo CD shows the app Degraded. Revert the `deploy:` commit. |
-| You change a secret | `create-secret.sh` replaces it and restarts the pods one at a time | Nothing. |
+| You change a secret | The Infisical operator updates it within a minute and restarts the pods one at a time | Nothing. |
 | The DB host reboots | Docker restarts Postgres (`restart: unless-stopped`); the API's pool reconnects | A few seconds of errors, if anyone is using it. |
 | The DB host's disk dies | Everything since the last backup is gone | There are no backups yet; see Known gaps. |
 | The watchdog itself breaks | No pings, no pushes | Silence. Check its log group now and then. |

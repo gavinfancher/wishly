@@ -14,7 +14,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "api" {
   config_src = "cloudflare" # routes live here, not in a file in the cluster
 }
 
-# The token cloudflared runs with. Output below; deploy/create-secret.sh puts it
+# The token cloudflared runs with. Output below; it goes into Infisical, which puts it
 # in the cluster's `wishly` Secret.
 data "cloudflare_zero_trust_tunnel_cloudflared_token" "api" {
   account_id = var.cloudflare_account_id

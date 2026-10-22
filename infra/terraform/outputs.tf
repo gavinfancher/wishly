@@ -3,11 +3,11 @@ output "api_url" {
 }
 
 # The Terraform-made half of the cluster's `wishly` Secret. Hidden in
-# plan/apply output; deploy/create-secret.sh reads it with:
+# plan/apply output; copy it into Infisical (prod, /wishly) from:
 #
 #   terraform output -json cluster_secret_values
 #
-# The other half you supply to that script: WISHLY_RESEND_API_KEY (Resend's
+# The other half you add there yourself: WISHLY_RESEND_API_KEY (Resend's
 # dashboard) and WISHLY_DATABASE_URL (the wishly_app role; see infra/sql/roles.sql).
 output "cluster_secret_values" {
   sensitive = true

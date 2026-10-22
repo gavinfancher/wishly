@@ -5,6 +5,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: wishly-api
+  annotations:
+    secrets.infisical.com/auto-reload: "true" # restart when the `wishly` Secret changes
 spec:
   # One replica: it's the scheduler too. During a rollout the old and new pods
   # overlap for a moment, which is safe — the `sends` table stops a reminder
@@ -36,9 +38,9 @@ spec:
           ports:
             - name: http
               containerPort: 8000
-          # Names only; each value comes from the hand-made `wishly` Secret
-          # (deploy/create-secret.sh). Listed one by one, so the API never
-          # sees TUNNEL_TOKEN.
+          # Names only; each value comes from the `wishly` Secret, which the
+          # Infisical operator builds (infisical-secret.yaml). Listed one by
+          # one, so the API never sees TUNNEL_TOKEN.
           env:
             - name: WISHLY_DATABASE_URL
               valueFrom: { secretKeyRef: { name: wishly, key: WISHLY_DATABASE_URL } }
