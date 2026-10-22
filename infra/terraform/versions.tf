@@ -6,10 +6,15 @@ terraform {
   backend "s3" {}
 
   required_providers {
-    aws        = { source = "hashicorp/aws", version = "~> 6.0" }
     cloudflare = { source = "cloudflare/cloudflare", version = "~> 5.8" }
-    random     = { source = "hashicorp/random", version = "~> 3.6" }
-    archive    = { source = "hashicorp/archive", version = "~> 2.7" }
+    # TEMPORARY. Terraform manages only Cloudflare now, but state still holds
+    # old AWS resources (the v2 Lambda and friends) and random passwords.
+    # Destroying them needs these providers. After one `terraform apply` has
+    # deleted them, remove these three, the aws provider block and aws_region,
+    # then run `terraform init -upgrade`.
+    aws     = { source = "hashicorp/aws", version = "~> 6.0" }
+    random  = { source = "hashicorp/random", version = "~> 3.6" }
+    archive = { source = "hashicorp/archive", version = "~> 2.7" }
   }
 }
 

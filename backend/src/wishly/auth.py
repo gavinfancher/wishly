@@ -1,5 +1,4 @@
-"""Who is calling? Email + password sessions for users, a shared key for the
-watchdog's ping.
+"""Who is calling? Email + password sessions for users.
 
 How a session works:
   1. Sign up or log in → we create a random token, store its SHA-256 in
@@ -10,7 +9,6 @@ How a session works:
 """
 
 import hashlib
-import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -124,14 +122,6 @@ def current_user(token: Token, conn: Conn) -> dict[str, Any]:
     if user is None:
         raise HTTPException(status_code=401, detail="not signed in")
     return user
-
-
-def require_ping_token(request: Request, token: Token) -> None:
-    expected = request.app.state.settings.ping_token.get_secret_value()
-    # compare_digest takes the same time whether the first or last character
-    # differs, so response timing can't be used to guess the token.
-    if not hmac.compare_digest(token.credentials, expected):
-        raise HTTPException(status_code=401, detail="invalid ping key")
 
 
 CurrentUser = Annotated[dict[str, Any], Depends(current_user)]

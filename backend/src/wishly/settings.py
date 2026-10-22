@@ -35,9 +35,6 @@ class Settings(BaseSettings):
     # Browser origins allowed to call the API (the frontend's URL).
     cors_origins: list[str] = ["http://localhost:5173"]
 
-    # The watchdog Lambda sends this as a Bearer token to GET /internal/ping.
-    ping_token: SecretStr
-
     # The in-process scheduler that sends reminders at 9am Eastern. Off in
     # tests, which drive send_due_reminders directly.
     scheduler_enabled: bool = True

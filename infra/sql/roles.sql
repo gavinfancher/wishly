@@ -15,7 +15,7 @@
 --     < infra/sql/roles.sql
 --
 -- Keep both passwords in your password manager. The wishly_app one also goes
--- into Infisical (prod, /wishly) as WISHLY_DATABASE_URL.
+-- into Infisical (wishly project, prod) as WISHLY_DATABASE_URL.
 --
 -- Safe to re-run: roles and the database are only created if missing. It does
 -- not change an existing role's password; use `alter role ... password` for that.

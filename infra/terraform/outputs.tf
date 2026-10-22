@@ -3,7 +3,7 @@ output "api_url" {
 }
 
 # The Terraform-made half of the cluster's `wishly` Secret. Hidden in
-# plan/apply output; copy it into Infisical (prod, /wishly) from:
+# plan/apply output; copy it into Infisical (wishly project, prod) from:
 #
 #   terraform output -json cluster_secret_values
 #
@@ -12,7 +12,6 @@ output "api_url" {
 output "cluster_secret_values" {
   sensitive = true
   value = {
-    WISHLY_PING_TOKEN   = random_password.ping_token.result
     TUNNEL_TOKEN        = data.cloudflare_zero_trust_tunnel_cloudflared_token.api.token
     WISHLY_CORS_ORIGINS = jsonencode([var.frontend_origin])
   }

@@ -1,4 +1,4 @@
-# --- AWS ---------------------------------------------------------------------
+# --- AWS (cleanup only; remove with the providers in versions.tf) -------------
 
 variable "aws_region" {
   type    = string
@@ -24,21 +24,6 @@ variable "domain" {
 variable "api_subdomain" {
   type    = string
   default = "api"
-}
-
-# --- Notifications ------------------------------------------------------------
-
-variable "ntfy_topic" {
-  type        = string
-  description = "ntfy.sh topic for watchdog alerts on your phone. Empty = no alerts. Anyone who knows the name can read it, so use a long random one."
-  default     = ""
-  sensitive   = true
-}
-
-variable "alert_after_minutes" {
-  type        = number
-  description = "How long Wishly must be down before the watchdog notifies you."
-  default     = 5
 }
 
 # --- The app -----------------------------------------------------------------

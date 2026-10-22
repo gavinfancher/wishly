@@ -19,9 +19,6 @@ from wishly.run import send_due_reminders
 log = logging.getLogger(__name__)
 
 TICK = timedelta(minutes=15)
-# /internal/ping reports the scheduler stalled once no tick has finished for
-# this long: two missed ticks plus a minute of slack for a slow one.
-STALL_AFTER = 2 * TICK + timedelta(minutes=1)
 
 
 def next_tick(now: datetime) -> datetime:
@@ -44,7 +41,6 @@ class Scheduler:
         self.pool = pool
         self.send_email = send_email
         self.clock = clock
-        self.started_at = clock()
         # The last tick that finished without an error. None until the first.
         self.last_tick_at: datetime | None = None
         self._stop = threading.Event()
@@ -78,9 +74,3 @@ class Scheduler:
             return
         self.last_tick_at = now
         log.info("scheduled send: %s", result)
-
-    def stalled(self, now: datetime) -> bool:
-        """True if the thread died or ticks have stopped succeeding."""
-        if not self._thread.is_alive():
-            return True
-        return now - (self.last_tick_at or self.started_at) > STALL_AFTER

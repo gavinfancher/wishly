@@ -13,8 +13,7 @@ deploy/k8s/       what runs in the cluster: the API and cloudflared
 deploy/argocd/    the Argo CD Application that keeps the cluster matching deploy/k8s
 infra/postgres/   the production Postgres: one Compose file for its Docker host
 infra/sql/        roles.sql (one-time database + roles), schema.sql (the tables)
-infra/terraform/  Cloudflare Tunnel + DNS, and the watchdog (EventBridge → Lambda,
-                  every minute, alerts by ntfy)
+infra/terraform/  Cloudflare Tunnel + DNS
 docs/design.md    how the app works
 docs/infrastructure.md  how it runs: every piece, secret, and failure mode
 ```
@@ -29,16 +28,15 @@ docs/infrastructure.md  how it runs: every piece, secret, and failure mode
   `infra/sql/roles.sql` creates the database and its two roles.
 - **Kubernetes** (k3s at home) runs the API and two cloudflared connectors.
   Cloudflare Tunnel carries `api.<domain>` in; nothing at home is exposed.
-- **Secrets** live in Infisical (env `prod`, folder `/wishly`). The cluster's
+- **Secrets** live in Infisical (project `wishly-tg-hh`, env `prod`). The cluster's
   Infisical operator copies them into one Kubernetes Secret, `wishly`
   (`deploy/k8s/infisical-secret.yaml`). Nothing secret is committed or baked
   into the image.
 - **On every merge to `main`**, CI tests and builds `ghcr.io/<you>/wishly:<sha>`,
   then commits that tag to `deploy/k8s/kustomization.yaml`. **Argo CD** sees the
   commit and rolls the cluster.
-- **Terraform** creates the tunnel, DNS and the watchdog: a Lambda that pings
-  `/internal/ping` every minute and pushes to your phone through ntfy when
-  Wishly has been down for 5 minutes, then again when it's back.
+- **Terraform** creates the Cloudflare Tunnel and its DNS record, nothing else.
+  Its state lives in an S3 bucket.
 
 ## Bring up your own
 
@@ -79,20 +77,16 @@ aws s3api put-public-access-block --bucket "$bucket" \
 ```bash
 cd infra/terraform
 cp backend.hcl.example backend.hcl            # your bucket name
-cp terraform.tfvars.example terraform.tfvars  # your domain, IDs, ntfy topic
+cp terraform.tfvars.example terraform.tfvars  # your domain and Cloudflare IDs
 
 # Provider credentials, from each service's dashboard:
-export AWS_PROFILE=...                         # or AWS_ACCESS_KEY_ID / _SECRET
+export AWS_PROFILE=...                         # for the state bucket only
 export CLOUDFLARE_API_TOKEN=...                # Tunnel: Edit, DNS: Edit
 
 terraform init -backend-config=backend.hcl
 terraform plan
 terraform apply
 ```
-
-The watchdog starts pinging as soon as this finishes. Until the cluster is up
-(step 5) it'll see Wishly as down and, after 5 minutes, tell you so. Subscribe
-to your ntfy topic in the ntfy app to get it.
 
 ### 4. Database
 
@@ -130,17 +124,17 @@ Both SQL files are safe to re-run. They only create what's missing.
 ### 5. The cluster
 
 The cluster needs the Infisical operator and its machine identity (set up in
-the homek8s repo). In Infisical, env **Production**, make a folder `/wishly`
-with these keys:
+the homek8s repo), with that identity a viewer on the Wishly Infisical project.
+In its **Production** env, at the root, add these keys:
 
 | Key | Value |
 |---|---|
 | `WISHLY_DATABASE_URL` | `postgresql://wishly_app:<APP_PW>@<DB>:5432/wishly` |
 | `WISHLY_RESEND_API_KEY` | from Resend |
-| `WISHLY_PING_TOKEN`, `TUNNEL_TOKEN`, `WISHLY_CORS_ORIGINS` | `terraform -chdir=infra/terraform output -json cluster_secret_values` |
+| `TUNNEL_TOKEN`, `WISHLY_CORS_ORIGINS` | `terraform -chdir=infra/terraform output -json cluster_secret_values` |
 | `WISHLY_SIGNUP_ENABLED` | optional; `false` once your account exists |
 
-`deploy/k8s/infisical-secret.yaml` turns that folder into the `wishly` Secret.
+`deploy/k8s/infisical-secret.yaml` turns them into the `wishly` Secret.
 
 Then hand `deploy/k8s` to Argo CD. From here on, git is the deploy tool:
 
@@ -154,8 +148,6 @@ kubectl -n wishly get pods -w     # wishly-api 1/1, cloudflared 2/2
 ```bash
 curl https://api.<your-domain>/healthz   # {"status":"ok","version":"<sha>"}
 curl https://api.<your-domain>/readyz    # {"status":"ready"}
-curl -H "Authorization: Bearer $(terraform -chdir=infra/terraform output -json cluster_secret_values | jq -r .WISHLY_PING_TOKEN)" \
-  https://api.<your-domain>/internal/ping  # {"status":"ok",...}
 ```
 
 ### 7. Frontend
@@ -197,4 +189,4 @@ VITE_MOCK_API=true VITE_DEV_NO_AUTH=true npm run dev   # UI with fake data, no b
 
 `kubectl delete -f deploy/argocd/wishly.yaml` removes Wishly from the cluster
 (prune deletes everything it created), then `terraform destroy` removes the
-tunnel, DNS and watchdog. The database is yours to drop by hand.
+tunnel and DNS. The database is yours to drop by hand.

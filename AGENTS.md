@@ -17,9 +17,8 @@ can call her.
   9am Eastern. No external scheduler.
 - **Host** — home k3s cluster (`deploy/k8s`), kept in sync by Argo CD. CI builds the
   image on GitHub and commits its tag; Argo rolls it out.
-- **Monitoring** — the only thing on AWS: an EventBridge → Lambda watchdog pings a
-  key-protected, rate-limited `/internal/ping` every minute and pushes via ntfy after
-  5 minutes down.
+- **Monitoring** — none. Terraform manages only Cloudflare (tunnel + DNS); AWS is
+  used only for the Terraform state bucket.
 - **Email** — Resend, plain text.
 - **Database** — self-hosted Postgres 18 on my home network (moved off PlanetScale
   2026-10). Set up with `infra/sql/roles.sql`, then `infra/sql/schema.sql`.
@@ -32,4 +31,4 @@ about it and to build cost-effective, higher-availability setups.
 ## Where it's going
 
 v3 (see `v3.md`) is the current target: the app on the home k8s cluster with Argo CD as
-the CD. AWS stays limited to the watchdog Lambda; there is no AWS failover.
+the CD. No AWS resources besides the state bucket; there is no AWS failover.

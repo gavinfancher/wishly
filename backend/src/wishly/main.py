@@ -14,9 +14,8 @@ from functools import partial
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from wishly import api, auth, email, health, ping
+from wishly import api, auth, email, health
 from wishly.db import create_pool
-from wishly.ratelimit import RateLimiter
 from wishly.scheduler import Scheduler
 from wishly.settings import Settings
 
@@ -64,7 +63,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         partial(email.send_via_resend, settings) if settings.resend_api_key else email.print_email
     )
     app.state.scheduler = None  # started by lifespan, if enabled
-    app.state.ping_limiter = RateLimiter(limit=ping.PINGS_PER_MINUTE, window_seconds=60)
 
     # The frontend lives on a different origin, so browsers need CORS headers
     # before they'll let it read our responses.
@@ -78,5 +76,4 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(api.router)
-    app.include_router(ping.router)
     return app

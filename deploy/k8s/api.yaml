@@ -1,6 +1,5 @@
 # The Wishly API: one container, the whole app. It serves the frontend's
-# /v1 API, answers the watchdog's /internal/ping, and sends the 9am Eastern
-# emails from its own scheduler thread.
+# /v1 API and sends the 9am Eastern emails from its own scheduler thread.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,8 +43,6 @@ spec:
           env:
             - name: WISHLY_DATABASE_URL
               valueFrom: { secretKeyRef: { name: wishly, key: WISHLY_DATABASE_URL } }
-            - name: WISHLY_PING_TOKEN
-              valueFrom: { secretKeyRef: { name: wishly, key: WISHLY_PING_TOKEN } }
             - name: WISHLY_RESEND_API_KEY
               valueFrom: { secretKeyRef: { name: wishly, key: WISHLY_RESEND_API_KEY } }
             - name: WISHLY_CORS_ORIGINS
@@ -59,8 +56,7 @@ spec:
             httpGet: { path: /healthz, port: http }
             periodSeconds: 15
             failureThreshold: 3
-          # Readiness does: no database, no traffic. Then the watchdog's ping
-          # fails too, and you hear about it.
+          # Readiness does: no database, no traffic.
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             periodSeconds: 10

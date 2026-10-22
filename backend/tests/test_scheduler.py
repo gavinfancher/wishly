@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import psycopg
 from psycopg_pool import ConnectionPool
@@ -6,7 +6,7 @@ from psycopg_pool import ConnectionPool
 from tests.conftest import make_settings
 from tests.test_run import SEND_TIME, add_mom_reminder
 from wishly.db import create_pool
-from wishly.scheduler import STALL_AFTER, Scheduler, next_tick
+from wishly.scheduler import Scheduler, next_tick
 
 
 def test_next_tick_is_the_next_quarter_hour() -> None:
@@ -40,16 +40,3 @@ def test_a_failing_tick_is_logged_not_raised() -> None:
         pool.close()
 
     assert scheduler.last_tick_at is None
-
-
-def test_stalled_when_ticks_stop_succeeding() -> None:
-    pool = ConnectionPool("postgresql://unused", open=False)
-    scheduler = Scheduler(pool, send_email=lambda **e: None, clock=lambda: SEND_TIME)
-    scheduler.start()
-    try:
-        assert not scheduler.stalled(SEND_TIME + STALL_AFTER)
-        assert scheduler.stalled(SEND_TIME + STALL_AFTER + timedelta(seconds=1))
-    finally:
-        scheduler.stop()
-
-    assert scheduler.stalled(SEND_TIME)  # thread stopped

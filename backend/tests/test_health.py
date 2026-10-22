@@ -42,7 +42,7 @@ def test_ready_when_database_is_up(db: psycopg.Connection) -> None:
 
 
 def test_config_errors_do_not_echo_secrets(monkeypatch) -> None:
-    monkeypatch.setenv("WISHLY_PING_TOKEN", "super-secret-value")
+    monkeypatch.setenv("WISHLY_RESEND_API_KEY", "super-secret-value")
     monkeypatch.delenv("WISHLY_DATABASE_URL", raising=False)
 
     try:

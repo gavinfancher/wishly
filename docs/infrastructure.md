@@ -24,20 +24,12 @@ flowchart LR
   end
 
   db[(Postgres: postgres.ad.gavinf.com)]
-  eb[AWS EventBridge: every minute]
-  lam[Lambda: watchdog]
-  ddb[(DynamoDB: outage state)]
-  ntfy([ntfy: your phone])
   resend[Resend]
   gh[GitHub Actions] --> ghcr[(GHCR image)]
-  inf[(Infisical: prod /wishly)]
+  inf[(Infisical: wishly prod)]
 
   user --> pages
   user -- "session token" --> edge
-  eb --> lam
-  lam -- "GET /internal/ping + ping key" --> edge
-  lam <--> ddb
-  lam -- "down 5 min / back up" --> ntfy
   edge --> cfd --> api
   api --> db
   api --> resend --> inbox
@@ -55,13 +47,11 @@ flowchart LR
 | **Argo CD** | Keeps the cluster matching `deploy/k8s` on `main`: applies changes, prunes what's removed, reverts hand edits. | `deploy/argocd/wishly.yaml` |
 | **Postgres** | The only stateful piece. Postgres 18.4 in Docker on `postgres.ad.gavinf.com`, two roles. | `infra/postgres/compose.yaml`, `infra/sql/roles.sql`, `infra/sql/schema.sql` |
 | **Cloudflare Tunnel + DNS** | Public HTTPS for `api.<domain>` with no open ports or public IP at home. Routes to the `wishly-api` Service. | `infra/terraform/tunnel.tf` |
-| **Watchdog** | EventBridge invokes a Lambda every minute; it calls `GET /internal/ping`, remembers outages in one DynamoDB item, and notifies you once Wishly has been down 5 minutes, and again on recovery. The only thing on AWS. | `infra/terraform/watchdog.tf`, `infra/terraform/lambda/watchdog.py` |
-| **ntfy.sh** | Push notifications to your phone from the watchdog. | `ntfy_topic` Terraform variable |
-| **The `wishly` Secret** | Every credential the pods use, in one Kubernetes Secret, built by the Infisical operator from Infisical's `prod:/wishly` folder. | `deploy/k8s/infisical-secret.yaml` |
-| **Terraform state** | S3 bucket, versioned, S3-native locking. | Created by hand (see README step 2) |
+| **The `wishly` Secret** | Every credential the pods use, in one Kubernetes Secret, built by the Infisical operator from Infisical (project `wishly-tg-hh`, env `prod`). | `deploy/k8s/infisical-secret.yaml` |
+| **Terraform state** | S3 bucket, versioned, S3-native locking. Terraform itself manages only Cloudflare. | Created by hand (see README step 2) |
 | **Resend** | Sends the emails, plain text. SaaS, configured in its dashboard. | — |
 
-## Four paths through the system
+## Three paths through the system
 
 **A user request.** Browser → `api.<domain>` (Cloudflare) → Tunnel → one of
 the cloudflared pods → the `wishly-api` Service → the API pod. A NetworkPolicy
@@ -78,18 +68,6 @@ minutes later, retries it. So the 9:00 tick does the work, and later ticks
 retry failures and catch up after a restart. Two pods overlapping during a
 rollout can't double-send, for the same reason.
 
-**The watchdog.** Every minute EventBridge invokes `wishly-watchdog`, which
-calls `GET /internal/ping` with `Authorization: Bearer <ping key>`. The ping
-answers 200 only when the database answers *and* the scheduler has finished a
-tick in the last 31 minutes; anything else (no answer, a Cloudflare tunnel
-error, 503, 401) is "down". The Lambda records when an outage started in
-DynamoDB; once it's 5 minutes old it pushes a high-priority ntfy notification,
-once. When a ping succeeds again it pushes "back up" with how long it lasted.
-
-The ping endpoint is public (it has to be reachable through the tunnel), so
-it's rate-limited per client (10 a minute, keyed on Cloudflare's
-`CF-Connecting-IP`) before the key is even checked.
-
 **A deploy.** Merge to `main` → GitHub-hosted runner runs the tests and pushes
 `ghcr.io/<owner>/wishly:<sha>` → the `release` job rewrites `newTag` in
 `deploy/k8s/kustomization.yaml` and pushes that commit → Argo CD, polling
@@ -100,7 +78,7 @@ cluster credentials; the cluster pulls.
 ## Secrets: where each one comes from and goes
 
 Nothing secret is committed or baked into the image. The cluster's credentials
-live in Infisical (env `prod`, folder `/wishly`); the Infisical operator copies
+live in Infisical (project `wishly-tg-hh`, env `prod`); the Infisical operator copies
 them into one Kubernetes Secret, `wishly`, and keeps it in sync. Each pod reads
 only its own keys from it. Your password manager is the record of everything you made
 by hand.
@@ -110,13 +88,11 @@ by hand.
 | `WISHLY_DATABASE_URL` (`wishly_app` role) | You, when running `roles.sql` | `wishly` Secret, your password manager | The API |
 | `wishly_schema` password | You, when running `roles.sql` | Your password manager | You, when applying `schema.sql` |
 | Postgres superuser password | The first-start command (README step 4) | `/opt/postgres/.env` on the DB host (mode 0600) | You, when running `roles.sql` |
-| `WISHLY_PING_TOKEN` | Terraform (`random_password`) | Terraform state → `wishly` Secret | The API; the Lambda gets its own copy as an environment variable |
-| `ntfy_topic` | You (`terraform.tfvars`) | `terraform.tfvars` (gitignored) | The Lambda. Anyone with the name can read the topic, so keep it long and random. |
 | `TUNNEL_TOKEN` | Terraform (Cloudflare) | Terraform state → `wishly` Secret | cloudflared |
 | `WISHLY_RESEND_API_KEY` | Resend dashboard | `wishly` Secret, your password manager | The API |
 | `WISHLY_CORS_ORIGINS` | Terraform (plain config, not secret) | `wishly` Secret | The API |
 | `WISHLY_SIGNUP_ENABLED` | You (optional; `false` once your account exists) | `wishly` Secret | The API |
-| Provider tokens (AWS, Cloudflare) | Each dashboard | `infra/terraform/.env` (gitignored) | Terraform, from your shell's environment |
+| Provider tokens (Cloudflare; AWS only for the state bucket) | Each dashboard | `infra/terraform/.env` (gitignored) | Terraform, from your shell's environment |
 
 **Changing a secret** means editing it in Infisical. Within a minute the
 operator updates the Secret and restarts both Deployments (they carry
@@ -127,8 +103,8 @@ only at start.
 operator creates and owns the Secret. After a cluster rebuild, the operator's
 machine identity (homek8s) is the only thing to recreate by hand.
 
-**Terraform state holds secrets.** The ping key and tunnel token sit in state,
-because Terraform generated them; you copy them from its output into Infisical. That's why the state
+**Terraform state holds secrets.** The tunnel token sits in state, because
+Terraform generated it; you copy it from its output into Infisical. That's why the state
 bucket is private, versioned, and blocks all public access.
 
 ## Least privilege
@@ -141,9 +117,6 @@ bucket is private, versioned, and blocks all public access.
   no service-account token, and the runtime's default seccomp profile. The
   namespace's Pod Security level rejects anything less.
 - **The API** accepts connections only from cloudflared (NetworkPolicy).
-- **The Lambda's IAM role** may write to its own log group and get/put its
-  own DynamoDB table, nothing else, and only its EventBridge rule may invoke it.
-- **The ping key** only opens `/internal/ping`, which reads nothing about users.
 - **CI** can push images and commit to the repo, but has no access to the
   cluster or its Secret. Argo CD pulls from a public repo, so it needs no
   credentials either.
@@ -157,69 +130,52 @@ Each step needs something the one before it made:
 1. **Image** (CI on push): the cluster needs something to pull.
 2. **State bucket** (by hand): Terraform can't store state in a bucket it hasn't
    made yet.
-3. **Terraform apply**: tunnel, DNS, watchdog, and the ping key the Secret needs.
+3. **Terraform apply**: tunnel and DNS, and the tunnel token the Secret needs.
 4. **Database** (Compose on the DB host, then `roles.sql`, then `schema.sql`):
    tables must exist before the API serves traffic, and the Secret needs the
    `wishly_app` password.
-5. **Cluster**: the `/wishly` folder in Infisical, then the Argo CD Application.
+5. **Cluster**: the keys in Infisical, then the Argo CD Application.
    From then on, merges deploy.
 6. **Frontend** on Cloudflare Pages, pointed at `https://api.<domain>/v1`.
-
-The watchdog starts pinging as soon as step 3 finishes, and will report Wishly
-down until step 5 is done. That's expected; it's also a quick test that alerts
-reach your phone.
 
 ## When something fails
 
 | Failure | What happens | What you see |
 |---|---|---|
-| Postgres down | `/healthz` stays 200; `/readyz` 503, so the pod leaves the Service; the ping fails | Push after 5 min. Sends due today retry every 15 min until midnight Eastern. |
-| The API pod crashes | Kubernetes restarts it (liveness on `/healthz`) | Usually nothing; a push if it can't recover within 5 min. |
-| The scheduler thread dies or stalls | `/internal/ping` returns 503 "scheduler stalled" after 31 minutes | Push 5 min later. |
-| Cluster or home network down | Cloudflare can't reach a tunnel connector | Push after 5 min. Reminders due that day still go out if it's back before midnight Eastern. |
+| Postgres down | `/healthz` stays 200; `/readyz` 503, so the pod leaves the Service | Errors from the API. Sends due today retry every 15 min until midnight Eastern. |
+| The API pod crashes | Kubernetes restarts it (liveness on `/healthz`) | Usually nothing; Argo CD shows it Degraded if it can't recover. |
+| The scheduler thread dies or stalls | Nothing notices | No emails, and no more `scheduled send` lines in the API's log. |
+| Cluster or home network down | Cloudflare can't reach a tunnel connector | `api.<domain>` returns a Cloudflare error. Reminders due that day still go out if it's back before midnight Eastern. |
 | One cloudflared pod down | The other carries traffic; the PodDisruptionBudget keeps one up through drains | Nothing. |
 | Resend down | The send fails, its `sends` row is deleted | Retried every 15 min until midnight Eastern. |
 | A deploy ships a broken image | The new pod never passes `/readyz`; the old one keeps serving (`maxUnavailable: 0`) | Argo CD shows the app Degraded. Revert the `deploy:` commit. |
 | You change a secret | The Infisical operator updates it within a minute and restarts the pods one at a time | Nothing. |
 | The DB host reboots | Docker restarts Postgres (`restart: unless-stopped`); the API's pool reconnects | A few seconds of errors, if anyone is using it. |
 | The DB host's disk dies | Everything since the last backup is gone | There are no backups yet; see Known gaps. |
-| The watchdog itself breaks | No pings, no pushes | Silence. Check its log group now and then. |
 | Terraform state lost | — | Prevented: state is in versioned S3, never on a laptop. |
 
 ## Watching it
 
-Every watchdog check writes one JSON line to the `/aws/lambda/wishly-watchdog`
-log group (kept 14 days):
-
-```json
-{"at": "2026-10-12T13:00:01+00:00", "status": 200, "error": null, "ok": true,
- "duration_ms": 142, "down_for_s": null}
-```
+There's no external monitoring. Check by hand:
 
 ```bash
-aws logs tail /aws/lambda/wishly-watchdog --follow
+curl https://api.<domain>/readyz              # {"status":"ready"}
 kubectl -n wishly logs deploy/wishly-api -f   # includes each "scheduled send: {...}"
 ```
 
-Or query outages in CloudWatch → Logs Insights:
-
-```
-fields at, status, error, down_for_s
-| filter ok = 0
-| sort @timestamp desc
-```
+Argo CD's UI shows whether the app is Synced and Healthy.
 
 ## Known gaps
 
-- **No failover.** If the cluster or home network is down, so is Wishly. You
-  hear about it within 5 minutes and fix it when you choose.
+- **No failover.** If the cluster or home network is down, so is Wishly.
+- **No alerting.** Nothing tells you Wishly is down or the scheduler stopped;
+  you find out by looking (or by a missing reminder).
 - **No login rate limiting.** Passwords are slow to hash (scrypt), but nothing
-  stops repeated guesses. The ping endpoint's limiter (`ratelimit.py`) could
-  be reused, or Cloudflare rate limiting on `/v1/auth/login`.
+  stops repeated guesses. Cloudflare rate limiting on `/v1/auth/login` would
+  cover it.
 - **One API replica.** It's also the scheduler. More replicas would be safe
   (the `sends` key) but each would run its own scheduler; not worth it at this
   scale.
-- **Nobody watches the watchdog.** If the Lambda breaks, outages go unreported.
 - **No database backups.** Postgres is one Docker volume on one box. A nightly
   `pg_dump` to somewhere else (S3, a NAS) is the obvious next step.
 - **Secrets aren't versioned.** The `wishly` Secret has no history; your

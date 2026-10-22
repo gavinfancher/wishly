@@ -22,7 +22,6 @@ scheduler that sends the emails all run in the same process.
 | POST   | `/v1/reminders`          | session     | Create                               |
 | PUT    | `/v1/reminders/{id}`     | session     | Replace                              |
 | DELETE | `/v1/reminders/{id}`     | session     | Delete                               |
-| GET    | `/internal/ping`         | ping key    | Watchdog check: DB answers and scheduler is ticking. Rate-limited per client. |
 
 Another user's reminder ID returns 404, not 403.
 
@@ -82,10 +81,6 @@ For each due reminder:
 2. **Send** via Resend, with `Idempotency-Key: <reminder>/<days>/<date>`.
 3. **On failure, release** the claim (delete the row), so the next tick retries.
 
-`/internal/ping` reports the scheduler stalled if no tick has finished for 31
-minutes (two missed ticks plus slack), which the watchdog turns into a push
-notification.
-
 ## Decisions
 
 - Feb 29 dates fall on Feb 28 in non-leap years.
@@ -98,8 +93,7 @@ notification.
 See the README for the full bring-up. In short:
 
 - **Image:** `backend/Dockerfile`, published to GHCR by `.github/workflows/api.yml`.
-- **Infra:** `infra/terraform` creates the Cloudflare Tunnel and DNS, and the
-  watchdog (EventBridge → Lambda, every minute). Its outputs, the
+- **Infra:** `infra/terraform` creates the Cloudflare Tunnel and DNS. Its outputs, the
   database URL and the Resend key go into Infisical, which feeds the cluster.
 - **Cluster:** `deploy/k8s` (kustomize), applied by Argo CD from `main`.
   Merging to `main` deploys: CI builds the image and commits its tag to
