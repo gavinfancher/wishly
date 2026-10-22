@@ -22,4 +22,4 @@ resources:
 # and pushes; Argo sees the commit and rolls the Deployment.
 images:
   - name: ghcr.io/gavinfancher/wishly
-    newTag: 7f5001d
+    newTag: 890020c
