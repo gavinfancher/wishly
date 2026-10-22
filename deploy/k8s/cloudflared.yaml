@@ -9,8 +9,9 @@ metadata:
   annotations:
     secrets.infisical.com/auto-reload: "true" # restart when the `wishly` Secret changes
 spec:
-  # Two connectors: one can restart or move nodes while the other carries traffic.
-  replicas: 2
+  # One connector per worker node: any of them can restart or move while the
+  # others carry traffic.
+  replicas: 3
   selector:
     matchLabels:
       app: cloudflared
@@ -20,6 +21,34 @@ spec:
         app: cloudflared
     spec:
       automountServiceAccountToken: false
+      # One pod per worker. If a worker dies or is drained, its pod comes back on
+      # a healthy worker (two there for a while), so there are always 3.
+      #   nodeTaintsPolicy: Honor  — skip nodes this pod can't schedule on (down,
+      #     cordoned, the control plane); the default would count a dead node as
+      #     an empty spot and leave the replacement Pending.
+      #   matchLabelKeys           — spread each rollout's new pods among
+      #     themselves, so a deploy always ends 1/1/1.
+      # It doesn't rebalance: after a dead worker returns, the next deploy evens
+      # things out again.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app: cloudflared
+          matchLabelKeys: [pod-template-hash]
+      # Replace pods on an unreachable node after 60s instead of the default 5 min.
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532 # the image's `nonroot` user
@@ -60,13 +89,13 @@ spec:
             capabilities:
               drop: [ALL]
 ---
-# Keep at least one connector up through node drains and cluster upgrades.
+# Drains and cluster upgrades take down at most one connector at a time.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: cloudflared
 spec:
-  minAvailable: 1
+  minAvailable: 2
   selector:
     matchLabels:
       app: cloudflared

@@ -7,10 +7,10 @@ metadata:
   annotations:
     secrets.infisical.com/auto-reload: "true" # restart when the `wishly` Secret changes
 spec:
-  # One replica: it's the scheduler too. During a rollout the old and new pods
-  # overlap for a moment, which is safe — the `sends` table stops a reminder
-  # going out twice.
-  replicas: 1
+  # One per worker node. Each replica runs its own scheduler thread too; that's
+  # safe, because a send first claims its row in the `sends` table and only
+  # one claim can win, so a reminder never goes out twice.
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,6 +25,34 @@ spec:
         app: wishly-api
     spec:
       automountServiceAccountToken: false # it never talks to the Kubernetes API
+      # One pod per worker. If a worker dies or is drained, its pod comes back on
+      # a healthy worker (two there for a while), so there are always 3.
+      #   nodeTaintsPolicy: Honor  — skip nodes this pod can't schedule on (down,
+      #     cordoned, the control plane); the default would count a dead node as
+      #     an empty spot and leave the replacement Pending.
+      #   matchLabelKeys           — spread each rollout's new pods among
+      #     themselves, so a deploy always ends 1/1/1.
+      # It doesn't rebalance: after a dead worker returns, the next deploy evens
+      # things out again.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app: wishly-api
+          matchLabelKeys: [pod-template-hash]
+      # Replace pods on an unreachable node after 60s instead of the default 5 min.
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001 # the `wishly` user in backend/Dockerfile
@@ -81,3 +109,14 @@ spec:
     - name: http
       port: 8000
       targetPort: http
+---
+# Draining a node evicts at most one API pod at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: wishly-api
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: wishly-api

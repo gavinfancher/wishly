@@ -17,8 +17,8 @@ flowchart LR
   end
 
   subgraph k8s[Home k8s cluster, namespace wishly]
-    cfd[cloudflared x2]
-    api[wishly-api: API + 9am scheduler]
+    cfd[cloudflared x3]
+    api[wishly-api x3: API + 9am scheduler]
     sec[/Secret: wishly/]
     argo[Argo CD]
   end
@@ -43,7 +43,7 @@ flowchart LR
 | Piece | What it does | Where it's defined |
 |---|---|---|
 | **API image** | The whole app in one container: the FastAPI API, the session auth, and the scheduler thread that sends reminders at 9am Eastern. Tagged by commit SHA on GHCR. | `backend/`, `.github/workflows/api.yml` |
-| **Kubernetes** | k3s at home. Runs `wishly-api` (1 replica) and `cloudflared` (2 replicas) in the `wishly` namespace, which enforces the `restricted` Pod Security level. | `deploy/k8s/` |
+| **Kubernetes** | k3s at home. Runs `wishly-api` and `cloudflared`, 3 replicas each, one per worker node (a dead or drained worker's pod moves to another within about a minute), in the `wishly` namespace, which enforces the `restricted` Pod Security level. | `deploy/k8s/` |
 | **Argo CD** | Keeps the cluster matching `deploy/k8s` on `main`: applies changes, prunes what's removed, reverts hand edits. | `deploy/argocd/wishly.yaml` |
 | **Postgres** | The only stateful piece. Postgres 18.4 in Docker on `postgres.ad.gavinf.com`, two roles. | `infra/postgres/compose.yaml`, `infra/sql/roles.sql`, `infra/sql/schema.sql` |
 | **Cloudflare Tunnel + DNS** | Public HTTPS for `api.<domain>` with no open ports or public IP at home. Routes to the `wishly-api` Service. | `infra/terraform/tunnel.tf` |
@@ -54,7 +54,7 @@ flowchart LR
 ## Three paths through the system
 
 **A user request.** Browser → `api.<domain>` (Cloudflare) → Tunnel → one of
-the cloudflared pods → the `wishly-api` Service → the API pod. A NetworkPolicy
+the cloudflared pods → the `wishly-api` Service → any of the three API pods. A NetworkPolicy
 lets only cloudflared open connections to the API. The API hashes the session
 token from the `Authorization` header, looks it up in `sessions`, then queries
 Postgres as `wishly_app`. Auth lives in the API itself (no third-party
@@ -65,8 +65,8 @@ identity provider); see `backend/src/wishly/auth.py`.
 inserts a row into `sends` (the primary key lets exactly one attempt win), then
 emails it through Resend. A failed send deletes its row, so the next tick, 15
 minutes later, retries it. So the 9:00 tick does the work, and later ticks
-retry failures and catch up after a restart. Two pods overlapping during a
-rollout can't double-send, for the same reason.
+retry failures and catch up after a restart. All three replicas run this
+thread, and they can't double-send, for the same reason: only one claim wins.
 
 **A deploy.** Merge to `main` → GitHub-hosted runner runs the tests and pushes
 `ghcr.io/<owner>/wishly:<sha>` → the `release` job rewrites `newTag` in
@@ -143,10 +143,11 @@ Each step needs something the one before it made:
 | Failure | What happens | What you see |
 |---|---|---|
 | Postgres down | `/healthz` stays 200; `/readyz` 503, so the pod leaves the Service | Errors from the API. Sends due today retry every 15 min until midnight Eastern. |
-| The API pod crashes | Kubernetes restarts it (liveness on `/healthz`) | Usually nothing; Argo CD shows it Degraded if it can't recover. |
+| An API pod crashes | The other two keep serving; Kubernetes restarts it (liveness on `/healthz`) | Nothing; Argo CD shows it Degraded if it can't recover. |
 | The scheduler thread dies or stalls | Nothing notices | No emails, and no more `scheduled send` lines in the API's log. |
 | Cluster or home network down | Cloudflare can't reach a tunnel connector | `api.<domain>` returns a Cloudflare error. Reminders due that day still go out if it's back before midnight Eastern. |
-| One cloudflared pod down | The other carries traffic; the PodDisruptionBudget keeps one up through drains | Nothing. |
+| A worker node dies | Its API and cloudflared pods are replaced on the other workers after 60s; the other two of each keep serving meanwhile | Nothing. The pods stay doubled up until the next deploy. |
+| A worker is drained | The PodDisruptionBudgets evict one API pod and one connector at a time; each comes back on another worker | Nothing. |
 | Resend down | The send fails, its `sends` row is deleted | Retried every 15 min until midnight Eastern. |
 | A deploy ships a broken image | The new pod never passes `/readyz`; the old one keeps serving (`maxUnavailable: 0`) | Argo CD shows the app Degraded. Revert the `deploy:` commit. |
 | You change a secret | The Infisical operator updates it within a minute and restarts the pods one at a time | Nothing. |
@@ -173,9 +174,8 @@ Argo CD's UI shows whether the app is Synced and Healthy.
 - **No login rate limiting.** Passwords are slow to hash (scrypt), but nothing
   stops repeated guesses. Cloudflare rate limiting on `/v1/auth/login` would
   cover it.
-- **One API replica.** It's also the scheduler. More replicas would be safe
-  (the `sends` key) but each would run its own scheduler; not worth it at this
-  scale.
+- **Three schedulers.** Each API replica runs its own 9am sender. Safe (the
+  `sends` key lets one claim win), just redundant work every 15 minutes.
 - **No database backups.** Postgres is one Docker volume on one box. A nightly
   `pg_dump` to somewhere else (S3, a NAS) is the obvious next step.
 - **Secrets aren't versioned.** The `wishly` Secret has no history; your

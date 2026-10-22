@@ -140,7 +140,7 @@ Then hand `deploy/k8s` to Argo CD. From here on, git is the deploy tool:
 
 ```bash
 kubectl apply -f deploy/argocd/wishly.yaml
-kubectl -n wishly get pods -w     # wishly-api 1/1, cloudflared 2/2
+kubectl -n wishly get pods -w     # 3 wishly-api + 3 cloudflared, one of each per worker
 ```
 
 ### 6. Check it
