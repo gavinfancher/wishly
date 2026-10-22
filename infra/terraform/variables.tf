@@ -1,10 +1,3 @@
-# --- AWS (cleanup only; remove with the providers in versions.tf) -------------
-
-variable "aws_region" {
-  type    = string
-  default = "us-east-1"
-}
-
 # --- Cloudflare --------------------------------------------------------------
 
 variable "cloudflare_account_id" {
