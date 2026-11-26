@@ -8,7 +8,7 @@ output "api_url" {
 #   terraform output -json cluster_secret_values
 #
 # The other half you add there yourself: WISHLY_RESEND_API_KEY (Resend's
-# dashboard) and WISHLY_DATABASE_URL (the wishly_app role; see infra/sql/roles.sql).
+# dashboard) and WISHLY_DATABASE_URL (the wishly role; see infra/sql/roles.sql).
 output "cluster_secret_values" {
   sensitive = true
   value = {

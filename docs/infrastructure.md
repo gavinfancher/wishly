@@ -45,7 +45,7 @@ flowchart LR
 | **API image** | The whole app in one container: the FastAPI API, the session auth, and the scheduler thread that sends reminders at 9am Eastern. Tagged by commit SHA on GHCR. | `backend/`, `.github/workflows/api.yml` |
 | **Kubernetes** | k3s at home. Runs `wishly-api` and `cloudflared`, 3 replicas each, one per worker node (a dead or drained worker's pod moves to another within about a minute), in the `wishly` namespace, which enforces the `restricted` Pod Security level. | `deploy/k8s/` |
 | **Argo CD** | Keeps the cluster matching `deploy/k8s` on `main`: applies changes, prunes what's removed, reverts hand edits. | `deploy/argocd/wishly.yaml` |
-| **Postgres** | The only stateful piece. Postgres 18.4 in Docker on `postgres.ad.gavinf.com`, two roles. | `infra/postgres/compose.yaml`, `infra/sql/roles.sql`, `infra/sql/schema.sql` |
+| **Postgres** | The only stateful piece. Postgres 18.4 in Docker on `postgres.ad.gavinf.com`, one role (`wishly`). | `infra/postgres/compose.yaml`, `infra/sql/roles.sql`, `infra/sql/schema.sql` |
 | **Cloudflare Tunnel + DNS** | Public HTTPS for `api.<domain>` with no open ports or public IP at home. Routes to the `wishly-api` Service. | `infra/terraform/tunnel.tf` |
 | **The `wishly` Secret** | Every credential the pods use, in one Kubernetes Secret, built by the Infisical operator from Infisical (project `wishly-tg-hh`, env `prod`). | `deploy/k8s/infisical-secret.yaml` |
 | **Terraform state** | S3 bucket, versioned, S3-native locking. Terraform itself manages only Cloudflare. | Created by hand (see README step 2) |
@@ -57,7 +57,7 @@ flowchart LR
 the cloudflared pods → the `wishly-api` Service → any of the three API pods. A NetworkPolicy
 lets only cloudflared open connections to the API. The API hashes the session
 token from the `Authorization` header, looks it up in `sessions`, then queries
-Postgres as `wishly_app`. Auth lives in the API itself (no third-party
+Postgres as `wishly`. Auth lives in the API itself (no third-party
 identity provider); see `backend/src/wishly/auth.py`.
 
 **The daily send.** A thread inside the API wakes every quarter hour. From
@@ -85,8 +85,7 @@ by hand.
 
 | Secret | Created by | Lives in | Read by |
 |---|---|---|---|
-| `WISHLY_DATABASE_URL` (`wishly_app` role) | You, when running `roles.sql` | `wishly` Secret, your password manager | The API |
-| `wishly_schema` password | You, when running `roles.sql` | Your password manager | You, when applying `schema.sql` |
+| `WISHLY_DATABASE_URL` (`wishly` role) | You, when running `roles.sql` | `wishly` Secret, your password manager | The API, and you when applying `schema.sql` |
 | Postgres superuser password | The first-start command (README step 4) | `/opt/postgres/.env` on the DB host (mode 0600) | You, when running `roles.sql` |
 | `TUNNEL_TOKEN` | Terraform (Cloudflare) | Terraform state → `wishly` Secret | cloudflared |
 | `WISHLY_RESEND_API_KEY` | Resend dashboard | `wishly` Secret, your password manager | The API |
@@ -109,10 +108,13 @@ bucket is private, versioned, and blocks all public access.
 
 ## Least privilege
 
-- **Database roles.** The API connects as `wishly_app`
-  (`pg_read_all_data` + `pg_write_all_data`): it can read and write rows but
-  cannot create, alter, or drop tables. Only `wishly_schema` (owns the
-  database) can change the schema, and only a person uses it.
+- **Database role.** The API connects as `wishly`, which owns the `wishly`
+  database and nothing else, the same one-role-per-app pattern as the other
+  apps on the shared Postgres. Only `wishly` (and the backup role) may connect
+  to it. The API never runs DDL; the schema changes only when you apply
+  `schema.sql`. (Until 2026-11 this was split into `wishly_app`, rows only, and
+  `wishly_schema`, owner. One role is simpler, at the cost that a compromised
+  API could also alter or drop its own tables.)
 - **Pods** run as non-root with a read-only filesystem, no Linux capabilities,
   no service-account token, and the runtime's default seccomp profile. The
   namespace's Pod Security level rejects anything less.
@@ -133,7 +135,7 @@ Each step needs something the one before it made:
 3. **Terraform apply**: tunnel and DNS, and the tunnel token the Secret needs.
 4. **Database** (Compose on the DB host, then `roles.sql`, then `schema.sql`):
    tables must exist before the API serves traffic, and the Secret needs the
-   `wishly_app` password.
+   `wishly` password.
 5. **Cluster**: the keys in Infisical, then the Argo CD Application.
    From then on, merges deploy.
 6. **Frontend** on Cloudflare Pages, pointed at `https://api.<domain>/v1`.

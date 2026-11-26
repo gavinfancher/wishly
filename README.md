@@ -12,7 +12,7 @@ frontend/         React app → Cloudflare Pages
 deploy/k8s/       what runs in the cluster: the API and cloudflared
 deploy/argocd/    the Argo CD Application that keeps the cluster matching deploy/k8s
 infra/postgres/   the production Postgres: one Compose file for its Docker host
-infra/sql/        roles.sql (one-time database + roles), schema.sql (the tables)
+infra/sql/        roles.sql (one-time database + role), schema.sql (the tables)
 infra/terraform/  Cloudflare Tunnel + DNS
 docs/design.md    how the app works
 docs/infrastructure.md  how it runs: every piece, secret, and failure mode
@@ -25,7 +25,7 @@ docs/infrastructure.md  how it runs: every piece, secret, and failure mode
   external scheduler.
 - **Postgres** runs in Docker on its own box on your network
   (`postgres.ad.gavinf.com`, from `infra/postgres/compose.yaml`);
-  `infra/sql/roles.sql` creates the database and its two roles.
+  `infra/sql/roles.sql` creates the database and the `wishly` role that owns it.
 - **Kubernetes** (k3s at home) runs the API and two cloudflared connectors.
   Cloudflare Tunnel carries `api.<domain>` in; nothing at home is exposed.
 - **Secrets** live in Infisical (project `wishly-tg-hh`, env `prod`). The cluster's
@@ -102,21 +102,13 @@ ssh ubuntu@$DB 'cd /opt/postgres && umask 077 &&
   docker compose up -d --wait && docker compose ps'
 ```
 
-Then create the database and its two roles (`infra/sql/roles.sql`), and the
-tables as the schema role (`infra/sql/schema.sql`). Read both first. Run these in
-one shell, so the passwords carry through to step 5:
+Then create the database and its `wishly` role (`infra/sql/roles.sql`), and the
+tables as that role (`infra/sql/schema.sql`). Read both first.
 
 ```bash
-SUPER_PW=$(ssh ubuntu@$DB 'sed -n "s/^POSTGRES_PASSWORD=//p" /opt/postgres/.env')
-APP_PW=$(openssl rand -hex 24) SCHEMA_PW=$(openssl rand -hex 24)
-
-docker run --rm -i postgres:18.4 psql "postgresql://postgres:$SUPER_PW@$DB:5432/postgres" \
-  -v ON_ERROR_STOP=1 -v app_password="$APP_PW" -v schema_password="$SCHEMA_PW" \
-  < infra/sql/roles.sql
-docker run --rm -i postgres:18.4 psql "postgresql://wishly_schema:$SCHEMA_PW@$DB:5432/wishly" \
-  -v ON_ERROR_STOP=1 < infra/sql/schema.sql
-
-echo "wishly_app: $APP_PW   wishly_schema: $SCHEMA_PW"   # into your password manager
+openssl rand -hex 24                        # the wishly password, into your password manager
+pgcli -h $DB -U postgres                    # paste roles.sql, with the password in place of <pw>
+pgcli -h $DB -U wishly -d wishly            # then: \i infra/sql/schema.sql
 ```
 
 Both SQL files are safe to re-run. They only create what's missing.
@@ -129,7 +121,7 @@ In its **Production** env, at the root, add these keys:
 
 | Key | Value |
 |---|---|
-| `WISHLY_DATABASE_URL` | `postgresql://wishly_app:<APP_PW>@<DB>:5432/wishly` |
+| `WISHLY_DATABASE_URL` | `postgresql://wishly:<PW>@<DB>:5432/wishly` |
 | `WISHLY_RESEND_API_KEY` | from Resend |
 | `TUNNEL_TOKEN`, `WISHLY_CORS_ORIGINS` | `terraform -chdir=infra/terraform output -json cluster_secret_values` |
 | `WISHLY_SIGNUP_ENABLED` | optional; `false` once your account exists |

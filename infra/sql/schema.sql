@@ -1,14 +1,11 @@
 -- Wishly database schema: the whole thing, in one file.
 --
--- On a fresh server, run roles.sql first: it creates the database and roles.
+-- On a fresh server, run roles.sql first: it creates the database and the wishly role.
 --
--- Review it, then apply it with the schema role (the API's own role can't
--- create tables):
+-- Review it, then apply it as wishly (the role the API uses), from the repo root:
 --
---   docker run --rm -i postgres:18.4 psql "$WISHLY_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1 \
---     < infra/sql/schema.sql
---
--- where WISHLY_SCHEMA_DATABASE_URL=postgresql://wishly_schema:<pw>@<host>:5432/wishly
+--   pgcli -h postgres.ad.gavinf.com -U wishly -d wishly
+--   \i infra/sql/schema.sql
 --
 -- Safe to re-run: every statement is "if not exists", so a second run changes
 -- nothing. It also never changes a table that already exists. To change one,

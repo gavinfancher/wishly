@@ -59,9 +59,10 @@ Sequential ids are safe here because every query is scoped to the caller's
 `user_id`; guessing someone else's id gets a 404.
 
 Plain SQL through psycopg. The whole schema is `infra/sql/schema.sql`: one
-file you read, then apply with `psql` as the `wishly_schema` role. It's
+file you read, then apply with `psql` as the `wishly` role. It's
 idempotent (`if not exists`) and runs in a transaction. The API connects as
-`wishly_app`, which can read and write rows but can't create or drop tables.
+the same `wishly` role, which owns the database. The API never runs DDL itself:
+only you change the schema, by applying this file.
 
 ## The daily send
 
