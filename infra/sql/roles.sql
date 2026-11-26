@@ -21,9 +21,9 @@ create database wishly owner wishly;
 
 \c wishly
 
--- Only wishly and the shared backup role may connect.
+-- Only wishly may connect. (Backups run as the superuser on the DB host; see homelab postgres/backup.)
 revoke all on database wishly from public;
-grant connect on database wishly to wishly, backup;
+grant connect on database wishly to wishly;
 
 -- wishly owns public, so schema.sql can create tables in it. Nobody else can.
 alter schema public owner to wishly;

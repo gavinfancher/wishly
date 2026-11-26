@@ -110,7 +110,7 @@ bucket is private, versioned, and blocks all public access.
 
 - **Database role.** The API connects as `wishly`, which owns the `wishly`
   database and nothing else, the same one-role-per-app pattern as the other
-  apps on the shared Postgres. Only `wishly` (and the backup role) may connect
+  apps on the shared Postgres. Only `wishly` may connect
   to it. The API never runs DDL; the schema changes only when you apply
   `schema.sql`. (Until 2026-11 this was split into `wishly_app`, rows only, and
   `wishly_schema`, owner. One role is simpler, at the cost that a compromised
@@ -154,7 +154,7 @@ Each step needs something the one before it made:
 | A deploy ships a broken image | The new pod never passes `/readyz`; the old one keeps serving (`maxUnavailable: 0`) | Argo CD shows the app Degraded. Revert the `deploy:` commit. |
 | You change a secret | The Infisical operator updates it within a minute and restarts the pods one at a time | Nothing. |
 | The DB host reboots | Docker restarts Postgres (`restart: unless-stopped`); the API's pool reconnects | A few seconds of errors, if anyone is using it. |
-| The DB host's disk dies | Everything since the last backup is gone | There are no backups yet; see Known gaps. |
+| The DB host's disk dies | Everything since the last backup (up to 2 hours) is gone | Restore the newest R2 backup onto a new server (homelab `postgres/backup/README.md`). |
 | Terraform state lost | — | Prevented: state is in versioned S3, never on a laptop. |
 
 ## Watching it
@@ -178,8 +178,9 @@ Argo CD's UI shows whether the app is Synced and Healthy.
   cover it.
 - **Three schedulers.** Each API replica runs its own 9am sender. Safe (the
   `sends` key lets one claim win), just redundant work every 15 minutes.
-- **No database backups.** Postgres is one Docker volume on one box. A nightly
-  `pg_dump` to somewhere else (S3, a NAS) is the obvious next step.
+- **Backups are short-lived.** The shared Postgres is dumped to Cloudflare R2 every 2 hours
+  (homelab `postgres/backup/`), but only the newest 24 are kept: 2 days. A mistake noticed later
+  than that can't be undone from backup.
 - **Secrets aren't versioned.** The `wishly` Secret has no history; your
   password manager is the backup.
 
