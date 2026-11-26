@@ -12,13 +12,15 @@ can call her.
 - **Auth** — our own email + password sessions in the API. 8-character minimum, no
   password resets (planned: split out into its own auth microservice).
 - **API** — FastAPI (Python), one self-contained container, exposed at api.wishly.dev
-  via a Cloudflare Tunnel. Secrets live in one hand-made Kubernetes Secret, never in git.
+  via a Cloudflare Tunnel. Secrets live in Infisical (`prod`); the cluster's Infisical
+  operator syncs them into the `wishly` Kubernetes Secret. Never in git.
 - **Scheduling** — inside the API: a scheduler thread sends everyone's reminders at
   9am Eastern. No external scheduler.
 - **Host** — home k3s cluster (`deploy/k8s`), kept in sync by Argo CD. CI builds the
   image on GitHub and commits its tag; Argo rolls it out.
-- **Monitoring** — none. Terraform manages only Cloudflare (tunnel + DNS); AWS is
-  used only for the Terraform state bucket.
+- **Monitoring** — the cluster runs Prometheus/Grafana, but nothing alerts on Wishly yet.
+  Terraform manages only Cloudflare (tunnel + DNS); AWS is used only for the Terraform
+  state bucket.
 - **Email** — Resend, plain text.
 - **Database** — self-hosted Postgres 18 on my home network (moved off PlanetScale
   2026-10). Set up with `infra/sql/roles.sql`, then `infra/sql/schema.sql`.
@@ -30,5 +32,5 @@ about it and to build cost-effective, higher-availability setups.
 
 ## Where it's going
 
-v3 (see `v3.md`) is the current target: the app on the home k8s cluster with Argo CD as
+v3 (original notes: `docs/v3-notes.md`) is the current target: the app on the home k8s cluster with Argo CD as
 the CD. No AWS resources besides the state bucket; there is no AWS failover.

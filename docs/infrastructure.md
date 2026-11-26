@@ -189,3 +189,12 @@ have done nothing while a failover watchdog kept trying (and failing) to start
 ECS tasks every 15 minutes. The orphans were found by their `Project=wishly`
 tags and deleted with the AWS CLI in dependency order (consumers before what
 they consume, the VPC last). v2 onward keeps state in a versioned S3 bucket.
+
+## History: an image tag that could turn into a number
+
+CI writes the new image tag into `deploy/k8s/kustomization.yaml` as a short
+commit SHA. A SHA made only of digits (like `4091725`) is valid hex, but YAML
+reads an unquoted `newTag: 4091725` as an integer, not a string, and the deploy
+would break on about 1 commit in 27 ((10/16)^7). The CI step now writes the tag in
+quotes.
+
